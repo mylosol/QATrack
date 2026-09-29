@@ -138,7 +138,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_site, "deploy-iis.ps1")));
     }
 
-    private (int ExitCode, string Output) RunDiagnose(string programFiles64)
+    private (int ExitCode, string Output) RunDiagnose(string programFiles64, params string[] extraArgs)
     {
         var psi = new ProcessStartInfo("powershell.exe")
         {
@@ -152,7 +152,7 @@ public sealed class DeployScriptTests : IDisposable
                  {
                      "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ScriptPath(),
                      "-Action", "Diagnose", "-SourcePath", _package, "-PhysicalPath", _site,
-                 })
+                 }.Concat(extraArgs))
         {
             psi.ArgumentList.Add(arg);
         }
@@ -185,6 +185,54 @@ public sealed class DeployScriptTests : IDisposable
 
         Assert.True(exitCode == 0, output);
         Assert.Matches(@"\[ OK \] ASP\.NET Core Module V2: .*Asp\.Net Core Module\\V2\\aspnetcorev2\.dll", output);
+    }
+
+    [Fact]
+    public void Diagnose_ReportsWhichProcessHoldsTheRequestedPort()
+    {
+        // Regression: Install created the site, then Start-Website failed with
+        // HRESULT 0x80070020 ("file is being used by another process") because
+        // the chosen port was taken - with no hint about what held it.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var self = Process.GetCurrentProcess();
+
+            var (exitCode, output) = RunDiagnose(Path.Combine(_root, "pf"), "-Port", port.ToString());
+
+            Assert.True(exitCode == 0, output);
+            Assert.Contains($"[FAIL] Port {port}", output);
+            Assert.Contains($"'{self.ProcessName}' (PID {self.Id})", output);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public void Diagnose_ReportsAFreePortAsOk()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+
+        var (_, output) = RunDiagnose(Path.Combine(_root, "pf"), "-Port", port.ToString());
+
+        Assert.Contains($"[ OK ] Port {port}", output);
     }
 
     [Fact]
