@@ -36,6 +36,8 @@
       is NEVER part of the build or publish output, so a redeploy cannot
       overwrite production data.
     -->
+    <!-- The Development settings carry a local-only API key; never ship them. -->
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
     <Content Remove="App_Data\**" />
     <None Remove="App_Data\**" />
     <None Include="App_Data\README.txt" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="PreserveNewest" />
