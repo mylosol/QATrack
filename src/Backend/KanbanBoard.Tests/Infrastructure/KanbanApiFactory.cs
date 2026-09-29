@@ -12,7 +12,7 @@ namespace KanbanBoard.Tests.Infrastructure;
 /// SQLite database, so integration tests exercise middleware, routing,
 /// model binding, EF and migrations exactly as production does.
 /// </summary>
-public sealed class KanbanApiFactory : WebApplicationFactory<Program>
+public class KanbanApiFactory : WebApplicationFactory<Program>
 {
     /// <summary>API key configured for the test host.</summary>
     public const string TestApiKey = "test-api-key-0123456789abcdef";
