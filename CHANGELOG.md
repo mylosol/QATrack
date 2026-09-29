@@ -3,6 +3,18 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-29
+
+### Added
+- "New version available" notifier. A tab left open across a deploy detects the newer build and shows a small toast in the bottom-right corner, stacked above the theme switcher. The toast has **Reload** and **Dismiss** buttons and never reloads on its own, so in-progress edits are safe.
+  - Detection is an uncached `GET /api/version`. The tab compares the server's `build` (`MAJOR.MINOR.PATCH+<7-char commit>`) with the build baked into the bundle. It checks every 60 s, and immediately when the tab regains focus or becomes visible.
+  - Reload is forced. Any service-worker registrations and Cache Storage entries are cleared (best-effort) before reloading, so the new build always loads.
+  - Dismissing hides the toast until an even newer build ships. Failed checks, including the `app_offline` 503 during a deploy, never show the toast.
+- `/api/version` now returns `Cache-Control: no-store` and a canonical `build` field.
+
+### Changed
+- The SPA reads the git commit as the full SHA sliced to 7 characters, matching the backend exactly. `git rev-parse --short` can return longer IDs, which would have made the builds never match.
+
 ## [1.1.0] - 2026-09-29
 
 ### Added
@@ -25,5 +37,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - OpenAPI at `/api/openapi.json` and Swagger UI at `/api/docs`.
 - `deploy-iis.ps1` packaging and data-safe IIS install.
 
+[1.2.0]: https://semver.org/spec/v2.0.0.html
 [1.1.0]: https://semver.org/spec/v2.0.0.html
 [1.0.0]: https://semver.org/spec/v2.0.0.html

@@ -72,6 +72,16 @@ QATrack follows [Semantic Versioning 2.0](https://semver.org): `MAJOR.MINOR.PATC
   3. Merge into `main`.
   4. Tag `vX.Y.Z` and run `npm run package`.
 
+### Update notifier
+
+After a redeploy, browser tabs that were already open show "A new version of QATrack is available" within 60 seconds, or immediately when the tab regains focus.
+
+- **Reload** loads the new build.
+- **✕** dismisses the toast until a newer build ships.
+- It never reloads by itself, so nobody loses an in-progress edit.
+
+It compares `GET /api/version` (`build`, served `no-store`) with the build baked into the page. It only runs in production bundles, not in the Vite dev server.
+
 The `/api/v1` URL segment is the API contract version. It changes only with a breaking API change, independently of the app version.
 
 ## Using the AI agent API

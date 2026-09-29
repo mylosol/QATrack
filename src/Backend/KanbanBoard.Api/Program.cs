@@ -101,13 +101,21 @@ app.UseMiddleware<UiRequestGuardMiddleware>();
 app.MapKanbanOpenApiSchema();
 
 // Public, unauthenticated version probe for operators, monitoring and agents.
-app.MapGet("/api/version", () => Results.Ok(new
+// It is also the source of truth for the SPA's "new version available" toast,
+// so it must never be cached by the browser, a proxy or a CDN.
+app.MapGet("/api/version", (HttpContext context) =>
     {
-        name = "QATrack",
-        version = AppVersion.Current.Version,
-        commit = AppVersion.Current.Commit,
-        informationalVersion = AppVersion.Current.InformationalVersion,
-    }))
+        context.Response.Headers.CacheControl = "no-store";
+        return Results.Ok(new
+        {
+            name = "QATrack",
+            version = AppVersion.Current.Version,
+            commit = AppVersion.Current.Commit,
+            // Canonical build id compared by the SPA with the one baked into its bundle.
+            build = AppVersion.Current.Build,
+            informationalVersion = AppVersion.Current.InformationalVersion,
+        });
+    })
     .ExcludeFromDescription();
 app.MapControllers();
 
