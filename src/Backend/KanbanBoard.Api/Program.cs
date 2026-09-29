@@ -35,6 +35,9 @@ builder.Services.AddScoped<IActorContext>(sp => sp.GetRequiredService<ActorConte
 builder.Services.AddScoped<WorkItemService>();
 builder.Services.AddScoped<BoardService>();
 
+// AI agent API settings (X-API-Key pre-shared secret, identity rules).
+builder.Services.Configure<AiAgentApiOptions>(builder.Configuration.GetSection(AiAgentApiOptions.SectionName));
+
 builder.Services
     .AddControllers()
     .AddJsonOptions(o =>
@@ -54,6 +57,13 @@ using (var scope = app.Services.CreateScope())
 {
     var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
     await initializer.InitializeAsync(app.Configuration.GetValue<bool>("Database:SeedSampleData"));
+}
+
+var aiApiOptions = app.Configuration.GetSection(AiAgentApiOptions.SectionName).Get<AiAgentApiOptions>();
+if (aiApiOptions is null || !aiApiOptions.IsConfigured)
+{
+    // Fail closed but keep the board usable: /api/v1 answers 503 until a key is set.
+    app.Logger.LogWarning("AiAgentApi:ApiKey is not configured; the AI agent API (/api/v1) is disabled.");
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +88,11 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseRouting();
+
+// /api/v1 (AI agents): authenticate the key first, then capture the identity.
+app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
+app.UseMiddleware<AgentIdentityMiddleware>();
+// /api/ui (browser): anti-forgery header + human actor.
 app.UseMiddleware<UiRequestGuardMiddleware>();
 
 app.MapKanbanOpenApi();

@@ -16,6 +16,8 @@ public static class OpenApiDocumentation
     public const string DocumentName = "v1";
     public const string SchemaPath = "/api/openapi.json";
     public const string UiRoutePrefix = "api/docs";
+    public const string ApiKeySchemeId = "ApiKey";
+    public const string AgentIdentitySchemeId = "AgentIdentity";
 
     /// <summary>Registers the Swashbuckle generator.</summary>
     public static IServiceCollection AddKanbanOpenApi(this IServiceCollection services)
@@ -45,6 +47,27 @@ public static class OpenApiDocumentation
             }
 
             options.SupportNonNullableReferenceTypes();
+
+            // Both headers are mandatory on every /api/v1 call (spec 4.1).
+            options.AddSecurityDefinition(ApiKeySchemeId, new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = "X-API-Key",
+                Description = "Pre-shared API key configured on the server (AiAgentApi:ApiKey).",
+            });
+            options.AddSecurityDefinition(AgentIdentitySchemeId, new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.ApiKey,
+                In = ParameterLocation.Header,
+                Name = "X-Agent-Identity",
+                Description = "Name/model of the calling agent, e.g. 'Claude-Code-Agent-v1'. Recorded on every change.",
+            });
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = ApiKeySchemeId } }] = Array.Empty<string>(),
+                [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = AgentIdentitySchemeId } }] = Array.Empty<string>(),
+            });
         });
 
         return services;
