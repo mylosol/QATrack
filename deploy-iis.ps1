@@ -30,7 +30,7 @@
     recreates App_Data\kanban.db. Redeploys only ever add/replace binaries.
 
 .PARAMETER Action
-    Package or Install.
+    Package, Install, or Diagnose (read-only prerequisite report for a server).
 
 .PARAMETER Version
     Package version label (default: version from package.json).
@@ -66,6 +66,10 @@
     folder before an IIS administrator wires it up.
 
 .EXAMPLE
+    # On the server: check prerequisites without changing anything
+    .\deploy-iis.ps1 -Action Diagnose
+
+.EXAMPLE
     # On the build machine
     .\deploy-iis.ps1 -Action Package
 
@@ -76,7 +80,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Package', 'Install')]
+    [ValidateSet('Package', 'Install', 'Diagnose')]
     [string]$Action,
 
     [string]$Version,
@@ -278,20 +282,172 @@ function Test-IsAdministrator {
     return (New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Get-ProgramFiles64 {
+    <# 64-bit Program Files, even when this script runs in 32-bit (x86) PowerShell. #>
+    if ($env:ProgramW6432) { return $env:ProgramW6432 }
+    return $env:ProgramFiles
+}
+
+function Find-AspNetCoreModuleV2 {
+    <#
+      Locates ASP.NET Core Module V2 (ANCM). Returns an object with:
+        Installed  - aspnetcorev2.dll exists on disk (Hosting Bundle ran)
+        Registered - IIS lists AspNetCoreModuleV2 as a global module (IIS will load it)
+        Checked    - $false when IIS registration could not be queried (not elevated)
+        Path, Version
+      The Hosting Bundle installs the module to
+      "%ProgramFiles%\IIS\Asp.Net Core Module\V2\aspnetcorev2.dll" (NOT System32\inetsrv,
+      which only holds the legacy V1 aspnetcore.dll).
+    #>
+    $result = [pscustomobject]@{ Installed = $false; Registered = $false; Checked = $false; Path = $null; Version = $null }
+
+    $candidates = @(
+        (Join-Path (Get-ProgramFiles64) 'IIS\Asp.Net Core Module\V2\aspnetcorev2.dll'),
+        (Join-Path $env:windir 'System32\inetsrv\aspnetcorev2.dll')
+    )
+    $regKey = 'HKLM:\SOFTWARE\Microsoft\IIS Extensions\IIS AspNetCore Module V2'
+    if (Test-Path $regKey) {
+        $reg = Get-ItemProperty $regKey -ErrorAction SilentlyContinue
+        if ($reg -and $reg.PSObject.Properties['Version']) { $result.Version = [string]$reg.Version }
+        if ($reg -and $reg.PSObject.Properties['InstallDir'] -and $reg.InstallDir) {
+            $candidates = @((Join-Path ([string]$reg.InstallDir) 'aspnetcorev2.dll')) + $candidates
+        }
+    }
+
+    # Authoritative: what IIS itself will load (needs elevation to read applicationHost.config).
+    if ((Test-IsAdministrator) -and (Get-Module -ListAvailable -Name WebAdministration)) {
+        try {
+            Import-Module WebAdministration -ErrorAction Stop
+            $module = Get-WebGlobalModule -Name 'AspNetCoreModuleV2' -ErrorAction Stop
+            $result.Checked = $true
+            if ($module) {
+                $result.Registered = $true
+                $image = [Environment]::ExpandEnvironmentVariables([string]$module.Image)
+                $candidates = @($image) + $candidates
+            }
+        }
+        catch {
+            $result.Checked = $false
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            $result.Installed = $true
+            $result.Path = $candidate
+            if (-not $result.Version) { $result.Version = (Get-Item $candidate).VersionInfo.ProductVersion }
+            break
+        }
+    }
+    return $result
+}
+
+function Find-AspNetCore8Runtime {
+    <# Returns the installed Microsoft.AspNetCore.App 8.x versions (may be empty). #>
+    $versions = @()
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    $dotnetPath = $null
+    if ($dotnet) { $dotnetPath = $dotnet.Source }
+    elseif (Test-Path (Join-Path (Get-ProgramFiles64) 'dotnet\dotnet.exe')) { $dotnetPath = Join-Path (Get-ProgramFiles64) 'dotnet\dotnet.exe' }
+
+    if ($dotnetPath) {
+        foreach ($line in (& $dotnetPath --list-runtimes 2>$null)) {
+            if ($line -match '^Microsoft\.AspNetCore\.App (8\.\S+)') { $versions += $Matches[1] }
+        }
+        $global:LASTEXITCODE = 0
+    }
+    if ($versions.Count -eq 0) {
+        $shared = Join-Path (Get-ProgramFiles64) 'dotnet\shared\Microsoft.AspNetCore.App'
+        if (Test-Path $shared) {
+            $versions = @(Get-ChildItem $shared -Directory | Where-Object { $_.Name -like '8.*' } | ForEach-Object { $_.Name })
+        }
+    }
+    return ,$versions
+}
+
+function Get-PrerequisiteReport {
+    <# Evaluates every server prerequisite without changing anything. #>
+    $checks = @()
+    $isAdmin = Test-IsAdministrator
+    $checks += [pscustomobject]@{
+        Name = 'Elevated (Run as Administrator)'; Ok = $isAdmin
+        Detail = $(if ($isAdmin) { 'yes' } else { 'no' })
+        Fix = 'Right-click PowerShell > Run as Administrator.'
+    }
+
+    $webAdmin = [bool](Get-Module -ListAvailable -Name WebAdministration)
+    $checks += [pscustomobject]@{
+        Name = 'IIS + WebAdministration module'; Ok = $webAdmin
+        Detail = $(if ($webAdmin) { 'available' } else { 'missing' })
+        Fix = 'Server Manager > Add Roles and Features > Web Server (IIS), including Management Tools > IIS Management Scripts and Tools.'
+    }
+
+    $ancm = Find-AspNetCoreModuleV2
+    if (-not $ancm.Installed) {
+        $ancmOk = $false; $ancmDetail = 'not found'
+        $ancmFix = 'Install the .NET 8 Hosting Bundle (dotnet-hosting-8.x-win.exe), then run iisreset.'
+    }
+    elseif ($ancm.Checked -and -not $ancm.Registered) {
+        $ancmOk = $false; $ancmDetail = "installed at $($ancm.Path) but NOT registered with IIS"
+        $ancmFix = 'This happens when the Hosting Bundle was installed before IIS. Run the Hosting Bundle installer again, choose Repair, then run iisreset.'
+    }
+    else {
+        $ancmOk = $true
+        $state = $(if ($ancm.Registered) { 'registered with IIS' } elseif (-not $ancm.Checked) { 'IIS registration not checked (run elevated)' } else { '' })
+        $ancmDetail = "$($ancm.Version) at $($ancm.Path); $state"
+        $ancmFix = ''
+    }
+    $checks += [pscustomobject]@{ Name = 'ASP.NET Core Module V2'; Ok = $ancmOk; Detail = $ancmDetail; Fix = $ancmFix }
+
+    $runtimes = Find-AspNetCore8Runtime
+    $checks += [pscustomobject]@{
+        Name = 'ASP.NET Core 8 runtime'; Ok = ($runtimes.Count -gt 0)
+        Detail = $(if ($runtimes.Count -gt 0) { $runtimes -join ', ' } else { 'not found' })
+        Fix = 'Install the .NET 8 Hosting Bundle (it includes the runtime).'
+    }
+    return $checks
+}
+
+function Write-PrerequisiteReport($Checks) {
+    foreach ($check in $Checks) {
+        if ($check.Ok) {
+            Write-Host ("    [ OK ] {0}: {1}" -f $check.Name, $check.Detail) -ForegroundColor Green
+        }
+        else {
+            Write-Host ("    [FAIL] {0}: {1}" -f $check.Name, $check.Detail) -ForegroundColor Red
+            if ($check.Fix) { Write-Host ("           Fix: {0}" -f $check.Fix) -ForegroundColor Yellow }
+        }
+    }
+}
+
 function Assert-Prerequisites {
-    if (-not (Test-IsAdministrator)) {
-        throw 'Install must run in an elevated (Run as Administrator) PowerShell session.'
+    $checks = Get-PrerequisiteReport
+    Write-PrerequisiteReport $checks
+    $failed = @($checks | Where-Object { -not $_.Ok })
+    if ($failed.Count -gt 0) {
+        $lines = $failed | ForEach-Object { "$($_.Name): $($_.Detail). $($_.Fix)" }
+        throw ("Prerequisites not met:`n - " + ($lines -join "`n - ") + "`nRun '.\deploy-iis.ps1 -Action Diagnose' for a full report.")
     }
-    if (-not (Get-Module -ListAvailable -Name WebAdministration)) {
-        throw 'The IIS WebAdministration module is not available. Install IIS (Web-Server) with the Management Tools.'
+}
+
+function Invoke-Diagnose {
+    <# Read-only report of the server prerequisites and any existing QATrack install. #>
+    Write-Step 'QATrack server prerequisites (read-only, nothing is changed)'
+    $checks = Get-PrerequisiteReport
+    Write-PrerequisiteReport $checks
+
+    $packageVersion = Get-QATrackVersion $SourcePath
+    if ($packageVersion) { Write-Host "    Package in this folder: QATrack $packageVersion" }
+    $installed = Get-QATrackVersion $PhysicalPath
+    if ($installed) { Write-Host "    Installed at ${PhysicalPath}: QATrack $installed" }
+
+    $failed = @($checks | Where-Object { -not $_.Ok })
+    Write-Host ''
+    if ($failed.Count -eq 0) {
+        Write-Host 'All prerequisites met. You can run -Action Install.' -ForegroundColor Green
     }
-    $ancm = Join-Path $env:windir 'System32\inetsrv\aspnetcorev2.dll'
-    if (-not (Test-Path $ancm)) {
-        throw 'ASP.NET Core Module V2 is not installed. Install the .NET 8 Hosting Bundle, then run iisreset.'
-    }
-    $runtimes = & dotnet --list-runtimes 2>$null
-    if (-not ($runtimes -match '^Microsoft\.AspNetCore\.App 8\.')) {
-        throw 'The ASP.NET Core 8 runtime was not found. Install the .NET 8 Hosting Bundle.'
+    else {
+        Write-Host "$($failed.Count) prerequisite(s) missing - see Fix lines above." -ForegroundColor Yellow
     }
 }
 
@@ -524,4 +680,5 @@ function Invoke-Install {
 switch ($Action) {
     'Package' { Invoke-Package | Out-Null }
     'Install' { Invoke-Install }
+    'Diagnose' { Invoke-Diagnose }
 }

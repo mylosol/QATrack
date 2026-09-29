@@ -3,6 +3,18 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-09-29
+
+### Fixed
+- `deploy-iis.ps1 -Action Install` reported "ASP.NET Core Module V2 is not installed" on servers where the .NET 8 Hosting Bundle *was* installed. The check looked in `System32\inetsrv`, but the bundle installs the module to `%ProgramFiles%\IIS\Asp.Net Core Module\V2\`. Detection now does three things:
+  - asks IIS whether the `AspNetCoreModuleV2` global module is registered, then falls back to the registry and the real install paths;
+  - uses the 64-bit Program Files path even from 32-bit PowerShell;
+  - separately reports "installed but not registered with IIS" (Hosting Bundle installed before IIS; fix: Repair the bundle).
+- The .NET 8 runtime check no longer depends on `dotnet` being on `PATH`.
+
+### Added
+- `deploy-iis.ps1 -Action Diagnose`: a read-only report of every server prerequisite, with a fix for each failure. Install now prints the same report and lists all missing prerequisites at once.
+
 ## [1.2.0] - 2026-09-29
 
 ### Added
@@ -37,6 +49,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - OpenAPI at `/api/openapi.json` and Swagger UI at `/api/docs`.
 - `deploy-iis.ps1` packaging and data-safe IIS install.
 
+[1.2.1]: https://semver.org/spec/v2.0.0.html
 [1.2.0]: https://semver.org/spec/v2.0.0.html
 [1.1.0]: https://semver.org/spec/v2.0.0.html
 [1.0.0]: https://semver.org/spec/v2.0.0.html

@@ -138,6 +138,71 @@ public sealed class DeployScriptTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_site, "deploy-iis.ps1")));
     }
 
+    private (int ExitCode, string Output) RunDiagnose(string programFiles64)
+    {
+        var psi = new ProcessStartInfo("powershell.exe")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        // Where a 64-bit Program Files resolves for the script (see Get-ProgramFiles64).
+        psi.Environment["ProgramW6432"] = programFiles64;
+        foreach (var arg in new[]
+                 {
+                     "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ScriptPath(),
+                     "-Action", "Diagnose", "-SourcePath", _package, "-PhysicalPath", _site,
+                 })
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(psi)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        process.WaitForExit(120_000);
+        return (process.ExitCode, stdout.Result + stderr.Result);
+    }
+
+    [Fact]
+    public void Diagnose_FindsAncmV2_WhereTheHostingBundleInstallsIt()
+    {
+        // Regression: the prerequisite check looked for aspnetcorev2.dll in
+        // System32\inetsrv, but the .NET 8 Hosting Bundle installs it to
+        // "%ProgramFiles%\IIS\Asp.Net Core Module\V2\", so Install refused to
+        // run on correctly provisioned servers.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var programFiles = Path.Combine(_root, "Program Files");
+        var ancmDir = Path.Combine(programFiles, "IIS", "Asp.Net Core Module", "V2");
+        Directory.CreateDirectory(ancmDir);
+        File.WriteAllText(Path.Combine(ancmDir, "aspnetcorev2.dll"), "fake module");
+
+        var (exitCode, output) = RunDiagnose(programFiles);
+
+        Assert.True(exitCode == 0, output);
+        Assert.Matches(@"\[ OK \] ASP\.NET Core Module V2: .*Asp\.Net Core Module\\V2\\aspnetcorev2\.dll", output);
+    }
+
+    [Fact]
+    public void Diagnose_IsReadOnly_AndReportsThePackageVersion()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunDiagnose(Path.Combine(_root, "empty-program-files"));
+
+        Assert.True(exitCode == 0, output);
+        Assert.Contains("QATrack server prerequisites", output);
+        Assert.Contains("ASP.NET Core 8 runtime", output);
+        Assert.False(Directory.Exists(_site), "Diagnose must never create or change the site folder.");
+    }
+
     [Fact]
     public void Install_WhenNoProductionSettingsExist_CreatesThemWithAKey()
     {
