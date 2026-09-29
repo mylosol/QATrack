@@ -1,0 +1,79 @@
+/**
+ * Playwright E2E configuration.
+ *
+ * The suite runs against the REAL backend (`dotnet run`) serving the built SPA
+ * from wwwroot, with a throwaway SQLite database per run - never App_Data.
+ * Build the frontend first (`npm run build`); the root `npm run verify` does.
+ *
+ * Browser: the locally installed Microsoft Edge (`channel: 'msedge'`) so no
+ * browser download is required. Override with PW_CHANNEL (e.g. `chrome`), or
+ * set PW_CHANNEL=chromium after `npx playwright install chromium`.
+ */
+import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { E2E_API_KEY } from './tests/e2e/helpers';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const port = Number(process.env.E2E_PORT ?? 5199);
+const baseURL = `http://127.0.0.1:${port}/`;
+
+// One data directory per run. Set on process.env so worker processes (which
+// re-evaluate this file) reuse the parent's value instead of a new timestamp.
+const dataRoot = path.join(here, '.e2e-data');
+if (!process.env.QATRACK_E2E_DATA) {
+  // Best-effort cleanup of previous runs (files may be locked if a server is still up).
+  for (const entry of fs.existsSync(dataRoot) ? fs.readdirSync(dataRoot) : []) {
+    try {
+      fs.rmSync(path.join(dataRoot, entry), { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+  process.env.QATRACK_E2E_DATA = path.join(dataRoot, `run-${Date.now()}`);
+}
+const dbPath = path.join(process.env.QATRACK_E2E_DATA, 'kanban.db');
+
+const channel = process.env.PW_CHANNEL ?? 'msedge';
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  // The board is shared state; run serially for deterministic WIP counts.
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  timeout: 30_000,
+  expect: { timeout: 7_000 },
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
+  use: {
+    baseURL,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: channel,
+      use: {
+        ...devices['Desktop Edge'],
+        channel: channel === 'chromium' ? undefined : channel,
+        viewport: { width: 1440, height: 900 },
+      },
+    },
+  ],
+  webServer: {
+    command: 'dotnet run --project ../Backend/KanbanBoard.Api --no-launch-profile',
+    url: `${baseURL}api/ui/board`,
+    reuseExistingServer: false,
+    timeout: 180_000,
+    stdout: 'ignore',
+    stderr: 'pipe',
+    env: {
+      ASPNETCORE_ENVIRONMENT: 'Production',
+      ASPNETCORE_URLS: baseURL.replace(/\/$/, ''),
+      ConnectionStrings__Kanban: `Data Source=${dbPath};Cache=Shared;Mode=ReadWriteCreate;`,
+      AiAgentApi__ApiKey: E2E_API_KEY,
+      Database__SeedSampleData: 'false',
+    },
+  },
+});

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="QATrack - Kanban board for QA tools" />
+    <title>QATrack Board</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <!-- Applies the stored theme before paint (external file keeps CSP strict). -->
+    <script src="./theme-init.js"></script>
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#board">Skip to board</a>
+
+    <header class="flex items-center justify-between gap-4 bg-header px-4 py-2 text-header-fg">
+      <div class="flex items-baseline gap-3">
+        <h1 class="text-lg font-bold">QATrack</h1>
+        <p class="text-sm">Tools\QA board</p>
+      </div>
+      <nav aria-label="Utilities">
+        <a class="text-sm font-medium text-header-fg underline" href="./api/docs/">API docs</a>
+      </nav>
+    </header>
+
+    <div id="toolbar"></div>
+
+    <div id="notice" class="notice notice-error" role="alert" hidden></div>
+
+    <main id="board" tabindex="-1" aria-labelledby="board-heading" class="pb-20">
+      <h2 id="board-heading" class="sr-only">Kanban board</h2>
+      <div id="board-root" aria-busy="true">
+        <p class="p-4 text-sm text-muted">Loading board…</p>
+      </div>
+    </main>
+
+    <!-- Screen-reader instructions referenced by every card (aria-describedby). -->
+    <p id="kb-instructions" class="sr-only">
+      Press Space or Enter to pick up the card, Left and Right arrow keys to move it between columns,
+      then Space or Enter to drop it or Escape to cancel. Activate the title to open details.
+    </p>
+
+    <!-- aria-live regions (spec 5.2). -->
+    <div id="live-polite" class="sr-only" aria-live="polite" aria-atomic="true" data-testid="live-polite"></div>
+    <div id="live-assertive" class="sr-only" aria-live="assertive" aria-atomic="true" data-testid="live-assertive"></div>
+
+    <div id="theme-switcher-root"></div>
+
+    <dialog id="work-item-dialog"></dialog>
+  </body>
+</html>

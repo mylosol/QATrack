@@ -163,4 +163,16 @@ public sealed class UiEndpointTests : IClassFixture<KanbanApiFactory>
         response.EnsureSuccessStatusCode();
         Assert.Contains("swagger", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData("/api/docs/swagger-ui-bundle.js")]
+    [InlineData("/api/docs/swagger-ui-standalone-preset.js")]
+    [InlineData("/api/docs/swagger-ui.css")]
+    public async Task SwaggerUi_StaticAssets_AreNotSwallowedByApiFallback(string path)
+    {
+        // Regression: the /api/{**rest} JSON 404 fallback used to claim these,
+        // leaving /api/docs as a blank page.
+        var response = await _factory.CreateClient().GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

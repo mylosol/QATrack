@@ -73,8 +73,26 @@ public static class OpenApiDocumentation
         return services;
     }
 
-    /// <summary>Maps the raw schema endpoint and Swagger UI.</summary>
-    public static WebApplication MapKanbanOpenApi(this WebApplication app)
+    /// <summary>
+    /// Adds Swagger UI middleware. Must run BEFORE <c>UseRouting</c>: Swagger UI
+    /// serves its JS/CSS through an internal StaticFileMiddleware, which skips
+    /// any request routing has already matched to an endpoint - and the JSON
+    /// 404 fallback for <c>/api/{**rest}</c> would otherwise claim them.
+    /// </summary>
+    public static IApplicationBuilder UseKanbanSwaggerUi(this IApplicationBuilder app)
+    {
+        return app.UseSwaggerUI(options =>
+        {
+            options.RoutePrefix = UiRoutePrefix;
+            // Relative so it also works when the site runs under an IIS virtual directory.
+            options.SwaggerEndpoint("../openapi.json", "QATrack Kanban API v1");
+            options.DocumentTitle = "QATrack API docs";
+            options.DisplayOperationId();
+        });
+    }
+
+    /// <summary>Maps the raw OpenAPI schema endpoint at <see cref="SchemaPath"/>.</summary>
+    public static IEndpointRouteBuilder MapKanbanOpenApiSchema(this IEndpointRouteBuilder app)
     {
         // Swashbuckle's own middleware requires a {documentName} route token, so
         // the fixed spec path is served explicitly.
@@ -90,15 +108,6 @@ public static class OpenApiDocumentation
                 return Results.Text(writer.ToString(), "application/json");
             })
             .ExcludeFromDescription();
-
-        app.UseSwaggerUI(options =>
-        {
-            options.RoutePrefix = UiRoutePrefix;
-            // Relative so it also works when the site runs under an IIS virtual directory.
-            options.SwaggerEndpoint("../openapi.json", "QATrack Kanban API v1");
-            options.DocumentTitle = "QATrack API docs";
-            options.DisplayOperationId();
-        });
 
         return app;
     }

@@ -87,6 +87,9 @@ app.UseStaticFiles(new StaticFileOptions
     },
 });
 
+// Swagger UI (/api/docs) must precede routing - see UseKanbanSwaggerUi.
+app.UseKanbanSwaggerUi();
+
 app.UseRouting();
 
 // /api/v1 (AI agents): authenticate the key first, then capture the identity.
@@ -95,7 +98,7 @@ app.UseMiddleware<AgentIdentityMiddleware>();
 // /api/ui (browser): anti-forgery header + human actor.
 app.UseMiddleware<UiRequestGuardMiddleware>();
 
-app.MapKanbanOpenApi();
+app.MapKanbanOpenApiSchema();
 app.MapControllers();
 
 // Unknown API routes must return a JSON 404, never the SPA shell.

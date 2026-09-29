@@ -63,9 +63,17 @@ public sealed class UiRequestGuardMiddleware
             return;
         }
 
-        actor.SetHuman(context.Request.Headers[DisplayNameHeader]);
+        actor.SetHuman(DecodeDisplayName(context.Request.Headers[DisplayNameHeader]));
         await _next(context);
     }
+
+    /// <summary>
+    /// The SPA percent-encodes the display name because HTTP header values
+    /// must be ISO-8859-1 (names like "José" would otherwise be rejected by
+    /// the browser). ActorContext sanitizes the decoded value afterwards.
+    /// </summary>
+    internal static string? DecodeDisplayName(string? raw) =>
+        string.IsNullOrEmpty(raw) ? null : Uri.UnescapeDataString(raw);
 
     private static Task WriteProblemAsync(HttpContext context, int status, string title, string detail)
     {
