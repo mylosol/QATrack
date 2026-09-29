@@ -51,7 +51,15 @@ test.describe('Board', () => {
 
     const card = cardLocator(page, item.id);
     await expect(card).toBeVisible();
-    await card.dragTo(columnList(page, 'Resolved'));
+    // Drop onto the Resolved column at the same height as the card, so the
+    // drop point is on screen however tall the shared test board has grown.
+    await card.scrollIntoViewIfNeeded();
+    const source = (await card.boundingBox())!;
+    const column = page.getByTestId('column-Resolved');
+    const target = (await column.boundingBox())!;
+    await card.dragTo(column, {
+      targetPosition: { x: target.width / 2, y: source.y + source.height / 2 - target.y },
+    });
 
     await expect(columnList(page, 'Resolved').locator(`article[data-card-id="${item.id}"]`)).toBeVisible();
     await expect(page.getByTestId('live-polite')).toContainText(`from New to Resolved`);

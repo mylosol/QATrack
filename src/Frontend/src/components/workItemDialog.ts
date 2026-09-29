@@ -152,7 +152,7 @@ export class WorkItemDialog {
       iterationPath: h('input', { class: 'field', name: 'iterationPath', maxlength: 256, value: item?.iterationPath ?? 'Current' }),
       description: h('textarea', {
         class: 'field min-h-[10rem] w-full font-mono', name: 'description', rows: 8,
-        'aria-describedby': 'description-help', 'data-testid': 'dialog-description',
+        'aria-labelledby': 'description-label', 'aria-describedby': 'description-help', 'data-testid': 'dialog-description',
       }),
     };
     controls.description.value = item?.description ?? '';

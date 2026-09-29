@@ -1,21 +1,23 @@
 /*
  * Design tokens (space-separated RGB so Tailwind can apply alpha).
  *
- * WCAG 2.1 AA contrast notes (computed ratios, text on its intended surface):
+ * WCAG 2.1 AA contrast (computed; enforced automatically by
+ * src/styles/contrast.test.ts, which fails the build below 4.5:1 for text
+ * and 3:1 for UI boundaries / focus indicators):
  *   Light  fg #111827 on surface #fff ........ 17.7:1
- *          muted #4b5563 on column #e5e7eb .... 6.2:1  (7.6:1 on white)
+ *          muted #4b5563 on column #e5e7eb .... 6.1:1  (7.6:1 on white)
  *          primary #005a9e / white text ....... 7.1:1
- *          ai #6b21a8 / white text ............ 9.2:1
+ *          ai #6b21a8 / white text ............ 8.7:1
  *          alert #b91c1c / white text ......... 6.5:1
- *          header #004578 / white text ........ 10.2:1
- *          line #6b7280 vs white (non-text) ... 4.8:1  (>= 3:1 for 1.4.11)
- *   Dark   fg #f3f4f6 on surface #1f2937 ...... 13.9:1
+ *          header #004578 / white text ........ 9.9:1
+ *          line #6b7280 vs white (non-text) ... 4.8:1
+ *   Dark   fg #f3f4f6 on surface #1f2937 ...... 13.3:1
  *          muted #d1d5db on column #111827 .... 12.0:1
- *          primary #93c5fd / #111827 text ..... 10.9:1
- *          ai #e9d5ff / #3b0764 text .......... 12.4:1
- *          alert #fecaca / #7f1d1d text ....... 8.0:1
- *          header #030712 / #f3f4f6 text ...... 18.2:1
- *          line #9ca3af vs #1f2937 ............ 5.7:1
+ *          primary #93c5fd / #111827 text ..... 9.8:1
+ *          ai #e9d5ff / #3b0764 text .......... 11.0:1
+ *          alert #fecaca / #7f1d1d text ....... 6.9:1
+ *          header #030712 / #f3f4f6 text ...... 18.3:1
+ *          line #9ca3af vs #1f2937 ............ 5.8:1
  */
 :root {
   --color-page: 243 244 246;
@@ -36,7 +38,7 @@
 
   /* Work item type accents (text-safe on the card surface). */
   --type-bug: 185 28 28;       /* #b91c1c 6.5:1 */
-  --type-feature: 107 33 168;  /* #6b21a8 9.2:1 */
+  --type-feature: 107 33 168;  /* #6b21a8 8.7:1 */
   --type-userstory: 29 78 216; /* #1d4ed8 6.7:1 */
   --type-epic: 194 65 12;      /* #c2410c 5.2:1 */
   --type-task: 133 77 14;      /* #854d0e 6.9:1 */
@@ -61,11 +63,11 @@
   --color-alert-fg: 127 29 29;
   --color-focus: 147 197 253;
 
-  --type-bug: 252 165 165;       /* red-300 on #1f2937: 7.6:1 */
-  --type-feature: 216 180 254;   /* purple-300: 8.4:1 */
-  --type-userstory: 147 197 253; /* blue-300: 8.6:1 */
-  --type-epic: 253 186 116;      /* orange-300: 9.1:1 */
-  --type-task: 253 224 71;       /* yellow-300: 11.4:1 */
+  --type-bug: 252 165 165;       /* red-300 on #1f2937: 7.7:1 */
+  --type-feature: 216 180 254;   /* purple-300: 8.3:1 */
+  --type-userstory: 147 197 253; /* blue-300: 8.1:1 */
+  --type-epic: 253 186 116;      /* orange-300: 8.7:1 */
+  --type-task: 253 224 71;       /* yellow-300: 11.1:1 */
 
   color-scheme: dark;
 }
