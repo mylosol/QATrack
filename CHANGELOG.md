@@ -3,6 +3,17 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-09-29
+
+### Fixed
+- The site returned **HTTP 500.19 "Unrecognized attribute 'inheritChildApplications'"** (0x8007000d) on Windows Server.
+  - `web.config` no longer wraps its settings in `<location path="." inheritChildApplications="false">`. That wrapper only affects child applications nested under the site (QATrack has none), so behaviour is unchanged.
+  - This deliberately deviates from the verbatim sample in spec section 6.1, and is documented in the file.
+  - The handler, in-process ASP.NET Core Module, Production environment and `App_Data` hidden segment are unchanged and now covered by tests.
+
+### Changed
+- When the install's warm-up request fails, the script now prints the actual IIS / ASP.NET Core Module error (e.g. `HTTP Error 500.19 ... | Config Error: ...`) with a hint for 500.19, 500.3x and 503, instead of just "(500) Internal Server Error". This works on Windows PowerShell 5.1 and PowerShell 7.
+
 ## [1.2.2] - 2026-09-29
 
 ### Fixed
@@ -61,6 +72,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - OpenAPI at `/api/openapi.json` and Swagger UI at `/api/docs`.
 - `deploy-iis.ps1` packaging and data-safe IIS install.
 
+[1.2.3]: https://semver.org/spec/v2.0.0.html
 [1.2.2]: https://semver.org/spec/v2.0.0.html
 [1.2.1]: https://semver.org/spec/v2.0.0.html
 [1.2.0]: https://semver.org/spec/v2.0.0.html
