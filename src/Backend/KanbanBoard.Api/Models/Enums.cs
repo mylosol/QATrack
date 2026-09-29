@@ -56,6 +56,21 @@ public static class WorkItemDefaults
     /// <summary>Max length of a single discussion comment / test output payload.</summary>
     public const int CommentMaxLength = 200_000;
 
+    /// <summary>Max length of a program name.</summary>
+    public const int ProgramNameMaxLength = 64;
+
+    /// <summary>Max length of a tag.</summary>
+    public const int TagMaxLength = 50;
+
+    /// <summary>Max tags per work item.</summary>
+    public const int MaxTagsPerItem = 20;
+
+    /// <summary>Max size of one uploaded image.</summary>
+    public const int AttachmentMaxBytes = 5 * 1024 * 1024;
+
+    /// <summary>Programs available on a fresh board.</summary>
+    public static readonly IReadOnlyList<string> InitialPrograms = new[] { "ProveOut", "CallOut" };
+
     /// <summary>The exact severity strings allowed by spec 3.1.</summary>
     public static readonly IReadOnlyList<string> Severities = new[]
     {

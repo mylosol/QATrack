@@ -20,12 +20,39 @@ public sealed class UiBoardController : ControllerBase
 {
     private readonly WorkItemService _items;
     private readonly BoardService _board;
+    private readonly ProgramService _programs;
+    private readonly AttachmentService _attachments;
 
-    public UiBoardController(WorkItemService items, BoardService board)
+    public UiBoardController(WorkItemService items, BoardService board, ProgramService programs, AttachmentService attachments)
     {
         _items = items;
         _board = board;
+        _programs = programs;
+        _attachments = attachments;
     }
+
+    /// <summary>Program dropdown options.</summary>
+    [HttpGet("programs")]
+    public async Task<ActionResult<IReadOnlyList<ProgramDto>>> ListPrograms(CancellationToken ct)
+        => Ok(await _programs.ListAsync(ct));
+
+    /// <summary>The dropdown's "+" button. Idempotent for an existing name.</summary>
+    [HttpPost("programs")]
+    public async Task<ActionResult<ProgramDto>> CreateProgram([FromBody] CreateProgramRequest request, CancellationToken ct)
+    {
+        var (program, created) = await _programs.CreateAsync(request, ct);
+        return created ? StatusCode(StatusCodes.Status201Created, program) : Ok(program);
+    }
+
+    /// <summary>Image inserted, pasted or dropped into the rich text editor.</summary>
+    [HttpPost("attachments")]
+    public Task<ActionResult<AttachmentDto>> UploadAttachment(IFormFile file, CancellationToken ct)
+        => AttachmentEndpoints.UploadAsync(this, _attachments, file, "uiGetAttachment", ct);
+
+    /// <summary>Image referenced from markdown as <c>api/ui/attachments/{id}</c>.</summary>
+    [HttpGet("attachments/{id:guid}", Name = "uiGetAttachment")]
+    public Task<IActionResult> GetAttachment(Guid id, CancellationToken ct)
+        => AttachmentEndpoints.GetAsync(this, _attachments, id, ct);
 
     /// <summary>Board with columns, WIP status and filtered cards.</summary>
     [HttpGet("board")]

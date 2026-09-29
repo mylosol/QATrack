@@ -50,6 +50,14 @@ public class WorkItem
 
     public DateTime UpdatedAt { get; set; }
 
+    /// <summary>Program this item belongs to (optional).</summary>
+    public int? ProgramId { get; set; }
+
+    public WorkProgram? Program { get; set; }
+
+    /// <summary>Tags (many-to-many through the WorkItemTag table).</summary>
+    public List<Tag> Tags { get; set; } = new();
+
     /// <summary>Audit trail, newest entries appended last.</summary>
     public List<WorkItemHistory> History { get; set; } = new();
 }

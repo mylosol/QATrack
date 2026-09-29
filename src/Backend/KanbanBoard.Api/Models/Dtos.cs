@@ -66,6 +66,12 @@ public sealed class WorkItemDto
 
     public string IterationPath { get; init; } = string.Empty;
 
+    /// <summary>Program the item belongs to (e.g. "ProveOut"), or null.</summary>
+    public string? Program { get; init; }
+
+    /// <summary>Tags, sorted alphabetically.</summary>
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
     /// <summary>True once any AI agent has modified this item.</summary>
     public bool AiModified { get; init; }
 
@@ -121,6 +127,13 @@ public sealed class CreateWorkItemRequest
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? IterationPath { get; set; }
 
+    /// <summary>Program name (case-insensitive), one of GET /api/v1/programs. Omit for none.</summary>
+    [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
+    public string? Program { get; set; }
+
+    /// <summary>Tags (max 20, each max 50 characters). New tags are created on first use.</summary>
+    public List<string>? Tags { get; set; }
+
     /// <summary>Optional note recorded with the creation history entry.</summary>
     [MaxLength(WorkItemDefaults.CommentMaxLength)]
     public string? Comment { get; set; }
@@ -160,6 +173,13 @@ public sealed class UpdateWorkItemRequest
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? IterationPath { get; set; }
 
+    /// <summary>Program name (case-insensitive). Empty string removes the program.</summary>
+    [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
+    public string? Program { get; set; }
+
+    /// <summary>Replaces ALL tags when present; send [] to remove every tag. Omit to leave tags unchanged.</summary>
+    public List<string>? Tags { get; set; }
+
     /// <summary>Optional note explaining the change; stored on the history entry.</summary>
     [MaxLength(WorkItemDefaults.CommentMaxLength)]
     public string? Comment { get; set; }
@@ -189,6 +209,14 @@ public sealed class WorkItemQuery
     /// <summary>Exact (case-insensitive) assignee match. Use "unassigned" for items with no assignee.</summary>
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AssignedTo { get; set; }
+
+    /// <summary>Program name (case-insensitive).</summary>
+    [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
+    public string? Program { get; set; }
+
+    /// <summary>Only items carrying this tag (case-insensitive).</summary>
+    [MaxLength(WorkItemDefaults.TagMaxLength)]
+    public string? Tag { get; set; }
 
     /// <summary>Maximum number of items to return (1-1000, default 500).</summary>
     [Range(1, 1000)]
@@ -233,6 +261,12 @@ public sealed class BoardMetadataDto
 
     /// <summary>Distinct assignees currently on the board (for filter dropdowns).</summary>
     public IReadOnlyList<string> Assignees { get; init; } = Array.Empty<string>();
+
+    /// <summary>Available programs in display order.</summary>
+    public IReadOnlyList<string> Programs { get; init; } = Array.Empty<string>();
+
+    /// <summary>Every known tag, alphabetically (for suggestions and the tag filter).</summary>
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>Full board payload (spec 4.2 GET /api/v1/board).</summary>
@@ -248,4 +282,35 @@ public sealed class BoardDto
     public int RemovedCount { get; init; }
 
     public BoardMetadataDto Metadata { get; init; } = new();
+}
+
+/// <summary>A program work items can belong to.</summary>
+public sealed record ProgramDto(int Id, string Name, int SortOrder);
+
+/// <summary>Adds a program to the dropdown.</summary>
+public sealed class CreateProgramRequest
+{
+    /// <summary>Program name (max 64 characters, unique case-insensitively).</summary>
+    [Required(AllowEmptyStrings = false)]
+    [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>An uploaded image.</summary>
+public sealed class AttachmentDto
+{
+    public Guid Id { get; init; }
+
+    public string FileName { get; init; } = string.Empty;
+
+    /// <summary>image/png, image/jpeg, image/gif or image/webp (detected from the bytes).</summary>
+    public string ContentType { get; init; } = string.Empty;
+
+    public long Length { get; init; }
+
+    /// <summary>Relative URL the board uses to display the image.</summary>
+    public string Url { get; init; } = string.Empty;
+
+    /// <summary>Ready-to-paste markdown, e.g. <c>![screenshot.png](api/ui/attachments/{id})</c>.</summary>
+    public string Markdown { get; init; } = string.Empty;
 }

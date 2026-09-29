@@ -17,7 +17,9 @@ public sealed record WorkItemSnapshot(
     string Severity,
     string? AssignedTo,
     string AreaPath,
-    string IterationPath)
+    string IterationPath,
+    string? Program = null,
+    string? Tags = null)
 {
     /// <summary>Captures the tracked fields of <paramref name="item"/>.</summary>
     public static WorkItemSnapshot From(WorkItem item) => new(
@@ -29,7 +31,16 @@ public sealed record WorkItemSnapshot(
         item.Severity,
         item.AssignedTo,
         item.AreaPath,
-        item.IterationPath);
+        item.IterationPath,
+        item.Program?.Name,
+        FormatTags(item.Tags.Select(t => t.Name)));
+
+    /// <summary>Canonical audit form of a tag set: sorted, "; "-separated, null when empty.</summary>
+    public static string? FormatTags(IEnumerable<string> tags)
+    {
+        var sorted = tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+        return sorted.Count == 0 ? null : string.Join("; ", sorted);
+    }
 
     /// <summary>Snapshot representing "nothing" - used to diff a newly created item.</summary>
     public static readonly WorkItemSnapshot Empty = new(
@@ -88,6 +99,8 @@ public static class WorkItemChangeTracker
         Track(nameof(WorkItem.AssignedTo), before.AssignedTo, after.AssignedTo);
         Track(nameof(WorkItem.AreaPath), before.AreaPath, after.AreaPath);
         Track(nameof(WorkItem.IterationPath), before.IterationPath, after.IterationPath);
+        Track(nameof(WorkItem.Program), before.Program, after.Program);
+        Track(nameof(WorkItem.Tags), before.Tags, after.Tags);
 
         return changes;
     }

@@ -56,6 +56,8 @@ public sealed class AccessControlTests : IClassFixture<PasswordProtectedFactory>
     [Theory]
     [InlineData("/api/ui/board")]
     [InlineData("/api/ui/workitems/1")]
+    [InlineData("/api/ui/programs")]
+    [InlineData("/api/ui/attachments/9b2f0c1e-4a57-4d8e-9d55-3f2b8f1a0c77")]
     public async Task BoardData_WithoutSession_Is401(string path)
     {
         var response = await _factory.CreateBrowser().GetAsync(path);

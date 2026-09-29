@@ -10,10 +10,11 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------------
-// Request limits. Descriptions are capped at 1 MB of text, so 4 MB bodies are
-// plenty and anything larger is rejected before model binding.
+// Request limits. Descriptions are capped at 1 MB of text and uploaded images
+// at 5 MB, so 8 MB bodies are plenty; anything larger is rejected before
+// model binding.
 // ---------------------------------------------------------------------------
-const long maxRequestBodyBytes = 4 * 1024 * 1024;
+const long maxRequestBodyBytes = 8 * 1024 * 1024;
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = maxRequestBodyBytes);
 builder.Services.Configure<IISServerOptions>(o => o.MaxRequestBodySize = maxRequestBodyBytes);
 
@@ -37,6 +38,8 @@ builder.Services.AddScoped<ActorContext>();
 builder.Services.AddScoped<IActorContext>(sp => sp.GetRequiredService<ActorContext>());
 builder.Services.AddScoped<WorkItemService>();
 builder.Services.AddScoped<BoardService>();
+builder.Services.AddScoped<ProgramService>();
+builder.Services.AddScoped<AttachmentService>();
 
 // AI agent API settings (X-API-Key pre-shared secret, identity rules).
 builder.Services.Configure<AiAgentApiOptions>(builder.Configuration.GetSection(AiAgentApiOptions.SectionName));
