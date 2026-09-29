@@ -111,7 +111,13 @@ Point tool-calling agents at `/api/openapi.json`. It declares both headers as se
 
 1. On the build machine: `npm run package` → `artifacts/QATrack-1.0.0.zip`.
 2. Copy the zip to the server and extract it to a staging folder (not the site folder).
-3. In an **elevated** PowerShell in that folder:
+3. Optional: check the server first (read-only, changes nothing):
+
+   ```powershell
+   .\deploy-iis.ps1 -Action Diagnose
+   ```
+
+4. In an **elevated** PowerShell in that folder:
 
    ```powershell
    .\deploy-iis.ps1 -Action Install -SiteName QATrack -AppPoolName QATrack -PhysicalPath C:\inetpub\QATrack -Port 8080
