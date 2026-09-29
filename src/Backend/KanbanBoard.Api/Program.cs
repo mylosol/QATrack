@@ -99,6 +99,16 @@ app.UseMiddleware<AgentIdentityMiddleware>();
 app.UseMiddleware<UiRequestGuardMiddleware>();
 
 app.MapKanbanOpenApiSchema();
+
+// Public, unauthenticated version probe for operators, monitoring and agents.
+app.MapGet("/api/version", () => Results.Ok(new
+    {
+        name = "QATrack",
+        version = AppVersion.Current.Version,
+        commit = AppVersion.Current.Commit,
+        informationalVersion = AppVersion.Current.InformationalVersion,
+    }))
+    .ExcludeFromDescription();
 app.MapControllers();
 
 // Unknown API routes must return a JSON 404, never the SPA shell.

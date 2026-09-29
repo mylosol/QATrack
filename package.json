@@ -1,6 +1,6 @@
 {
   "name": "qatrack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "QATrack - DevOps Kanban Board for QA Tools (IIS / Windows Server). Root tooling orchestration.",
   "scripts": {
@@ -17,6 +17,10 @@
     "test:unit": "npm run test:frontend && npm run test:backend",
     "test:e2e": "npm --prefix src/Frontend run test:e2e",
     "verify": "npm run typecheck && npm run test:frontend && npm run test:backend && npm run build:frontend && npm run test:e2e",
-    "package": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy-iis.ps1 -Action Package"
+    "package": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy-iis.ps1 -Action Package",
+    "version:show": "node -p \"require('./package.json').version\"",
+    "release:patch": "npm version patch --no-git-tag-version",
+    "release:minor": "npm version minor --no-git-tag-version",
+    "release:major": "npm version major --no-git-tag-version"
   }
 }

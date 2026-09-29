@@ -118,6 +118,19 @@ if (-not $SourcePath) { $SourcePath = $ScriptDirectory }
 $ProtectedDataPatterns = @('*.db', '*.db-wal', '*.db-shm', '*.db-journal')
 $MinimumApiKeyLength = 16
 
+# Official SemVer 2.0 pattern (semver.org) without build metadata; the build
+# appends "+<git commit>" to the assembly's informational version itself.
+$SemVerPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$'
+
+function Get-QATrackVersion([string]$Folder) {
+    <# SemVer of the KanbanBoard.Api.dll in a folder (ProductVersion = "1.1.0+commit"), or $null. #>
+    $dll = Join-Path $Folder 'KanbanBoard.Api.dll'
+    if (-not (Test-Path $dll)) { return $null }
+    $product = (Get-Item $dll).VersionInfo.ProductVersion
+    if (-not $product) { return $null }
+    return $product.Trim()
+}
+
 function Write-Step([string]$Message) {
     Write-Host ''
     Write-Host "==> $Message" -ForegroundColor Cyan
@@ -185,7 +198,9 @@ function Invoke-Package {
     if (-not $Version) {
         $Version = (Get-Content (Join-Path $repoRoot 'package.json') -Raw | ConvertFrom-Json).version
     }
-    if ($Version -notmatch '^[0-9A-Za-z.\-]+$') { throw "Invalid version '$Version'." }
+    if ($Version -notmatch $SemVerPattern) {
+        throw "Version '$Version' is not a valid Semantic Version (MAJOR.MINOR.PATCH[-prerelease]). See https://semver.org"
+    }
 
     Write-Step 'Checking toolchain'
     foreach ($tool in @('node', 'npm', 'dotnet')) {
@@ -436,6 +451,17 @@ function Invoke-Install {
     $offline = Join-Path $target 'app_offline.htm'
     $isUpdate = Test-Path (Join-Path $target 'KanbanBoard.Api.dll')
 
+    $newVersion = Get-QATrackVersion $source
+    if (-not $newVersion) { $newVersion = 'unknown' }
+    if ($isUpdate) {
+        $oldVersion = Get-QATrackVersion $target
+        if (-not $oldVersion) { $oldVersion = 'unknown' }
+        Write-Step "Upgrading QATrack $oldVersion -> $newVersion"
+    }
+    else {
+        Write-Step "Installing QATrack $newVersion"
+    }
+
     try {
         if ($isUpdate) {
             Write-Step 'Taking the running app offline (app_offline.htm)'
@@ -482,10 +508,17 @@ function Invoke-Install {
         catch {
             Write-Warning "Warm-up request to $url failed: $($_.Exception.Message). Check Event Viewer or enable stdout logging in web.config."
         }
+        try {
+            $running = Invoke-RestMethod -Uri "http://${hostName}:$Port/api/version" -TimeoutSec 30
+            Write-Host "    Running version reported by the site: $($running.version)" -ForegroundColor Green
+        }
+        catch {
+            Write-Warning "Could not read /api/version: $($_.Exception.Message)"
+        }
     }
 
     Write-Host ''
-    Write-Host "QATrack deployed to $target" -ForegroundColor Green
+    Write-Host "QATrack $newVersion deployed to $target" -ForegroundColor Green
 }
 
 switch ($Action) {

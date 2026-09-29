@@ -54,6 +54,26 @@ npm run setup
 The repo is local-only (spec section 7). Work goes on `feature/*` branches and is merged into `main` with `git merge --no-ff`.
 The versioned `.githooks/pre-merge-commit` hook runs `npm run verify` and aborts any merge into `main` that fails.
 
+## Versioning
+
+QATrack follows [Semantic Versioning 2.0](https://semver.org): `MAJOR.MINOR.PATCH[-prerelease]`.
+
+- **Single source of truth:** the `version` field in the root `package.json`. `Directory.Build.props` (.NET) and `src/Frontend/vite.config.ts` (SPA) both read it, and either build fails if it is not valid SemVer.
+- The git commit is added automatically as build metadata, e.g. `1.1.0+abc1234`.
+- **Where it shows:**
+  - the board header (`v1.1.0`; hover for the full build)
+  - `GET /api/version`
+  - the OpenAPI `info.version`
+  - the zip name (`QATrack-1.1.0.zip`)
+  - the installer output ("Upgrading 1.0.0 -> 1.1.0")
+- **Release steps:**
+  1. Bump the version: `npm run release:patch` (bug fixes), `release:minor` (new backwards-compatible features) or `release:major` (breaking changes, e.g. `/api/v1` contract changes).
+  2. Update `CHANGELOG.md`.
+  3. Merge into `main`.
+  4. Tag `vX.Y.Z` and run `npm run package`.
+
+The `/api/v1` URL segment is the API contract version. It changes only with a breaking API change, independently of the app version.
+
 ## Using the AI agent API
 
 ```bash
