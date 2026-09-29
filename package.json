@@ -1,0 +1,12 @@
+{
+  "name": "qatrack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QATrack - DevOps Kanban Board for QA Tools (IIS / Windows Server). Root tooling orchestration.",
+  "scripts": {
+    "hooks:install": "git config core.hooksPath .githooks && git config merge.ff false",
+    "build:backend": "dotnet build KanbanBoard.sln -c Release",
+    "test:backend": "dotnet test KanbanBoard.sln -c Release --nologo",
+    "verify": "npm run test:backend"
+  }
+}

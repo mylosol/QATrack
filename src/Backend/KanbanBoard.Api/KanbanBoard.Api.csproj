@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    QATrack Kanban API. Targets .NET 8 (LTS) so it runs in-process under the
+    ASP.NET Core Module v2 on servers with the .NET 8 Hosting Bundle installed.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>KanbanBoard.Api</RootNamespace>
+    <AssemblyName>KanbanBoard.Api</AssemblyName>
+    <!-- IIS in-process hosting model (matches web.config hostingModel="inprocess"). -->
+    <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
+    <!-- XML docs feed the OpenAPI descriptions consumed by AI agents for tool calling. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Keep the hand-authored web.config from the spec instead of a generated one. -->
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.31" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.31">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      App_Data ships as an empty directory (placeholder only). A live kanban.db
+      is NEVER part of the build or publish output, so a redeploy cannot
+      overwrite production data.
+    -->
+    <Content Remove="App_Data\**" />
+    <None Remove="App_Data\**" />
+    <None Include="App_Data\README.txt" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KanbanBoard.Tests" />
+  </ItemGroup>
+
+</Project>

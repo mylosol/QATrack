@@ -1,0 +1,16 @@
+#!/bin/sh
+# Local CI gate (spec section 7): every merge commit into main must pass the
+# full automated verification suite. Runs for non-fast-forward merges, which
+# is why `npm run hooks:install` also sets merge.ff=false for this repo.
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" != "main" ]; then
+  exit 0
+fi
+echo "[pre-merge-commit] Running 'npm run verify' before merging into main..."
+npm run verify
+status=$?
+if [ $status -ne 0 ]; then
+  echo "[pre-merge-commit] Verification FAILED - merge aborted." >&2
+  exit $status
+fi
+echo "[pre-merge-commit] Verification passed."
