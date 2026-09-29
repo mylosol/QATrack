@@ -1,0 +1,40 @@
+# --- .NET build output ---
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# --- Node / frontend build output ---
+node_modules/
+dist/
+# Vite emits the SPA bundle straight into the API's wwwroot; it is a build artifact.
+src/Backend/KanbanBoard.Api/wwwroot/
+
+# --- SQLite runtime state (never commit live databases or their journals) ---
+App_Data/*.db
+App_Data/*.db-journal
+App_Data/*.db-wal
+App_Data/*.db-shm
+*.db-journal
+
+# --- Test / tooling output ---
+playwright-report/
+test-results/
+coverage/
+.e2e-data/
+
+# --- Packaging output ---
+artifacts/
+
+# --- IIS stdout logs ---
+logs/
+
+# --- Local-only human QA playbook ---
+docs/qa/test_plan.md
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+.idea/
