@@ -79,6 +79,41 @@ public sealed class VersionTests : IClassFixture<KanbanApiFactory>
     }
 
     [Fact]
+    public async Task VersionEndpoint_IsNeverCached_AndReportsCanonicalBuild()
+    {
+        var response = await _factory.CreateClient().GetAsync("/api/version");
+        response.EnsureSuccessStatusCode();
+
+        Assert.True(response.Headers.CacheControl?.NoStore, "The update notifier needs an uncacheable source of truth.");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var version = body.GetProperty("version").GetString()!;
+        var build = body.GetProperty("build").GetString()!;
+        Assert.Matches(new Regex($"^{Regex.Escape(version)}(\\+[0-9a-f]{{7}})?$"), build);
+    }
+
+    [Theory]
+    [InlineData("1.2.0+1c3f0969b507765d7755895b051ae3fb13618fe2", "1.2.0+1c3f096")]
+    [InlineData("1.2.0", "1.2.0")]
+    public void Build_IsVersionPlusShortCommit(string informational, string expected)
+    {
+        Assert.Equal(expected, AppVersion.Parse(informational).Build);
+    }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/index.html")]
+    public async Task SpaShell_IsServedNoCache_SoReloadAlwaysGetsTheNewBuild(string path)
+    {
+        var response = await _factory.CreateClient().GetAsync(path);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return; // SPA not built in this checkout; the E2E suite covers the built bundle.
+        }
+
+        Assert.Contains("no-cache", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
     public async Task OpenApiInfoVersion_IsTheAppSemVer()
     {
         var doc = await _factory.CreateClient().GetFromJsonAsync<JsonElement>("/api/openapi.json");

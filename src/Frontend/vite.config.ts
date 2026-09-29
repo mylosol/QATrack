@@ -30,7 +30,10 @@ if (!SEMVER.test(appVersion)) {
 /** Short git commit for SemVer build metadata; empty when not in a git checkout. */
 function gitCommit(): string {
   try {
-    return execSync('git rev-parse --short=7 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    // Full SHA sliced to 7 - exactly what the backend's AppVersion.Commit does.
+    // (`--short` may return more than 7 chars when a prefix is ambiguous, which
+    // would make the update notifier see two different builds forever.)
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().slice(0, 7);
   } catch {
     return '';
   }

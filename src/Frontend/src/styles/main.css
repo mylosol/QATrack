@@ -197,6 +197,18 @@
     @apply bg-primary text-primary-fg;
   }
 
+  /*
+   * "New version available" toast: corner-anchored so it never covers the
+   * board, stacked just above the bottom-right theme switcher.
+   */
+  .update-toast {
+    position: fixed;
+    right: 1rem;
+    bottom: 4.5rem;
+    z-index: 50;
+    @apply max-w-xs rounded-lg border border-line bg-surface p-3 text-fg shadow-lg;
+  }
+
   .notice {
     @apply mx-3 mt-3 rounded border px-3 py-2 text-sm font-medium;
   }

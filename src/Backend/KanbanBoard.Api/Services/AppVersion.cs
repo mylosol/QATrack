@@ -24,6 +24,13 @@ public sealed partial record AppVersion(string Version, string? Commit, string I
         RegexOptions.CultureInvariant)]
     private static partial Regex SemVerPattern();
 
+    /// <summary>
+    /// Canonical build identifier: <c>MAJOR.MINOR.PATCH[-pre]+&lt;7-char commit&gt;</c>, or just
+    /// the version when no commit is known. The SPA bakes the same string in at
+    /// build time (vite.config.ts); any difference means a different build is deployed.
+    /// </summary>
+    public string Build => Commit is null ? Version : $"{Version}+{Commit}";
+
     /// <summary>True when <paramref name="value"/> is a valid SemVer 2.0 string.</summary>
     public static bool IsValidSemVer(string? value) => value is not null && SemVerPattern().IsMatch(value);
 
