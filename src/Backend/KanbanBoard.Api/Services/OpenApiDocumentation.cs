@@ -1,7 +1,8 @@
 using System.Reflection;
+using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
-using Microsoft.OpenApi.Writers;
 using Swashbuckle.AspNetCore.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace KanbanBoard.Api.Services;
 
@@ -19,6 +20,18 @@ public static class OpenApiDocumentation
     public const string ApiKeySchemeId = "ApiKey";
     public const string AgentIdentitySchemeId = "AgentIdentity";
 
+    /// <summary>
+    /// How agents keep their knowledge of the API current (1.5.0). Part of the
+    /// document description and of GET /api/v1/meta.
+    /// </summary>
+    public const string AgentContractRule =
+        "Every /api/v1 response carries an `X-API-Schema-Version` header: a fingerprint of this OpenAPI document " +
+        "that changes only when the API changes. Remember it (it is also `schemaVersion` in GET /api/v1/meta). " +
+        "If a later response carries a different value, re-read /api/openapi.json before your next call, and call " +
+        "GET /api/v1/meta?since=<version you knew> to read what changed. Changes within /api/v1 are additive; a " +
+        "breaking change would ship as a new /api/v2. An HTTP 503 with an HTML body means the server is being " +
+        "updated: wait a few seconds and retry.";
+
     /// <summary>Registers the Swashbuckle generator.</summary>
     public static IServiceCollection AddKanbanOpenApi(this IServiceCollection services)
     {
@@ -34,7 +47,8 @@ public static class OpenApiDocumentation
                     "REST API for AI agents to query, create, update, document and close QA work items. " +
                     "Every request must send the pre-shared `X-API-Key` header and an `X-Agent-Identity` " +
                     "header naming the agent (e.g. `Claude-Code-Agent-v1`). All mutations are recorded in the " +
-                    "work item's audit history as AI actions and flag the card as AI-modified.",
+                    "work item's audit history as AI actions and flag the card as AI-modified.\n\n" +
+                    "**Staying current:** " + AgentContractRule,
             });
 
             // Only the AI-facing /api/v1 endpoints belong in the tool schema.
@@ -48,6 +62,7 @@ public static class OpenApiDocumentation
             }
 
             options.SupportNonNullableReferenceTypes();
+            options.OperationFilter<ContractHeadersOperationFilter>();
 
             // Both headers are mandatory on every /api/v1 call (spec 4.1).
             options.AddSecurityDefinition(ApiKeySchemeId, new OpenApiSecurityScheme
@@ -97,19 +112,56 @@ public static class OpenApiDocumentation
     {
         // Swashbuckle's own middleware requires a {documentName} route token, so
         // the fixed spec path is served explicitly.
-        app.MapGet(SchemaPath, (HttpRequest request, ISwaggerProvider provider) =>
+        app.MapGet(SchemaPath, (HttpRequest request, ISwaggerProvider provider, ApiContract contract) =>
             {
                 var document = provider.GetSwagger(
                     DocumentName,
                     host: $"{request.Scheme}://{request.Host}",
                     basePath: request.PathBase.HasValue ? request.PathBase.Value : null);
 
-                using var writer = new StringWriter();
-                document.SerializeAsV3(new OpenApiJsonWriter(writer));
-                return Results.Text(writer.ToString(), "application/json");
+                var json = ApiContract.Serialize(document);
+                var etag = new EntityTagHeaderValue($"\"{ApiContract.Hash(json)[..16]}\"");
+
+                var response = request.HttpContext.Response;
+                response.Headers.ETag = etag.ToString();
+                // Clients may cache it but must revalidate (a cheap 304 when unchanged).
+                response.Headers.CacheControl = "no-cache";
+                response.Headers[ApiContract.SchemaVersionHeader] = contract.SchemaVersion;
+
+                var ifNoneMatch = request.GetTypedHeaders().IfNoneMatch;
+                if (ifNoneMatch.Any(tag => tag.Equals(EntityTagHeaderValue.Any) || tag.Compare(etag, useStrongComparison: false)))
+                {
+                    return Results.StatusCode(StatusCodes.Status304NotModified);
+                }
+
+                return Results.Text(json, "application/json");
             })
             .ExcludeFromDescription();
 
         return app;
+    }
+}
+
+/// <summary>
+/// Documents the contract headers (X-API-Schema-Version, Link) on every
+/// response in the OpenAPI document, so tool schemas know they exist.
+/// </summary>
+internal sealed class ContractHeadersOperationFilter : IOperationFilter
+{
+    public void Apply(OpenApiOperation operation, OperationFilterContext context)
+    {
+        foreach (var response in operation.Responses.Values)
+        {
+            response.Headers[ApiContract.SchemaVersionHeader] = new OpenApiHeader
+            {
+                Description = "Fingerprint of this OpenAPI document. When it changes, re-read /api/openapi.json.",
+                Schema = new OpenApiSchema { Type = "string" },
+            };
+            response.Headers["Link"] = new OpenApiHeader
+            {
+                Description = "</api/openapi.json>; rel=\"service-desc\" - where to re-read this API's description.",
+                Schema = new OpenApiSchema { Type = "string" },
+            };
+        }
     }
 }

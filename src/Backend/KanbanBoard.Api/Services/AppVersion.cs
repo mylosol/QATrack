@@ -35,6 +35,64 @@ public sealed partial record AppVersion(string Version, string? Commit, string I
     public static bool IsValidSemVer(string? value) => value is not null && SemVerPattern().IsMatch(value);
 
     /// <summary>
+    /// SemVer precedence of two versions (build metadata ignored): negative when
+    /// <paramref name="a"/> is older, 0 when equal, positive when newer. A
+    /// pre-release sorts before its release (1.5.0-rc.1 &lt; 1.5.0).
+    /// </summary>
+    /// <exception cref="FormatException">Either value is not valid SemVer.</exception>
+    public static int Compare(string a, string b)
+    {
+        var x = SemVerPattern().Match(a);
+        var y = SemVerPattern().Match(b);
+        if (!x.Success || !y.Success)
+        {
+            throw new FormatException($"'{(x.Success ? b : a)}' is not a valid Semantic Version.");
+        }
+
+        foreach (var part in new[] { "major", "minor", "patch" })
+        {
+            var diff = long.Parse(x.Groups[part].Value).CompareTo(long.Parse(y.Groups[part].Value));
+            if (diff != 0)
+            {
+                return diff;
+            }
+        }
+
+        var (px, py) = (x.Groups["prerelease"], y.Groups["prerelease"]);
+        if (px.Success != py.Success)
+        {
+            return px.Success ? -1 : 1;
+        }
+
+        return px.Success ? ComparePrerelease(px.Value, py.Value) : 0;
+    }
+
+    /// <summary>SemVer 2.0 rule 11: dot-separated identifiers, numeric ones compared numerically.</summary>
+    private static int ComparePrerelease(string a, string b)
+    {
+        var xs = a.Split('.');
+        var ys = b.Split('.');
+        for (var i = 0; i < Math.Min(xs.Length, ys.Length); i++)
+        {
+            var xNum = long.TryParse(xs[i], out var xn);
+            var yNum = long.TryParse(ys[i], out var yn);
+            var diff = (xNum, yNum) switch
+            {
+                (true, true) => xn.CompareTo(yn),
+                (true, false) => -1,
+                (false, true) => 1,
+                _ => string.CompareOrdinal(xs[i], ys[i]),
+            };
+            if (diff != 0)
+            {
+                return Math.Sign(diff);
+            }
+        }
+
+        return xs.Length.CompareTo(ys.Length);
+    }
+
+    /// <summary>
     /// Parses an informational version such as "1.1.0+abcdef123". The commit is
     /// shortened to 7 characters. Invalid input yields "0.0.0" so the app never
     /// fails to start over version metadata.

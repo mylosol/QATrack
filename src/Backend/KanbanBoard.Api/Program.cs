@@ -40,6 +40,7 @@ builder.Services.AddScoped<WorkItemService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<ProgramService>();
 builder.Services.AddScoped<AttachmentService>();
+builder.Services.AddSingleton<ApiContract>();
 
 // AI agent API settings (X-API-Key pre-shared secret, identity rules).
 builder.Services.Configure<AiAgentApiOptions>(builder.Configuration.GetSection(AiAgentApiOptions.SectionName));
@@ -163,7 +164,10 @@ app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
 
-// /api/v1 (AI agents): authenticate the key first, then capture the identity.
+// /api/v1 (AI agents): contract headers on EVERY response (even 401s), so a
+// changed X-API-Schema-Version is noticed on any call...
+app.UseMiddleware<ApiContractHeadersMiddleware>();
+// ...then authenticate the key, then capture the identity.
 app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseMiddleware<AgentIdentityMiddleware>();
 // /api/ui (browser): signed-in session when a shared password is configured...
@@ -176,7 +180,7 @@ app.MapKanbanOpenApiSchema();
 // Public, unauthenticated version probe for operators, monitoring and agents.
 // It is also the source of truth for the SPA's "new version available" toast,
 // so it must never be cached by the browser, a proxy or a CDN.
-app.MapGet("/api/version", (HttpContext context) =>
+app.MapGet("/api/version", (HttpContext context, ApiContract contract) =>
     {
         context.Response.Headers.CacheControl = "no-store";
         return Results.Ok(new
@@ -187,6 +191,8 @@ app.MapGet("/api/version", (HttpContext context) =>
             // Canonical build id compared by the SPA with the one baked into its bundle.
             build = AppVersion.Current.Build,
             informationalVersion = AppVersion.Current.InformationalVersion,
+            // Fingerprint of the /api/v1 contract (see X-API-Schema-Version).
+            apiSchemaVersion = contract.SchemaVersion,
         });
     })
     .ExcludeFromDescription();

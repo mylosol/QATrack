@@ -3,6 +3,17 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-09-29
+
+### Added
+- **AI agents are told when the API changes**, so they know to re-read the documentation.
+  - Every `/api/v1` response (including errors) carries `X-API-Schema-Version`, a 12-character fingerprint of the OpenAPI document. It changes only when the API itself changes (an endpoint, field, parameter or description), not on UI-only releases, and is the same on every server running the same API.
+  - Every `/api/v1` response also carries `Link: </api/openapi.json>; rel="service-desc"`, the standard pointer to the API description.
+  - New `GET /api/v1/meta` (`getApiMeta`) returns the app version, the fingerprint, the docs URLs, the rule below, and a plain-language list of API changes per release. `?since=1.4.0` lists only newer changes.
+  - `/api/openapi.json` sends an ETag, so agents can re-check it cheaply (HTTP 304 when unchanged). `/api/version` now also reports `apiSchemaVersion`.
+  - The API description (what agents read first) now states the rule: remember the fingerprint; when it changes, re-read `/api/openapi.json` and check `/api/v1/meta` for what changed; an HTTP 503 during an update means wait and retry.
+- A build-time guard: the test suite fails if the API changes without a matching entry in the API change list, so agents are never left without an explanation.
+
 ## [1.4.0] - 2026-09-29
 
 ### Added
