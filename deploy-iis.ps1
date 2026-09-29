@@ -681,6 +681,57 @@ function Start-QATrackSite {
     }
 }
 
+function Get-HttpErrorSummary($ErrorRecord) {
+    <#
+      Turns a failed Invoke-WebRequest into something actionable: the IIS /
+      ASP.NET Core Module error title (e.g. "HTTP Error 500.19 - ...", "HTTP
+      Error 500.30 - ASP.NET Core app failed to start"), the "Config Error"
+      row of IIS detailed error pages, and a hint for well-known codes.
+    #>
+    $summary = $ErrorRecord.Exception.Message
+    # Windows PowerShell 5.1 has already consumed the response stream and puts
+    # the body in ErrorDetails; fall back to rewinding the stream otherwise.
+    $body = $null
+    if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+        $body = [string]$ErrorRecord.ErrorDetails.Message
+    }
+    if (-not $body) {
+        try {
+            $response = $ErrorRecord.Exception.Response
+            if ($response) {
+                $stream = $response.GetResponseStream()
+                if ($stream.CanSeek) { $stream.Position = 0 }
+                $reader = New-Object System.IO.StreamReader($stream)
+                $body = $reader.ReadToEnd()
+                $reader.Dispose()
+            }
+        }
+        catch {
+            $body = $null
+        }
+    }
+    if (-not $body) { return $summary }
+
+    # Normalize to plain text: PS 5.1 hands over an already tag-stripped page,
+    # PS 7 / the raw stream give HTML. Tags become line breaks.
+    $text = [System.Net.WebUtility]::HtmlDecode(($body -replace '<[^>]+>', "`n"))
+
+    $lines = @()
+    $title = [regex]::Match($text, 'HTTP Error \d{3}(?:\.\d+)?[^\r\n]*', 'IgnoreCase')
+    if ($title.Success) { $lines += $title.Value.Trim() }
+    $configError = [regex]::Match($text, 'Config Error\s*([^\r\n]+)', 'IgnoreCase')
+    if ($configError.Success) { $lines += 'Config Error: ' + $configError.Groups[1].Value.Trim() }
+
+    $joined = $lines -join ' | '
+    $hint = ''
+    if ($joined -match '500\.19') { $hint = 'IIS cannot read web.config (see Config Error). Make sure the web.config from this package was copied and the Hosting Bundle is installed.' }
+    elseif ($joined -match '500\.3[0-9]') { $hint = "The app failed to start. Set stdoutLogEnabled=""true"" in web.config and check the logs folder, or Event Viewer > Windows Logs > Application (source 'IIS AspNetCore Module V2')." }
+    elseif ($joined -match '503') { $hint = "The app pool '$AppPoolName' is stopped. Check Event Viewer (WAS / IIS-W3SVC-WP) for why it crashed." }
+    if ($hint) { $joined = "$joined`n    Hint: $hint" }
+    if ($joined) { return $joined }
+    return $summary
+}
+
 function Invoke-Install {
     # Validate every input before touching the server.
     if ($ApiKey -and $ApiKey.Length -lt $MinimumApiKeyLength) {
@@ -782,7 +833,7 @@ function Invoke-Install {
             Write-Host "    $url -> HTTP $($response.StatusCode)" -ForegroundColor Green
         }
         catch {
-            Write-Warning "Warm-up request to $url failed: $($_.Exception.Message). Check Event Viewer or enable stdout logging in web.config."
+            Write-Warning "Warm-up request to $url failed:`n    $(Get-HttpErrorSummary $_)"
         }
         try {
             $running = Invoke-RestMethod -Uri "http://${hostName}:$sitePort/api/version" -TimeoutSec 30
