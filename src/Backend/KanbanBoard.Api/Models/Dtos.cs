@@ -314,3 +314,49 @@ public sealed class AttachmentDto
     /// <summary>Ready-to-paste markdown, e.g. <c>![screenshot.png](api/ui/attachments/{id})</c>.</summary>
     public string Markdown { get; init; } = string.Empty;
 }
+
+/// <summary>One release's changes to the AI agent API.</summary>
+public sealed class ApiChangeDto
+{
+    /// <summary>Release (Semantic Version) that introduced the change.</summary>
+    public string Version { get; init; } = string.Empty;
+
+    /// <summary>Release date (yyyy-MM-dd).</summary>
+    public string Date { get; init; } = string.Empty;
+
+    /// <summary>The X-API-Schema-Version this release produces, when known.</summary>
+    public string? SchemaVersion { get; init; }
+
+    /// <summary>True when existing calls must change. Breaking changes ship as a new /api/vN.</summary>
+    public bool Breaking { get; init; }
+
+    /// <summary>What changed, in plain language.</summary>
+    public IReadOnlyList<string> Summary { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>What an agent needs to know whether its understanding of this API is current.</summary>
+public sealed class ApiMetaDto
+{
+    public string Name { get; init; } = "QATrack";
+
+    /// <summary>Application Semantic Version.</summary>
+    public string Version { get; init; } = string.Empty;
+
+    /// <summary>API contract generation in the URL (v1). Breaking changes would move to v2.</summary>
+    public string ApiVersion { get; init; } = "v1";
+
+    /// <summary>Fingerprint of the OpenAPI document; same value as the X-API-Schema-Version header.</summary>
+    public string SchemaVersion { get; init; } = string.Empty;
+
+    /// <summary>OpenAPI 3.0 document to re-read when schemaVersion changes.</summary>
+    public string OpenApiUrl { get; init; } = string.Empty;
+
+    /// <summary>Human-readable API docs.</summary>
+    public string DocsUrl { get; init; } = string.Empty;
+
+    /// <summary>How agents should use schemaVersion.</summary>
+    public string Instructions { get; init; } = string.Empty;
+
+    /// <summary>API changes, newest first (only those after ?since= when given).</summary>
+    public IReadOnlyList<ApiChangeDto> Changes { get; init; } = Array.Empty<ApiChangeDto>();
+}

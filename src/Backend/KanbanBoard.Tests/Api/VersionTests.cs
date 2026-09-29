@@ -44,6 +44,27 @@ public sealed class VersionTests : IClassFixture<KanbanApiFactory>
         Assert.Equal(expected, AppVersion.IsValidSemVer(value));
     }
 
+    [Theory]
+    [InlineData("1.5.0", "1.4.0", 1)]
+    [InlineData("1.4.0", "1.10.0", -1)]
+    [InlineData("2.0.0", "2.0.0", 0)]
+    [InlineData("1.5.0-rc.1", "1.5.0", -1)]
+    [InlineData("1.5.0-rc.2", "1.5.0-rc.10", -1)]
+    [InlineData("1.5.0-alpha", "1.5.0-alpha.1", -1)]
+    [InlineData("1.5.0-beta", "1.5.0-alpha", 1)]
+    [InlineData("1.5.0+abc", "1.5.0+def", 0)]
+    public void Compare_FollowsSemVerPrecedence(string a, string b, int expected)
+    {
+        Assert.Equal(expected, Math.Sign(AppVersion.Compare(a, b)));
+        Assert.Equal(-expected, Math.Sign(AppVersion.Compare(b, a)));
+    }
+
+    [Fact]
+    public void Compare_RejectsInvalidVersions()
+    {
+        Assert.Throws<FormatException>(() => AppVersion.Compare("1.4", "1.4.0"));
+    }
+
     [Fact]
     public void Parse_SplitsBuildMetadataAndShortensCommit()
     {

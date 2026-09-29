@@ -124,6 +124,21 @@ Work items carry `program` (one of the programs, or null) and `tags` (a list). O
 
 Point tool-calling agents at `/api/openapi.json`. It declares both headers as security schemes.
 
+### Keeping agents current when the API changes
+
+| Signal | Where | Use |
+|---|---|---|
+| `X-API-Schema-Version: f79557855e81` | every `/api/v1` response, even errors | Fingerprint of the OpenAPI document. Changes only when the API changes. |
+| `Link: </api/openapi.json>; rel="service-desc"` | every `/api/v1` response | Where to re-read the API description. |
+| `GET /api/v1/meta?since=1.4.0` (`getApiMeta`) | API key required | Version, fingerprint and a plain-language list of API changes since a version. |
+| `ETag` on `/api/openapi.json` | public | Re-check with `If-None-Match`; HTTP 304 when unchanged. |
+
+The rule for agents is part of the API description itself: remember the fingerprint, and when a response carries a different one, re-read `/api/openapi.json` and call `/api/v1/meta?since=<last known version>`. Changes inside `/api/v1` are additive only; a breaking change would ship as `/api/v2`, with the old endpoints announcing their end date via `Deprecation`/`Sunset` headers.
+
+If your agent tooling only shows the model response bodies (not headers), add one line to the agent's own instructions: *"At the start of each session call GET /api/v1/meta and re-read /api/openapi.json if schemaVersion changed."*
+
+**For developers:** any change to the `/api/v1` surface, including XML doc comments, changes the fingerprint. The test `ApiChangeLog_NewestEntry_MatchesTheLiveContract` then fails with the new value. Add an entry to `Services/ApiChangeLog.cs` describing the change for agents, with that value.
+
 ## Deploying to IIS
 
 **Server prerequisites:** IIS with Management Tools, and the **.NET 8 Hosting Bundle** (it installs ASP.NET Core Module V2). Run `iisreset` after installing the bundle.
