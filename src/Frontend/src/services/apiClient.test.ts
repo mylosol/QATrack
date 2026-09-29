@@ -98,6 +98,41 @@ describe('ApiClient', () => {
     expect((error as ApiError).message).toBe('Request failed with status 500.');
   });
 
+  it('calls onUnauthorized when board data is refused with 401', async () => {
+    const onUnauthorized = vi.fn();
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ title: 'Sign-in required' }, 401));
+    const error = await new ApiClient({ fetchImpl, onUnauthorized }).getBoard().catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(401);
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+  });
+
+  it('does not call onUnauthorized for a wrong password (login 401)', async () => {
+    const onUnauthorized = vi.fn();
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ title: 'Incorrect password' }, 401));
+    await new ApiClient({ fetchImpl, onUnauthorized }).login('x').catch(() => undefined);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it('uses the auth endpoints with the anti-forgery header', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ required: true, authenticated: false }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const api = new ApiClient({ fetchImpl });
+
+    expect(await api.getAuthStatus()).toEqual({ required: true, authenticated: false });
+    await api.login('pw');
+    await api.logout();
+
+    expect(fetchImpl.mock.calls.map((c) => [c[0], (c[1] as RequestInit).method])).toEqual([
+      ['api/auth/status', 'GET'],
+      ['api/auth/login', 'POST'],
+      ['api/auth/logout', 'POST'],
+    ]);
+    expect((fetchImpl.mock.calls[1]![1] as RequestInit).body).toBe('{"password":"pw"}');
+    expect((fetchImpl.mock.calls[1]![1] as RequestInit).headers).toMatchObject({ 'X-Requested-With': 'QATrack' });
+  });
+
   it('maps network failures to a friendly ApiError', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     const error = await new ApiClient({ fetchImpl }).getBoard().catch((e: unknown) => e);
