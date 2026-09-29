@@ -17,6 +17,10 @@ describe('buildQuery', () => {
     );
   });
 
+  it('serializes the program and tag filters (1.4.0)', () => {
+    expect(buildQuery({ program: 'ProveOut', tag: 'ui & api' })).toBe('?program=ProveOut&tag=ui+%26+api');
+  });
+
   it('encodes special characters', () => {
     expect(buildQuery({ assignedTo: 'a&b=c' })).toBe('?assignedTo=a%26b%3Dc');
   });
@@ -39,6 +43,34 @@ describe('describeProblem', () => {
 });
 
 describe('ApiClient', () => {
+  it('uploads images as multipart form data with the anti-forgery header', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ url: 'api/ui/attachments/1', fileName: 'a.png' }, 201));
+    const api = new ApiClient({ fetchImpl });
+    const file = new File([new Uint8Array([0x89, 0x50])], 'a.png', { type: 'image/png' });
+
+    const info = await api.uploadAttachment(file);
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('api/ui/attachments');
+    expect((init as RequestInit).body).toBeInstanceOf(FormData);
+    expect(((init as RequestInit).body as FormData).get('file')).toBeInstanceOf(File);
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers['X-Requested-With']).toBe('QATrack');
+    // The browser must set the multipart boundary itself.
+    expect(headers['Content-Type']).toBeUndefined();
+    expect(info.url).toBe('api/ui/attachments/1');
+  });
+
+  it('creates programs with a JSON body', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ id: 3, name: 'FieldTest', sortOrder: 2 }, 201));
+    const api = new ApiClient({ fetchImpl });
+
+    expect((await api.createProgram('FieldTest')).name).toBe('FieldTest');
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('api/ui/programs');
+    expect((init as RequestInit).body).toBe(JSON.stringify({ name: 'FieldTest' }));
+  });
+
   it('sends the anti-forgery header on every request and uses relative URLs', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ columns: [] }));
     const api = new ApiClient({ fetchImpl });

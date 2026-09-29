@@ -86,7 +86,7 @@ test.describe('Board', () => {
     await expect(columnList(page, 'Resolved').locator(`article[data-card-id="${item.id}"]`)).toBeVisible();
   });
 
-  test('card modal edits markdown, shows a preview, and records comments in history', async ({ page, request }) => {
+  test('card modal edits rich text, stores markdown, and records comments in history', async ({ page, request }) => {
     const item = await createViaUi(request, { title: uniqueTitle('Edit me'), type: 'Task' });
     await openBoard(page);
 
@@ -94,27 +94,53 @@ test.describe('Board', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('heading', { level: 2 })).toContainText(`Task ${item.id}`);
 
-    await dialog.getByTestId('dialog-description').fill('Steps:\n\n**Important** step with `code`\n\n<script>window.pwned=1</script>');
-    await dialog.getByTestId('tab-preview').click();
-    const preview = dialog.getByTestId('dialog-preview');
-    await expect(preview.locator('strong')).toHaveText('Important');
-    await expect(preview.locator('script')).toHaveCount(0);
+    // Rich editing: plain text, then bold via the toolbar.
+    const description = dialog.getByTestId('dialog-description');
+    await description.click();
+    await page.keyboard.type('Steps: ');
+    await dialog.getByRole('toolbar', { name: 'Description formatting' }).getByRole('button', { name: 'Bold (Ctrl+B)' }).click();
+    await page.keyboard.type('Important');
+    await expect(description.locator('strong')).toHaveText('Important');
     await dialog.getByTestId('dialog-state').selectOption('Active');
     await dialog.getByTestId('dialog-save').click();
     await expect(dialog).toBeHidden();
     await expect(columnList(page, 'Active').locator(`article[data-card-id="${item.id}"]`)).toBeVisible();
-    expect(await page.evaluate(() => (window as unknown as { pwned?: number }).pwned)).toBeUndefined();
+    expect((await getItem(request, item.id)).description).toBe('Steps: **Important**');
 
     // Reopen, add a comment, check the revision stream.
     await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
-    await dialog.getByTestId('comment-input').fill('Verified on **build 42**');
+    await dialog.getByTestId('comment-input').click();
+    await page.keyboard.type('Verified on ');
+    await page.keyboard.press('Control+b');
+    await page.keyboard.type('build 42');
     await dialog.getByTestId('comment-add').click();
     const history = dialog.getByTestId('history-list');
     await expect(history.locator('li').first()).toContainText('Verified on build 42');
     await expect(history.locator('li').first().locator('strong', { hasText: 'build 42' })).toBeVisible();
     await expect(history).toContainText('State: "New" → "Active"');
+    await expect(dialog.getByTestId('comment-input')).toHaveText('');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
+  });
+
+  test('script in agent-written markdown is never executed and opens untouched in Markdown mode', async ({ page, request }) => {
+    const item = await createViaUi(request, {
+      title: uniqueTitle('Hostile markdown'), type: 'Bug',
+      description: '**Important**\n\n<script>window.pwned=1</script><img src=x onerror="window.pwned=2">',
+    });
+    await openBoard(page);
+    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+    const dialog = page.getByRole('dialog');
+
+    await expect(dialog.getByTestId('dialog-description-note')).toContainText('Markdown mode');
+    await expect(dialog.getByTestId('dialog-description-markdown')).toHaveValue(item.description!);
+    await dialog.getByTestId('dialog-priority').selectOption('1');
+    await dialog.getByTestId('dialog-save').click();
+    await expect(dialog).toBeHidden();
+
+    expect(await page.evaluate(() => (window as unknown as { pwned?: number }).pwned)).toBeUndefined();
+    // Saving other fields never rewrites the description.
+    expect((await getItem(request, item.id)).description).toBe(item.description);
   });
 
   test('quick filters narrow the visible cards', async ({ page, request }) => {

@@ -10,10 +10,12 @@
  *   must be ISO-8859-1; the server decodes it.
  */
 import type {
+  AttachmentInfo,
   Board,
   BoardFilter,
   CreateWorkItemRequest,
   ProblemDetails,
+  ProgramInfo,
   UpdateWorkItemRequest,
   WorkItem,
   WorkItemHistoryEntry,
@@ -65,6 +67,8 @@ export function buildQuery(filter: BoardFilter): string {
   if (filter.state) params.set('state', filter.state);
   if (filter.assignedTo && filter.assignedTo.trim()) params.set('assignedTo', filter.assignedTo.trim());
   if (filter.aiModified) params.set('aiModified', 'true');
+  if (filter.program) params.set('program', filter.program);
+  if (filter.tag) params.set('tag', filter.tag);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
@@ -123,6 +127,18 @@ export class ApiClient {
     return this.request<WorkItemHistoryEntry>('POST', `workitems/${encodeURIComponent(String(id))}/comments`, { text });
   }
 
+  /** Adds a Program dropdown option (returns the existing one for a duplicate name). */
+  createProgram(name: string): Promise<ProgramInfo> {
+    return this.request<ProgramInfo>('POST', 'programs', { name });
+  }
+
+  /** Uploads an image for a description or comment. */
+  uploadAttachment(file: File): Promise<AttachmentInfo> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.request<AttachmentInfo>('POST', 'attachments', form);
+  }
+
   /** Whether a shared password is configured and whether this browser is signed in. */
   getAuthStatus(): Promise<AuthStatus> {
     return this.send<AuthStatus>('GET', this.authBaseUrl + 'status');
@@ -151,7 +167,9 @@ export class ApiClient {
     if (name) {
       headers[DISPLAY_NAME_HEADER] = encodeURIComponent(name);
     }
-    if (body !== undefined) {
+    // FormData sets its own multipart Content-Type (with the boundary).
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isForm) {
       headers['Content-Type'] = 'application/json';
     }
 
@@ -160,7 +178,7 @@ export class ApiClient {
       response = await this.fetchImpl(url, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
         credentials: 'same-origin',
         cache: 'no-store',
       });

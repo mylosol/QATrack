@@ -57,6 +57,10 @@ export interface WorkItem {
   assignedTo: string | null;
   areaPath: string;
   iterationPath: string;
+  /** Program name (1.4.0), or null. */
+  program: string | null;
+  /** Tags, sorted (1.4.0). */
+  tags: string[];
   aiModified: boolean;
   aiAgentIdentity: string | null;
   lastModifiedBy: string;
@@ -88,6 +92,8 @@ export interface BoardMetadata {
   severities: string[];
   priorities: Record<string, string>;
   assignees: string[];
+  programs: string[];
+  tags: string[];
 }
 
 export interface Board {
@@ -104,6 +110,8 @@ export interface BoardFilter {
   state?: WorkItemState | '';
   assignedTo?: string;
   aiModified?: boolean;
+  program?: string;
+  tag?: string;
 }
 
 export interface CreateWorkItemRequest {
@@ -116,6 +124,8 @@ export interface CreateWorkItemRequest {
   assignedTo?: string | null;
   areaPath?: string;
   iterationPath?: string;
+  program?: string | null;
+  tags?: string[];
   comment?: string;
 }
 
@@ -129,8 +139,30 @@ export type UpdateWorkItemRequest = Partial<{
   assignedTo: string;
   areaPath: string;
   iterationPath: string;
+  /** '' removes the program. */
+  program: string;
+  /** Replaces all tags. */
+  tags: string[];
   comment: string;
 }>;
+
+/** A Program dropdown option. */
+export interface ProgramInfo {
+  id: number;
+  name: string;
+  sortOrder: number;
+}
+
+/** An uploaded image (POST api/ui/attachments). */
+export interface AttachmentInfo {
+  id?: string;
+  fileName: string;
+  contentType?: string;
+  length?: number;
+  /** Relative URL, e.g. api/ui/attachments/{id}. */
+  url: string;
+  markdown?: string;
+}
 
 /** RFC 7807 problem body returned by the API on errors. */
 export interface ProblemDetails {

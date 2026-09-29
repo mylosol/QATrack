@@ -110,12 +110,17 @@ curl -X POST http://server:8080/api/v1/workitems \
 
 | Operation | Endpoint | operationId |
 |---|---|---|
-| List (filters: `type`, `state`, `aiModified`, `assignedTo`, `top`) | `GET /api/v1/workitems` | `listWorkItems` |
+| List (filters: `type`, `state`, `aiModified`, `assignedTo`, `program`, `tag`, `top`) | `GET /api/v1/workitems` | `listWorkItems` |
 | Details + full audit history | `GET /api/v1/workitems/{id}` | `getWorkItem` |
 | Create | `POST /api/v1/workitems` | `createWorkItem` |
 | Update / move / reassign (partial; `""` clears assignee or description) | `PATCH /api/v1/workitems/{id}` | `updateWorkItem` |
 | Comment or test output | `POST /api/v1/workitems/{id}/comments` | `addWorkItemComment` |
 | Board, columns, WIP | `GET /api/v1/board` | `getBoard` |
+| Program dropdown options / add one | `GET` / `POST /api/v1/programs` | `listPrograms` / `createProgram` |
+| Upload an image (multipart, part `file`; returns `markdown`) | `POST /api/v1/attachments` | `uploadAttachment` |
+| Download an image | `GET /api/v1/attachments/{id}` | `getAttachment` |
+
+Work items carry `program` (one of the programs, or null) and `tags` (a list). On PATCH, `program: ""` removes the program and `tags` replaces the whole list (`[]` removes all); omit either to leave it unchanged. Descriptions and comments are Markdown; to show an image, upload it and put the returned `markdown` (e.g. `![shot.png](api/ui/attachments/<id>)`) into the text.
 
 Point tool-calling agents at `/api/openapi.json`. It declares both headers as security schemes.
 

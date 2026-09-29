@@ -7,6 +7,7 @@ describe('diffForUpdate', () => {
   const form = {
     title: 'T', description: 'd', type: item.type, state: item.state, priority: 2, severity: item.severity,
     assignedTo: 'Ana', areaPath: item.areaPath, iterationPath: item.iterationPath,
+    program: null as string | null, tags: [] as string[],
   };
 
   it('returns an empty patch when nothing changed', () => {
@@ -15,6 +16,20 @@ describe('diffForUpdate', () => {
 
   it('includes only changed fields', () => {
     expect(diffForUpdate(item, { ...form, state: 'Active', priority: 1 })).toEqual({ state: 'Active', priority: 1 });
+  });
+
+  it('sets, changes and clears the program', () => {
+    expect(diffForUpdate(item, { ...form, program: 'ProveOut' })).toEqual({ program: 'ProveOut' });
+    const tagged = { ...item, program: 'ProveOut' };
+    expect(diffForUpdate(tagged, { ...form, program: 'ProveOut' })).toEqual({});
+    expect(diffForUpdate(tagged, { ...form, program: null })).toEqual({ program: '' });
+  });
+
+  it('sends the full tag list only when the set changed (ignoring order and case)', () => {
+    const tagged = { ...item, tags: ['login', 'ui'] };
+    expect(diffForUpdate(tagged, { ...form, tags: ['UI', 'login'] })).toEqual({});
+    expect(diffForUpdate(tagged, { ...form, tags: ['ui'] })).toEqual({ tags: ['ui'] });
+    expect(diffForUpdate(tagged, { ...form, tags: [] })).toEqual({ tags: [] });
   });
 
   it('sends empty strings to clear assignee and description', () => {

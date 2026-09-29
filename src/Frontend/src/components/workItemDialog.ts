@@ -1,7 +1,8 @@
 /**
- * Card context modal (spec 5.1): full markdown editing with preview, state
- * transitions, discussion comments and the revision history stream.
- * Built on the native <dialog> element for focus containment and Escape.
+ * Card context modal (spec 5.1): rich text description with image insertion,
+ * Program and Tags (1.4.0), state transitions, discussion comments and the
+ * revision history stream. Built on the native <dialog> element for focus
+ * containment and Escape.
  */
 import { ApiError, type ApiClient } from '../services/apiClient';
 import {
@@ -20,12 +21,21 @@ import type { Announcer } from './announcer';
 import { createAiBadge } from './card';
 import { clear, formatDate, h } from './dom';
 import { setMarkdown } from './markdown';
+import { ProgramPicker } from './programPicker';
+import { RichTextEditor } from './richTextEditor';
+import { sameTags, TagInput } from './tagInput';
 
 export interface WorkItemDialogHandlers {
   /** Called after a successful create/update/comment so the board can refresh. */
   onChanged(item: WorkItem, action: 'created' | 'updated' | 'commented'): void;
   /** Current board assignees for the "Assigned to" suggestions. */
   assignees(): string[];
+  /** Program dropdown options, in display order. */
+  programs(): string[];
+  /** Known tags, for suggestions. */
+  tags(): string[];
+  /** A program was added from the dialog's "+" button. */
+  onProgramAdded?(name: string): void;
 }
 
 interface FormControls {
@@ -35,16 +45,23 @@ interface FormControls {
   priority: HTMLSelectElement;
   severity: HTMLSelectElement;
   assignedTo: HTMLInputElement;
-  areaPath: HTMLInputElement;
+  program: ProgramPicker;
   iterationPath: HTMLInputElement;
-  description: HTMLTextAreaElement;
+  tags: TagInput;
+  description: RichTextEditor;
 }
+
+/** Editable fields as read from the form. */
+export type WorkItemForm = Pick<
+  WorkItem,
+  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'assignedTo' | 'areaPath' | 'iterationPath' | 'program' | 'tags'
+>;
 
 /**
  * Computes the minimal PATCH body between the stored item and form values.
  * Exported for unit testing.
  */
-export function diffForUpdate(item: WorkItem, form: Omit<WorkItem, 'id' | 'aiModified' | 'aiAgentIdentity' | 'lastModifiedBy' | 'createdAt' | 'updatedAt' | 'history'>): UpdateWorkItemRequest {
+export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkItemRequest {
   const patch: UpdateWorkItemRequest = {};
   if (form.title.trim() !== item.title) patch.title = form.title.trim();
   if ((form.description ?? '') !== (item.description ?? '')) patch.description = form.description ?? '';
@@ -55,6 +72,8 @@ export function diffForUpdate(item: WorkItem, form: Omit<WorkItem, 'id' | 'aiMod
   if ((form.assignedTo ?? '').trim() !== (item.assignedTo ?? '')) patch.assignedTo = (form.assignedTo ?? '').trim();
   if (form.areaPath.trim() !== item.areaPath) patch.areaPath = form.areaPath.trim();
   if (form.iterationPath.trim() !== item.iterationPath) patch.iterationPath = form.iterationPath.trim();
+  if ((form.program ?? '') !== (item.program ?? '')) patch.program = form.program ?? '';
+  if (!sameTags(form.tags, item.tags ?? [])) patch.tags = [...form.tags];
   return patch;
 }
 
@@ -70,6 +89,8 @@ export function describeChanges(entry: WorkItemHistoryEntry): string[] {
 export class WorkItemDialog {
   private item: WorkItem | null = null;
   private controls: FormControls | null = null;
+  private commentEditor: RichTextEditor | null = null;
+  private historyHost: HTMLElement | null = null;
   private returnFocus: HTMLElement | null = null;
   private errorRegion: HTMLElement | null = null;
 
@@ -90,6 +111,11 @@ export class WorkItemDialog {
 
   get isOpen(): boolean {
     return this.dialog.open;
+  }
+
+  /** The description editor of the open dialog (for tests and diagnostics). */
+  get descriptionEditor(): RichTextEditor | null {
+    return this.controls?.description ?? null;
   }
 
   /** Opens the dialog in "create" mode. */
@@ -124,12 +150,32 @@ export class WorkItemDialog {
     if (target && document.contains(target)) target.focus();
   }
 
+  private destroyEditors(): void {
+    this.controls?.description.destroy();
+    this.commentEditor?.destroy();
+    this.commentEditor = null;
+  }
+
+  private editorCallbacks(): Pick<ConstructorParameters<typeof RichTextEditor>[0], 'upload' | 'onError' | 'announce'> {
+    return {
+      upload: (file) => this.api.uploadAttachment(file),
+      onError: (message) => {
+        this.showError(message);
+        this.announcer.announce(message, 'assertive');
+      },
+      announce: (message) => this.announcer.announce(message),
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Rendering
   // -------------------------------------------------------------------------
   private render(item: WorkItem | null): void {
+    this.destroyEditors();
     clear(this.dialog);
     const isNew = item === null;
+
+    this.errorRegion = h('div', { role: 'alert', class: 'notice notice-error', hidden: true, 'data-testid': 'dialog-error' });
 
     const controls: FormControls = {
       title: h('input', {
@@ -148,20 +194,37 @@ export class WorkItemDialog {
         class: 'field', name: 'assignedTo', maxlength: 256, value: item?.assignedTo ?? '',
         list: 'assignee-suggestions', autocomplete: 'off',
       }),
-      areaPath: h('input', { class: 'field', name: 'areaPath', maxlength: 256, value: item?.areaPath ?? 'Tools\\QA' }),
+      program: new ProgramPicker({
+        programs: this.handlers.programs(),
+        selected: item?.program ?? null,
+        create: (name) => this.api.createProgram(name),
+        announce: (message) => this.announcer.announce(message),
+        onError: (message) => this.showError(message),
+        onAdded: (name) => this.handlers.onProgramAdded?.(name),
+      }),
       iterationPath: h('input', { class: 'field', name: 'iterationPath', maxlength: 256, value: item?.iterationPath ?? 'Current' }),
-      description: h('textarea', {
-        class: 'field min-h-[10rem] w-full font-mono', name: 'description', rows: 8,
-        'aria-labelledby': 'description-label', 'aria-describedby': 'description-help', 'data-testid': 'dialog-description',
+      tags: new TagInput({
+        id: 'dialog-tags',
+        initial: item?.tags ?? [],
+        suggestions: this.handlers.tags(),
+        announce: (message) => this.announcer.announce(message),
+        onError: (message) => this.showError(message),
+      }),
+      description: new RichTextEditor({
+        id: 'description',
+        labelledBy: 'description-label',
+        describedBy: 'description-help',
+        toolbarLabel: 'Description formatting',
+        initialMarkdown: item?.description ?? '',
+        placeholder: 'Steps to reproduce, expected and actual results…',
+        testId: 'dialog-description',
+        ...this.editorCallbacks(),
       }),
     };
-    controls.description.value = item?.description ?? '';
     this.controls = controls;
 
     const datalist = h('datalist', { id: 'assignee-suggestions' },
       ...this.handlers.assignees().map((a) => h('option', { value: a })));
-
-    this.errorRegion = h('div', { role: 'alert', class: 'notice notice-error', hidden: true, 'data-testid': 'dialog-error' });
 
     const heading = isNew
       ? 'New work item'
@@ -193,10 +256,18 @@ export class WorkItemDialog {
           h('label', { class: 'field-label' }, 'Priority', controls.priority),
           h('label', { class: 'field-label' }, 'Severity', controls.severity),
           h('label', { class: 'field-label' }, 'Assigned to', controls.assignedTo, datalist),
-          h('label', { class: 'field-label' }, 'Area path', controls.areaPath),
+          controls.program.element,
           h('label', { class: 'field-label sm:col-span-3' }, 'Iteration path', controls.iterationPath),
+          h('div', { class: 'sm:col-span-3' }, controls.tags.element),
         ),
-        this.renderDescriptionEditor(controls.description),
+        h(
+          'div',
+          { class: 'space-y-1' },
+          h('span', { class: 'text-sm font-medium', id: 'description-label' }, 'Description'),
+          controls.description.element,
+          h('p', { id: 'description-help', class: 'text-xs text-muted' },
+            'Use the toolbar or Markdown shortcuts (**bold**, # heading, - list). Paste, drop or insert images. Ctrl+] / Ctrl+[ indent list items; Tab leaves the editor.'),
+        ),
         isNew || !item ? null : this.renderDiscussion(item),
       ),
       h(
@@ -225,64 +296,39 @@ export class WorkItemDialog {
     return select;
   }
 
-  /** Write / Preview tabs for the markdown description (ARIA tabs pattern). */
-  private renderDescriptionEditor(textarea: HTMLTextAreaElement): HTMLElement {
-    const preview = h('div', {
-      class: 'markdown min-h-[10rem] rounded border border-line bg-surface p-3',
-      id: 'description-preview', role: 'tabpanel', 'aria-labelledby': 'tab-preview', hidden: true,
-      'data-testid': 'dialog-preview', tabindex: 0,
+  /** Comment editor + revision history stream (newest first). */
+  private renderDiscussion(item: WorkItem): HTMLElement {
+    this.commentEditor = new RichTextEditor({
+      id: 'comment',
+      labelledBy: 'comment-label',
+      toolbarLabel: 'Comment formatting',
+      initialMarkdown: '',
+      placeholder: 'Write a comment…',
+      testId: 'comment-input',
+      minHeightClass: 'min-h-[5rem]',
+      ...this.editorCallbacks(),
     });
-    const writePanel = h('div', { id: 'description-write', role: 'tabpanel', 'aria-labelledby': 'tab-write' }, textarea);
-    const writeTab = h('button', {
-      type: 'button', role: 'tab', id: 'tab-write', class: 'tab-btn px-3 py-1 text-sm',
-      'aria-selected': 'true', 'aria-controls': 'description-write',
-    }, 'Write');
-    const previewTab = h('button', {
-      type: 'button', role: 'tab', id: 'tab-preview', class: 'tab-btn px-3 py-1 text-sm',
-      'aria-selected': 'false', 'aria-controls': 'description-preview', tabindex: -1, 'data-testid': 'tab-preview',
-    }, 'Preview');
+    const editor = this.commentEditor;
+    const addButton = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-add' }, 'Add comment');
+    addButton.addEventListener('click', () => void this.addComment(editor, addButton));
 
-    const select = (showPreview: boolean): void => {
-      writeTab.setAttribute('aria-selected', String(!showPreview));
-      previewTab.setAttribute('aria-selected', String(showPreview));
-      writeTab.tabIndex = showPreview ? -1 : 0;
-      previewTab.tabIndex = showPreview ? 0 : -1;
-      writePanel.hidden = showPreview;
-      preview.hidden = !showPreview;
-      if (showPreview) setMarkdown(preview, textarea.value, 'Nothing to preview.');
-    };
-    writeTab.addEventListener('click', () => select(false));
-    previewTab.addEventListener('click', () => select(true));
-    const tablist = h('div', { role: 'tablist', 'aria-label': 'Description editor', class: 'flex gap-1 border-b border-line/40' }, writeTab, previewTab);
-    tablist.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        const toPreview = writeTab.getAttribute('aria-selected') === 'true';
-        select(toPreview);
-        (toPreview ? previewTab : writeTab).focus();
-        e.preventDefault();
-      }
-    });
+    this.historyHost = h('div', {}, this.renderHistory(item));
 
     return h(
-      'div',
-      { class: 'space-y-1' },
-      h('span', { class: 'text-sm font-medium', id: 'description-label' }, 'Description'),
-      tablist,
-      writePanel,
-      preview,
-      h('p', { id: 'description-help', class: 'text-xs text-muted' }, 'Markdown supported: **bold**, _italic_, `code`, lists, links and tables.'),
+      'section',
+      { class: 'space-y-3 border-t border-line/40 pt-4', 'aria-labelledby': 'discussion-heading' },
+      h('h3', { id: 'discussion-heading', class: 'text-base font-semibold' }, 'Discussion & history'),
+      h('span', { id: 'comment-label', class: 'text-sm font-medium' }, 'Add a comment'),
+      editor.element,
+      h('div', { class: 'flex justify-end' }, addButton),
+      this.historyHost,
     );
   }
 
-  /** Comment box + revision history stream (newest first). */
-  private renderDiscussion(item: WorkItem): HTMLElement {
-    const commentBox = h('textarea', {
-      class: 'field w-full', rows: 3, name: 'comment', 'aria-labelledby': 'comment-label', 'data-testid': 'comment-input',
-    });
-    const addButton = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-add' }, 'Add comment');
-    addButton.addEventListener('click', () => void this.addComment(commentBox, addButton));
-
+  private renderHistory(item: WorkItem): HTMLElement {
     const history = [...(item.history ?? [])].reverse();
+    if (history.length === 0) return h('p', { class: 'text-sm text-muted' }, 'No history yet.');
+
     const list = h('ol', { class: 'space-y-3', 'aria-label': 'Revision history', 'data-testid': 'history-list' });
     for (const entry of history) {
       const changes = describeChanges(entry);
@@ -306,33 +352,29 @@ export class WorkItemDialog {
         ),
       );
     }
-
-    return h(
-      'section',
-      { class: 'space-y-3 border-t border-line/40 pt-4', 'aria-labelledby': 'discussion-heading' },
-      h('h3', { id: 'discussion-heading', class: 'text-base font-semibold' }, 'Discussion & history'),
-      h('span', { id: 'comment-label', class: 'text-sm font-medium' }, 'Add a comment (markdown supported)'),
-      commentBox,
-      h('div', { class: 'flex justify-end' }, addButton),
-      history.length > 0 ? list : h('p', { class: 'text-sm text-muted' }, 'No history yet.'),
-    );
+    return list;
   }
 
   // -------------------------------------------------------------------------
   // Actions
   // -------------------------------------------------------------------------
-  private readForm(): Parameters<typeof diffForUpdate>[1] {
+  private readForm(): WorkItemForm {
     const c = this.controls!;
     return {
       title: c.title.value,
-      description: c.description.value,
+      // Only send the description when the user actually edited it, so
+      // opening and saving a card never rewrites agent-authored markdown.
+      description: c.description.isDirty ? c.description.markdown : (this.item?.description ?? ''),
       type: c.type.value as WorkItemType,
       state: c.state.value as WorkItemState,
       priority: Number(c.priority.value),
       severity: c.severity.value,
       assignedTo: c.assignedTo.value,
-      areaPath: c.areaPath.value,
+      // Area path is no longer edited in the UI (replaced by Program).
+      areaPath: this.item?.areaPath ?? '',
       iterationPath: c.iterationPath.value,
+      program: c.program.value || null,
+      tags: c.tags.value,
     };
   }
 
@@ -343,33 +385,40 @@ export class WorkItemDialog {
   }
 
   private async save(): Promise<void> {
+    const controls = this.controls;
+    if (!controls) return;
     const form = this.readForm();
     if (!form.title.trim()) {
       this.showError('Title is required.');
-      this.controls?.title.setAttribute('aria-invalid', 'true');
-      this.controls?.title.focus();
+      controls.title.setAttribute('aria-invalid', 'true');
+      controls.title.focus();
       return;
     }
-    this.controls?.title.removeAttribute('aria-invalid');
+    controls.title.removeAttribute('aria-invalid');
     this.showError(null);
+
+    // An image still uploading would otherwise be missing from the text.
+    await controls.description.whenIdle();
+    const final = this.readForm();
 
     try {
       if (this.item === null) {
         const created = await this.api.createWorkItem({
-          title: form.title.trim(),
-          type: form.type,
-          state: form.state,
-          priority: form.priority,
-          severity: form.severity,
-          description: form.description || null,
-          assignedTo: (form.assignedTo ?? "").trim() || null,
-          areaPath: form.areaPath.trim() || undefined,
-          iterationPath: form.iterationPath.trim() || undefined,
+          title: final.title.trim(),
+          type: final.type,
+          state: final.state,
+          priority: final.priority,
+          severity: final.severity,
+          description: final.description || null,
+          assignedTo: (final.assignedTo ?? '').trim() || null,
+          iterationPath: final.iterationPath.trim() || undefined,
+          program: final.program || undefined,
+          tags: final.tags.length > 0 ? final.tags : undefined,
         });
         this.dialog.close();
         this.handlers.onChanged(created, 'created');
       } else {
-        const patch = diffForUpdate(this.item, form);
+        const patch = diffForUpdate(this.item, final);
         if (Object.keys(patch).length === 0) {
           this.dialog.close();
           return;
@@ -383,25 +432,30 @@ export class WorkItemDialog {
     }
   }
 
-  private async addComment(box: HTMLTextAreaElement, button: HTMLButtonElement): Promise<void> {
+  private async addComment(editor: RichTextEditor, button: HTMLButtonElement): Promise<void> {
     if (!this.item) return;
-    const text = box.value.trim();
+    await editor.whenIdle();
+    const text = editor.markdown.trim();
     if (!text) {
       this.showError('Write a comment before adding it.');
-      box.focus();
+      editor.focus();
       return;
     }
     button.disabled = true;
     try {
       await this.api.addComment(this.item.id, text);
       const refreshed = await this.api.getWorkItem(this.item.id);
-      this.item = refreshed;
-      this.render(refreshed);
+      // Keep the fields being edited; only the history and comment box change.
+      this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt };
+      this.historyHost?.replaceChildren(this.renderHistory(refreshed));
+      editor.clear();
+      this.showError(null);
       this.announcer.announce('Comment added.');
       this.handlers.onChanged(refreshed, 'commented');
-      this.dialog.querySelector<HTMLTextAreaElement>('[data-testid="comment-input"]')?.focus();
+      editor.focus();
     } catch (err) {
       this.showError(err instanceof ApiError ? err.message : 'Could not add the comment.');
+    } finally {
       button.disabled = false;
     }
   }

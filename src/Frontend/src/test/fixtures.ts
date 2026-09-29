@@ -16,6 +16,8 @@ export function makeItem(overrides: Partial<WorkItem> = {}): WorkItem {
     assignedTo: null,
     areaPath: 'Tools\\QA',
     iterationPath: 'Current',
+    program: null,
+    tags: [],
     aiModified: false,
     aiAgentIdentity: null,
     lastModifiedBy: 'tester',
@@ -55,6 +57,8 @@ export function makeBoard(columns: Partial<Record<'New' | 'Active' | 'Resolved' 
       severities: ['1 - Critical', '2 - High', '3 - Medium', '4 - Low'],
       priorities: { '1': 'Critical', '2': 'High', '3': 'Medium', '4': 'Low' },
       assignees: [],
+      programs: ['ProveOut', 'CallOut'],
+      tags: [],
     },
   };
 }

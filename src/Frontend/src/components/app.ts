@@ -62,6 +62,9 @@ export class App {
     this.dialog = new WorkItemDialog(byId<HTMLDialogElement>('work-item-dialog', doc), this.api, this.announcer, {
       onChanged: (item, action) => void this.onItemChanged(item, action),
       assignees: () => this.board?.metadata.assignees ?? [],
+      programs: () => this.board?.metadata.programs ?? [],
+      tags: () => this.board?.metadata.tags ?? [],
+      onProgramAdded: () => void this.refresh({ quiet: true }),
     });
   }
 
@@ -97,6 +100,8 @@ export class App {
       this.board = board;
       this.boardView.render(board);
       this.toolbar.setAssignees(board.metadata.assignees);
+      this.toolbar.setPrograms(board.metadata.programs ?? []);
+      this.toolbar.setTags(board.metadata.tags ?? []);
       const visible = board.columns.reduce((n, c) => n + c.items.length, 0);
       const total = board.columns.reduce((n, c) => n + c.itemCount, 0);
       const summary = this.toolbar.setSummary(visible, total);

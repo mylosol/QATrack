@@ -30,7 +30,11 @@ public sealed class AttachmentService
         _clock = clock;
     }
 
-    /// <summary>Validates and stores an image. Identical bytes are stored once.</summary>
+    /// <summary>
+    /// Validates and stores an image. Identical bytes are stored once; a
+    /// duplicate upload reuses the stored bytes but keeps its own file name
+    /// (the alt text in the returned markdown).
+    /// </summary>
     /// <exception cref="WorkItemValidationException">Empty, too large or not a supported image.</exception>
     public async Task<AttachmentDto> UploadAsync(Stream content, string? fileName, CancellationToken ct = default)
     {
@@ -41,11 +45,11 @@ public sealed class AttachmentService
         var sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
         var existing = await _db.Attachments.AsNoTracking()
             .Where(a => a.Sha256 == sha && a.Length == bytes.Length)
-            .Select(a => new { a.Id, a.FileName, a.ContentType, a.Length })
+            .Select(a => new { a.Id, a.ContentType, a.Length })
             .FirstOrDefaultAsync(ct);
         if (existing is not null)
         {
-            return ToDto(existing.Id, existing.FileName, existing.ContentType, existing.Length);
+            return ToDto(existing.Id, CleanFileName(fileName, existing.ContentType), existing.ContentType, existing.Length);
         }
 
         var attachment = new Attachment

@@ -230,6 +230,8 @@ public sealed class ProgramTagAttachmentServiceTests : IAsyncLifetime, IDisposab
         var second = await Attachments().UploadAsync(new MemoryStream(Png), "copy.png");
 
         Assert.Equal(first.Id, second.Id);
+        // The duplicate keeps its own name for the alt text.
+        Assert.Equal($"![copy.png](api/ui/attachments/{first.Id:D})", second.Markdown);
         Assert.Equal("image/png", first.ContentType);
         Assert.Equal($"api/ui/attachments/{first.Id:D}", first.Url);
         Assert.Equal($"![screen shot.png](api/ui/attachments/{first.Id:D})", first.Markdown);
