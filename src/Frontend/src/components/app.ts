@@ -8,6 +8,7 @@ import { Announcer } from './announcer';
 import { BoardView } from './board';
 import { byId, h } from './dom';
 import { FilterToolbar } from './filterToolbar';
+import { ThemeSwitcher } from './themeSwitcher';
 import { WorkItemDialog } from './workItemDialog';
 
 /** Background refresh interval so agent changes appear without a reload. */
@@ -19,6 +20,7 @@ export class App {
   readonly boardView: BoardView;
   readonly toolbar: FilterToolbar;
   readonly dialog: WorkItemDialog;
+  readonly themeSwitcher: ThemeSwitcher;
 
   private board: Board | null = null;
   private filter: BoardFilter = {};
@@ -44,7 +46,10 @@ export class App {
     this.boardView = new BoardView(this.boardRoot, {
       onMove: (id, from, to) => void this.moveCard(id, from, to),
       onOpen: (id) => void this.dialog.openExisting(id).catch((err) => this.showError(err)),
+      announce: (message, politeness) => this.announcer.announce(message, politeness),
     });
+
+    this.themeSwitcher = new ThemeSwitcher(byId('theme-switcher-root', doc), doc.documentElement, this.announcer);
 
     this.dialog = new WorkItemDialog(byId<HTMLDialogElement>('work-item-dialog', doc), this.api, this.announcer, {
       onChanged: (item, action) => void this.onItemChanged(item, action),
@@ -61,9 +66,9 @@ export class App {
     }, AUTO_REFRESH_MS);
   }
 
-  /** Hook for interaction modes (drag, keyboard grab) that must not be interrupted by a refresh. */
+  /** Drag or keyboard grab in progress - a refresh would yank the card away. */
   protected isInteracting(): boolean {
-    return this.boardView.isDragging;
+    return this.boardView.isInteracting;
   }
 
   /** The last loaded board. */

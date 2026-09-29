@@ -4,8 +4,10 @@
  * {@link BoardHandlers}; the view itself never calls the API.
  */
 import type { Board, BoardColumn, WorkItemState } from '../services/types';
+import type { Politeness } from './announcer';
 import { createCard } from './card';
 import { clear, h } from './dom';
+import { keyboardAction } from './keyboardMove';
 import { wipDescription, wipLabel, wouldExceedWip } from './wip';
 
 export interface BoardHandlers {
@@ -13,6 +15,8 @@ export interface BoardHandlers {
   onMove(id: number, from: WorkItemState, to: WorkItemState): void;
   /** The user asked to open a card's detail dialog. */
   onOpen(id: number): void;
+  /** Screen reader announcement (aria-live). */
+  announce(message: string, politeness?: Politeness): void;
 }
 
 interface DragState {
@@ -20,9 +24,20 @@ interface DragState {
   from: WorkItemState;
 }
 
+/** A card picked up with the keyboard (Space/Enter) and not yet dropped. */
+interface GrabState {
+  id: number;
+  title: string;
+  origin: WorkItemState;
+  current: WorkItemState;
+}
+
 export class BoardView {
   private board: Board | null = null;
   private drag: DragState | null = null;
+  private grab: GrabState | null = null;
+  /** Set while the grabbed card is re-parented so its transient blur is ignored. */
+  private relocating = false;
 
   constructor(
     private readonly root: HTMLElement,
@@ -31,9 +46,19 @@ export class BoardView {
     this.wireEvents();
   }
 
-  /** True while a pointer drag is in progress (used to pause auto-refresh). */
+  /** True while a pointer drag is in progress. */
   get isDragging(): boolean {
     return this.drag !== null;
+  }
+
+  /** True while a card is picked up with the keyboard. */
+  get isGrabbing(): boolean {
+    return this.grab !== null;
+  }
+
+  /** True during any move interaction (used to pause auto-refresh). */
+  get isInteracting(): boolean {
+    return this.isDragging || this.isGrabbing;
   }
 
   /** The column model for a state, from the last rendered board. */
@@ -46,9 +71,10 @@ export class BoardView {
     return this.board?.columns.map((c) => c.state) ?? [];
   }
 
-  /** Re-renders the whole board. */
+  /** Re-renders the whole board (cancelling any keyboard grab in progress). */
   render(board: Board): void {
     this.board = board;
+    this.grab = null;
     const grid = h('div', { class: 'board', 'data-testid': 'board' });
     for (const column of board.columns) {
       grid.appendChild(this.renderColumn(column));
@@ -158,8 +184,9 @@ export class BoardView {
 
     this.root.addEventListener('dragleave', (e) => {
       const list = this.listFromEvent(e);
+      const section = list?.closest('section.column');
       const related = e.relatedTarget as Node | null;
-      if (list && (!related || !list.contains(related))) this.unhighlight(list);
+      if (list && section && (!related || !section.contains(related))) this.unhighlight(list);
     });
 
     this.root.addEventListener('drop', (e) => {
@@ -173,10 +200,134 @@ export class BoardView {
     });
 
     this.root.addEventListener('dragend', () => this.endDrag());
+
+    // Keyboard moves (spec 5.2). Only keys pressed on the card itself count;
+    // Enter on the inner title button still opens the dialog.
+    this.root.addEventListener('keydown', (e) => {
+      const card = e.target;
+      if (!(card instanceof HTMLElement) || card.tagName !== 'ARTICLE' || !card.dataset.cardId) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      this.onCardKey(e, card);
+    });
+
+    // Tabbing away from a picked-up card cancels the move.
+    this.root.addEventListener('focusout', (e) => {
+      if (!this.grab || this.relocating) return;
+      const card = e.target as HTMLElement;
+      if (card.dataset?.cardId === String(this.grab.id)) this.cancelGrab(false);
+    });
   }
 
+  private onCardKey(e: KeyboardEvent, card: HTMLElement): void {
+    const id = Number(card.dataset.cardId);
+    const states = this.columnStates;
+    const isGrabbed = this.grab?.id === id;
+    const state = (isGrabbed ? this.grab!.current : card.dataset.state) as WorkItemState;
+    const action = keyboardAction(e.key, isGrabbed, states.indexOf(state), states.length);
+    if (action.kind === 'none') return;
+    e.preventDefault();
+
+    switch (action.kind) {
+      case 'grab': {
+        if (this.grab) this.cancelGrab(false);
+        const target = this.cardElement(id) ?? card;
+        const title = target.querySelector('.card-title')?.textContent ?? `Work item ${id}`;
+        this.grab = { id, title, origin: state, current: state };
+        target.classList.add('is-grabbed');
+        target.dataset.grabbed = 'true';
+        target.focus();
+        this.handlers.announce(
+          `Picked up "${title}" in ${this.columnName(state)}. Use Left and Right arrow keys to move, Space or Enter to drop, Escape to cancel.`,
+        );
+        break;
+      }
+      case 'move':
+        this.relocateGrabbed(card, states[action.to]!);
+        break;
+      case 'edge':
+        this.handlers.announce(`"${this.grab!.title}" is already in the ${action.direction === 'left' ? 'first' : 'last'} column.`);
+        break;
+      case 'drop': {
+        const { id: grabbedId, origin, current } = this.grab!;
+        this.grab = null;
+        card.classList.remove('is-grabbed');
+        delete card.dataset.grabbed;
+        if (current === origin) {
+          this.handlers.announce(`Dropped in ${this.columnName(origin)}. No change.`);
+        } else {
+          this.handlers.onMove(grabbedId, origin, current);
+        }
+        break;
+      }
+      case 'cancel':
+        this.cancelGrab(true);
+        break;
+      case 'focus': {
+        const cards = [...(card.closest('ul')?.querySelectorAll<HTMLElement>('article[data-card-id]') ?? [])];
+        cards[cards.indexOf(card) + action.offset]?.focus();
+        break;
+      }
+    }
+  }
+
+  /** Moves the grabbed card's DOM node to another column (not yet persisted). */
+  private relocateGrabbed(card: HTMLElement, to: WorkItemState): void {
+    const grab = this.grab!;
+    const list = this.listElement(to);
+    const item = card.closest('li');
+    if (!list || !item) return;
+
+    const oldList = item.parentElement;
+    this.relocating = true;
+    try {
+      list.querySelector('[data-empty]')?.remove();
+      list.appendChild(item);
+      card.focus();
+    } finally {
+      this.relocating = false;
+    }
+    if (oldList && oldList.children.length === 0) {
+      oldList.appendChild(h('li', { class: 'empty-column', 'data-empty': 'true' }, 'No items'));
+    }
+
+    grab.current = to;
+    card.dataset.state = to;
+    card.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+
+    const column = this.column(to);
+    const exceeds = column ? wouldExceedWip(column, grab.origin) : false;
+    this.handlers.announce(
+      `${this.columnName(to)} column.` +
+        (exceeds ? ` Dropping here exceeds the WIP limit of ${column!.wipLimit}.` : '') +
+        ' Press Space or Enter to drop, Escape to cancel.',
+      exceeds ? 'assertive' : 'polite',
+    );
+  }
+
+  /** Puts a grabbed card back where it came from. */
+  private cancelGrab(announce: boolean): void {
+    const grab = this.grab;
+    if (!grab) return;
+    this.grab = null;
+    if (this.board) this.render(this.board);
+    if (announce) {
+      this.focusCard(grab.id);
+      this.handlers.announce(`Move cancelled. "${grab.title}" returned to ${this.columnName(grab.origin)}.`);
+    }
+  }
+
+  private columnName(state: WorkItemState): string {
+    return this.column(state)?.name ?? state;
+  }
+
+  /**
+   * Resolves the drop list for a drag event. The whole column (header, list
+   * and empty space below the cards) is a drop zone, so tall boards never
+   * require scrolling to a specific spot mid-drag.
+   */
   private listFromEvent(e: Event): HTMLUListElement | null {
-    return (e.target as HTMLElement | null)?.closest?.<HTMLUListElement>('ul.column-list') ?? null;
+    const section = (e.target as HTMLElement | null)?.closest?.<HTMLElement>('section.column');
+    return section?.querySelector<HTMLUListElement>('ul.column-list') ?? null;
   }
 
   /** Shows the drop target outline and, if needed, a live WIP warning. */

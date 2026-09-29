@@ -19,14 +19,123 @@ function dragEvent(type: string): Event {
 
 describe('BoardView', () => {
   let root: HTMLElement;
-  let handlers: { onMove: ReturnType<typeof vi.fn<BoardHandlers['onMove']>>; onOpen: ReturnType<typeof vi.fn<BoardHandlers['onOpen']>> };
+  let handlers: {
+    onMove: ReturnType<typeof vi.fn<BoardHandlers['onMove']>>;
+    onOpen: ReturnType<typeof vi.fn<BoardHandlers['onOpen']>>;
+    announce: ReturnType<typeof vi.fn<BoardHandlers['announce']>>;
+  };
   let view: BoardView;
 
   beforeEach(() => {
     document.body.innerHTML = '<div id="root" aria-busy="true"></div>';
     root = document.getElementById('root')!;
-    handlers = { onMove: vi.fn<BoardHandlers['onMove']>(), onOpen: vi.fn<BoardHandlers['onOpen']>() };
+    handlers = {
+      onMove: vi.fn<BoardHandlers['onMove']>(),
+      onOpen: vi.fn<BoardHandlers['onOpen']>(),
+      announce: vi.fn<BoardHandlers['announce']>(),
+    };
     view = new BoardView(root, handlers);
+  });
+
+  /** Dispatches a keydown on the currently rendered card element. */
+  function press(id: number, key: string): KeyboardEvent {
+    const card = root.querySelector<HTMLElement>(`article[data-card-id="${id}"]`)!;
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    card.dispatchEvent(event);
+    return event;
+  }
+
+  const columnOf = (id: number) =>
+    root.querySelector(`article[data-card-id="${id}"]`)!.closest('ul')!.getAttribute('data-state');
+
+  describe('keyboard moves', () => {
+    it('Space picks up, ArrowRight moves, Enter drops and persists', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 3, title: 'Kb card' })] }));
+      root.querySelector<HTMLElement>('article')!.focus();
+
+      expect(press(3, ' ').defaultPrevented).toBe(true);
+      expect(view.isGrabbing).toBe(true);
+      expect(root.querySelector<HTMLElement>('article')!.dataset.grabbed).toBe('true');
+      expect(handlers.announce).toHaveBeenLastCalledWith(expect.stringContaining('Picked up "Kb card" in New'));
+
+      press(3, 'ArrowRight');
+      expect(columnOf(3)).toBe('Active');
+      expect(document.activeElement?.getAttribute('data-card-id')).toBe('3');
+      expect(handlers.announce).toHaveBeenLastCalledWith(expect.stringContaining('Active column.'), 'polite');
+      // The column it left gets its empty placeholder back.
+      expect(root.querySelector('[data-testid="column-list-New"] [data-empty]')).not.toBeNull();
+
+      press(3, 'ArrowRight');
+      expect(columnOf(3)).toBe('Resolved');
+
+      press(3, 'Enter');
+      expect(handlers.onMove).toHaveBeenCalledWith(3, 'New', 'Resolved');
+      expect(view.isGrabbing).toBe(false);
+    });
+
+    it('Escape cancels and restores the original column', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 4, title: 'Cancel me' })] }));
+      press(4, 'Enter');
+      press(4, 'ArrowRight');
+      expect(columnOf(4)).toBe('Active');
+
+      press(4, 'Escape');
+      expect(columnOf(4)).toBe('New');
+      expect(handlers.onMove).not.toHaveBeenCalled();
+      expect(document.activeElement?.getAttribute('data-card-id')).toBe('4');
+      expect(handlers.announce).toHaveBeenLastCalledWith('Move cancelled. "Cancel me" returned to New.');
+    });
+
+    it('announces the board edges instead of moving', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 5, title: 'Edge' })] }));
+      press(5, ' ');
+      press(5, 'ArrowLeft');
+      expect(columnOf(5)).toBe('New');
+      expect(handlers.announce).toHaveBeenLastCalledWith('"Edge" is already in the first column.');
+    });
+
+    it('dropping in the origin column is a no-op', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 6 })] }));
+      press(6, ' ');
+      press(6, ' ');
+      expect(handlers.onMove).not.toHaveBeenCalled();
+      expect(handlers.announce).toHaveBeenLastCalledWith('Dropped in New. No change.');
+    });
+
+    it('warns assertively when the target column would exceed its WIP limit', () => {
+      const active = Array.from({ length: 5 }, (_, i) => makeItem({ id: 300 + i, state: 'Active' }));
+      view.render(makeBoard({ New: [makeItem({ id: 7 })], Active: active }));
+      press(7, ' ');
+      press(7, 'ArrowRight');
+      expect(handlers.announce).toHaveBeenLastCalledWith(
+        expect.stringContaining('Dropping here exceeds the WIP limit of 5.'),
+        'assertive',
+      );
+    });
+
+    it('Enter on the title button opens the dialog instead of grabbing', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 8 })] }));
+      const title = root.querySelector<HTMLButtonElement>('#card-title-8')!;
+      title.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(view.isGrabbing).toBe(false);
+    });
+
+    it('ArrowDown moves focus to the next card in the column when not grabbed', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 10 }), makeItem({ id: 11 })] }));
+      press(10, 'ArrowDown');
+      expect(document.activeElement?.getAttribute('data-card-id')).toBe('11');
+      press(11, 'ArrowUp');
+      expect(document.activeElement?.getAttribute('data-card-id')).toBe('10');
+    });
+
+    it('re-rendering (e.g. auto refresh) clears a pending grab', () => {
+      const board = makeBoard({ New: [makeItem({ id: 12 })] });
+      view.render(board);
+      press(12, ' ');
+      expect(view.isInteracting).toBe(true);
+      view.render(board);
+      expect(view.isInteracting).toBe(false);
+    });
   });
 
   it('renders the four columns with WIP counters and clears aria-busy', () => {
@@ -82,6 +191,20 @@ describe('BoardView', () => {
     expect(handlers.onMove).toHaveBeenCalledWith(5, 'New', 'Resolved');
     expect(view.isDragging).toBe(false);
     expect(target.classList).not.toContain('is-drop-target');
+  });
+
+  it('accepts drops anywhere in a column, including its header', () => {
+    view.render(makeBoard({ New: [makeItem({ id: 5 })] }));
+    root.querySelector('article')!.dispatchEvent(dragEvent('dragstart'));
+    const header = root.querySelector('#col-title-Closed')!;
+
+    const over = dragEvent('dragover');
+    header.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+    expect(root.querySelector('[data-testid="column-list-Closed"]')!.classList).toContain('is-drop-target');
+
+    header.dispatchEvent(dragEvent('drop'));
+    expect(handlers.onMove).toHaveBeenCalledWith(5, 'New', 'Closed');
   });
 
   it('ignores drops on the original column', () => {

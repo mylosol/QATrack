@@ -13,6 +13,12 @@
     @apply min-h-screen bg-page text-fg;
   }
 
+  /* Placeholders use the muted token (>= 4.5:1) instead of the faint browser default. */
+  ::placeholder {
+    color: rgb(var(--color-muted));
+    opacity: 1;
+  }
+
   /* One consistent, high-contrast focus indicator (WCAG 2.4.7). */
   :focus-visible {
     outline: 3px solid rgb(var(--color-focus));
