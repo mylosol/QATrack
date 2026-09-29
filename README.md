@@ -84,6 +84,20 @@ It compares `GET /api/version` (`build`, served `no-store`) with the build baked
 
 The `/api/v1` URL segment is the API contract version. It changes only with a breaking API change, independently of the app version.
 
+## Board password
+
+The board can be protected with one shared password. It's recommended whenever the site is reachable from outside your network.
+
+```powershell
+.\deploy-iis.ps1 -Action SetPassword -PhysicalPath C:\inetpub\QATrack          # prompts, applies live
+.\deploy-iis.ps1 -Action SetPassword -PhysicalPath C:\inetpub\QATrack -RemoveSharedPassword
+```
+
+- **Signing in:** each browser signs in once and stays signed in for 30 days. Changing the password signs everyone out. You can also pass `-SharedPassword` to Install.
+- **Storage and brute-force protection:** the password is stored as a PBKDF2-SHA256 hash in `appsettings.Production.json`. Sign-in is limited to 5 attempts per minute per IP.
+- **AI agents are unaffected:** they keep using `X-API-Key`.
+- **Without HTTPS,** the password and session cookie cross the network unencrypted. Add an HTTPS binding to the IIS site when a certificate is available.
+
 ## Using the AI agent API
 
 ```bash

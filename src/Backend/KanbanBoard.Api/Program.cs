@@ -2,6 +2,9 @@ using System.Text.Json.Serialization;
 using KanbanBoard.Api.Data;
 using KanbanBoard.Api.Middleware;
 using KanbanBoard.Api.Services;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,7 +53,70 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddKanbanOpenApi();
 
+// ---------------------------------------------------------------------------
+// Shared access password for the browser board (optional; see
+// AccessControlOptions). Sessions are HttpOnly, SameSite=Strict cookies whose
+// encryption keys persist in App_Data/keys (DPAPI-protected on Windows) so
+// IIS app-pool recycles don't sign everyone out.
+// ---------------------------------------------------------------------------
+builder.Services.Configure<AccessControlOptions>(builder.Configuration.GetSection(AccessControlOptions.SectionName));
+var accessOptions = builder.Configuration.GetSection(AccessControlOptions.SectionName).Get<AccessControlOptions>()
+                    ?? new AccessControlOptions();
+
+var keyDirectory = Path.IsPathRooted(accessOptions.KeyDirectory)
+    ? accessOptions.KeyDirectory
+    : Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, accessOptions.KeyDirectory));
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("QATrack")
+    .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
+if (OperatingSystem.IsWindows())
+{
+    dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+}
+
+builder.Services
+    .AddAuthentication(AccessControlDefaults.Scheme)
+    .AddCookie(AccessControlDefaults.Scheme, o =>
+    {
+        o.Cookie.Name = AccessControlDefaults.CookieName;
+        o.Cookie.HttpOnly = true;
+        o.Cookie.SameSite = SameSiteMode.Strict;
+        // Secure when the site is served over HTTPS; plain HTTP deployments still work.
+        o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        o.ExpireTimeSpan = TimeSpan.FromDays(Math.Max(1, accessOptions.SessionDays));
+        o.SlidingExpiration = true;
+        // API semantics: never redirect to a login page.
+        o.Events.OnRedirectToLogin = ctx => { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return Task.CompletedTask; };
+        o.Events.OnRedirectToAccessDenied = ctx => { ctx.Response.StatusCode = StatusCodes.Status403Forbidden; return Task.CompletedTask; };
+        o.Events.OnValidatePrincipal = AccessSessionValidator.ValidateAsync;
+    });
+
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(AccessControlDefaults.LoginRateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = Math.Max(1, accessOptions.LoginAttemptsPerMinute),
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+    o.OnRejected = (ctx, _) => new ValueTask(ApiKeyAuthenticationMiddleware.WriteProblemAsync(ctx.HttpContext,
+        StatusCodes.Status429TooManyRequests, "Too many sign-in attempts", "Wait a minute and try again."));
+});
+
 var app = builder.Build();
+
+if (!accessOptions.IsRequired)
+{
+    app.Logger.LogWarning("No shared access password is configured: anyone who can reach this site can use the board. Set one with 'deploy-iis.ps1 -Action SetPassword'.");
+}
+else if (!SharedPasswordHasher.IsWellFormed(accessOptions.SharedPasswordHash))
+{
+    // Fail closed: the board stays locked and no password can unlock it.
+    app.Logger.LogError("AccessControl:SharedPasswordHash is malformed; nobody can sign in. Reset it with 'deploy-iis.ps1 -Action SetPassword'.");
+}
 
 // Apply forward-only migrations + WAL before the first request is served.
 using (var scope = app.Services.CreateScope())
@@ -91,11 +157,15 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseKanbanSwaggerUi();
 
 app.UseRouting();
+app.UseRateLimiter();
+app.UseAuthentication();
 
 // /api/v1 (AI agents): authenticate the key first, then capture the identity.
 app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseMiddleware<AgentIdentityMiddleware>();
-// /api/ui (browser): anti-forgery header + human actor.
+// /api/ui (browser): signed-in session when a shared password is configured...
+app.UseMiddleware<AccessControlMiddleware>();
+// ...plus anti-forgery header + human actor for /api/ui and /api/auth.
 app.UseMiddleware<UiRequestGuardMiddleware>();
 
 app.MapKanbanOpenApiSchema();

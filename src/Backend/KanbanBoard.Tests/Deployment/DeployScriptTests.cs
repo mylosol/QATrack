@@ -269,6 +269,125 @@ public sealed class DeployScriptTests : IDisposable
         Assert.True(ApiKeyOnSite().Length >= 32);
     }
 
+    private (int ExitCode, string Output) RunScript(params string[] args)
+    {
+        var psi = new ProcessStartInfo("powershell.exe")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ScriptPath() }.Concat(args))
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(psi)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        process.WaitForExit(120_000);
+        return (process.ExitCode, stdout.Result + stderr.Result);
+    }
+
+    private string PasswordHashOnSite()
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_site, "appsettings.Production.json")));
+        return doc.RootElement.TryGetProperty("AccessControl", out var section) &&
+               section.TryGetProperty("SharedPasswordHash", out var hash)
+            ? hash.GetString() ?? string.Empty
+            : string.Empty;
+    }
+
+    [Fact]
+    public void Install_WithSharedPassword_StoresAHashTheAppAccepts()
+    {
+        // Cross-implementation check: PowerShell/.NET Framework PBKDF2 -> app verifier.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunInstall("-SharedPassword", "Proveout-2026!");
+
+        Assert.True(exitCode == 0, output);
+        var hash = PasswordHashOnSite();
+        Assert.StartsWith("pbkdf2-sha256$600000$", hash);
+        Assert.DoesNotContain("Proveout-2026!", File.ReadAllText(Path.Combine(_site, "appsettings.Production.json")));
+        Assert.True(KanbanBoard.Api.Services.SharedPasswordHasher.Verify("Proveout-2026!", hash));
+        Assert.False(KanbanBoard.Api.Services.SharedPasswordHasher.Verify("proveout-2026!", hash));
+    }
+
+    [Fact]
+    public void Install_WithoutPassword_WarnsThatTheBoardIsOpen()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunInstall();
+
+        Assert.True(exitCode == 0, output);
+        Assert.Contains("No shared board password is set", output);
+        Assert.Equal(string.Empty, PasswordHashOnSite());
+    }
+
+    [Fact]
+    public void Install_WithTooShortPassword_FailsBeforeTouchingTheSite()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunInstall("-SharedPassword", "short");
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("at least 8 characters", output);
+        Assert.False(Directory.Exists(_site));
+    }
+
+    [Fact]
+    public void SetPassword_ChangesAndRemoves_WithoutRedeploying_AndKeepsOtherSettings()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        Assert.Equal(0, RunInstall("-SharedPassword", "first-password").ExitCode);
+        var apiKey = ApiKeyOnSite();
+        File.WriteAllText(Path.Combine(_site, "App_Data", "kanban.db"), "LIVE");
+
+        var (changeExit, changeOutput) = RunScript("-Action", "SetPassword", "-PhysicalPath", _site, "-SharedPassword", "second-password");
+        Assert.True(changeExit == 0, changeOutput);
+        Assert.True(KanbanBoard.Api.Services.SharedPasswordHasher.Verify("second-password", PasswordHashOnSite()));
+        Assert.False(KanbanBoard.Api.Services.SharedPasswordHasher.Verify("first-password", PasswordHashOnSite()));
+        Assert.Equal(apiKey, ApiKeyOnSite());
+
+        // A redeploy without -SharedPassword keeps it.
+        Assert.Equal(0, RunInstall().ExitCode);
+        Assert.True(KanbanBoard.Api.Services.SharedPasswordHasher.Verify("second-password", PasswordHashOnSite()));
+
+        var (removeExit, removeOutput) = RunScript("-Action", "SetPassword", "-PhysicalPath", _site, "-RemoveSharedPassword");
+        Assert.True(removeExit == 0, removeOutput);
+        Assert.Equal(string.Empty, PasswordHashOnSite());
+        Assert.Equal("LIVE", File.ReadAllText(Path.Combine(_site, "App_Data", "kanban.db")));
+    }
+
+    [Fact]
+    public void SetPassword_OnAFolderWithoutQATrack_FailsClearly()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunScript("-Action", "SetPassword", "-PhysicalPath", _site, "-SharedPassword", "long-enough-password");
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("No QATrack installation found", output);
+    }
+
     private string ApiKeyOnSite()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_site, "appsettings.Production.json")));

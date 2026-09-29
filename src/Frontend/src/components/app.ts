@@ -28,7 +28,12 @@ export class App {
   private readonly notice: HTMLElement;
   private readonly boardRoot: HTMLElement;
 
-  constructor(doc: Document = document) {
+  /**
+   * @param doc      Document hosting the shell (index.html).
+   * @param options  onUnauthorized: called when board data is refused with 401
+   *                 (sign-in required, expired, or the password was changed).
+   */
+  constructor(doc: Document = document, options: { onUnauthorized?: () => void } = {}) {
     this.boardRoot = byId('board-root', doc);
     this.notice = byId('notice', doc);
     this.announcer = new Announcer(byId('live-polite', doc), byId('live-assertive', doc));
@@ -41,7 +46,10 @@ export class App {
       onNewItem: () => this.dialog.openNew(),
     });
 
-    this.api = new ApiClient({ getDisplayName: () => this.toolbar.displayName });
+    this.api = new ApiClient({
+      getDisplayName: () => this.toolbar.displayName,
+      onUnauthorized: options.onUnauthorized,
+    });
 
     this.boardView = new BoardView(this.boardRoot, {
       onMove: (id, from, to) => void this.moveCard(id, from, to),

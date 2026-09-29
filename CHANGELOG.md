@@ -3,6 +3,26 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-29
+
+### Added
+- **Shared access password for the browser board.**
+  - **How signing in works:** one password protects all board data (`/api/ui`). Each browser signs in once through an accessible sign-in dialog that can't be dismissed, and stays signed in for 30 days (sliding) via an HttpOnly, SameSite=Strict cookie. There's a "Sign out" link in the header.
+  - **Security:** the password is stored only as a PBKDF2-SHA256 hash (600,000 iterations, random salt). Sign-in is limited to 5 attempts per minute per IP (HTTP 429 after that). Changing the password signs every browser out.
+  - **Sessions survive recycles:** session keys persist in `App_Data\keys`, DPAPI-protected, so app-pool recycles don't sign people out.
+  - **Expiry mid-edit:** if a session ends while a card is being edited, the sign-in dialog opens on top of it and nothing typed is lost.
+  - **Unaffected:** the AI agent API (`/api/v1`, API key), `/api/version` and the API docs.
+- `deploy-iis.ps1`:
+  - `-SharedPassword` on Install.
+  - `-Action SetPassword` to set or change the password on an installed site. It prompts twice without echo, applies live with no redeploy or restart, and keeps all other settings.
+  - `-RemoveSharedPassword` to turn it off.
+  - Install warns when no password is set, and Diagnose shows whether one is.
+
+### Changed
+- The installer's warm-up request uses the public `/api/version`, since board data may now require sign-in.
+- Packages never include `App_Data\keys` or `App_Dataackups`, and installs never overwrite the server's keys.
+- With no password configured, the board stays open exactly as in 1.2.x (backwards compatible).
+
 ## [1.2.3] - 2026-09-29
 
 ### Fixed
@@ -72,6 +92,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - OpenAPI at `/api/openapi.json` and Swagger UI at `/api/docs`.
 - `deploy-iis.ps1` packaging and data-safe IIS install.
 
+[1.3.0]: https://semver.org/spec/v2.0.0.html
 [1.2.3]: https://semver.org/spec/v2.0.0.html
 [1.2.2]: https://semver.org/spec/v2.0.0.html
 [1.2.1]: https://semver.org/spec/v2.0.0.html

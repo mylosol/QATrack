@@ -20,6 +20,13 @@ import type {
 } from './types';
 
 export const UI_API_BASE = 'api/ui/';
+export const AUTH_API_BASE = 'api/auth/';
+
+/** Response of GET api/auth/status. */
+export interface AuthStatus {
+  required: boolean;
+  authenticated: boolean;
+}
 export const REQUESTED_WITH_HEADER = 'X-Requested-With';
 export const REQUESTED_WITH_VALUE = 'QATrack';
 export const DISPLAY_NAME_HEADER = 'X-User-Display-Name';
@@ -69,18 +76,29 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
   /** Returns the user's self-reported name (or null) for audit attribution. */
   getDisplayName?: () => string | null;
+  /**
+   * Called when board data is refused with 401 (no or expired sign-in, or
+   * the shared password was changed). The app shows its sign-in dialog.
+   */
+  onUnauthorized?: () => void;
+  /** Base URL for the sign-in endpoints; defaults to the relative `api/auth/`. */
+  authBaseUrl?: string;
 }
 
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly getDisplayName: () => string | null;
+  private readonly onUnauthorized: () => void;
+  private readonly authBaseUrl: string;
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? UI_API_BASE;
     // Bind so window.fetch keeps its required `this`.
     this.fetchImpl = options.fetchImpl ?? window.fetch.bind(window);
     this.getDisplayName = options.getDisplayName ?? (() => null);
+    this.onUnauthorized = options.onUnauthorized ?? (() => undefined);
+    this.authBaseUrl = options.authBaseUrl ?? AUTH_API_BASE;
   }
 
   /** GET the board (columns, WIP status, filtered cards). */
@@ -105,7 +123,26 @@ export class ApiClient {
     return this.request<WorkItemHistoryEntry>('POST', `workitems/${encodeURIComponent(String(id))}/comments`, { text });
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  /** Whether a shared password is configured and whether this browser is signed in. */
+  getAuthStatus(): Promise<AuthStatus> {
+    return this.send<AuthStatus>('GET', this.authBaseUrl + 'status');
+  }
+
+  /** Signs in with the shared password (throws ApiError 401 / 429 on failure). */
+  async login(password: string): Promise<void> {
+    await this.send<void>('POST', this.authBaseUrl + 'login', { password });
+  }
+
+  /** Ends this browser's session. */
+  async logout(): Promise<void> {
+    await this.send<void>('POST', this.authBaseUrl + 'logout');
+  }
+
+  private request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return this.send<T>(method, this.baseUrl + path, body, true);
+  }
+
+  private async send<T>(method: string, url: string, body?: unknown, isBoardData = false): Promise<T> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       [REQUESTED_WITH_HEADER]: REQUESTED_WITH_VALUE,
@@ -120,7 +157,7 @@ export class ApiClient {
 
     let response: Response;
     try {
-      response = await this.fetchImpl(this.baseUrl + path, {
+      response = await this.fetchImpl(url, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -138,6 +175,7 @@ export class ApiClient {
       } catch {
         // Non-JSON error body (e.g. IIS error page) - fall back to the status.
       }
+      if (response.status === 401 && isBoardData) this.onUnauthorized();
       throw new ApiError(response.status, problem);
     }
 

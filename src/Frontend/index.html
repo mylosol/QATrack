@@ -22,6 +22,7 @@
       </div>
       <nav aria-label="Utilities">
         <a class="text-sm font-medium text-header-fg underline" href="./api/docs/">API docs</a>
+        <button id="sign-out" type="button" class="ml-4 text-sm font-medium text-header-fg underline" data-testid="sign-out" hidden>Sign out</button>
       </nav>
     </header>
 
@@ -52,5 +53,7 @@
     <div id="update-notifier-root" hidden></div>
 
     <dialog id="work-item-dialog"></dialog>
+    <!-- Shared-password sign-in; declared last so it stacks above the card dialog. -->
+    <dialog id="access-dialog" data-testid="access-dialog"></dialog>
   </body>
 </html>

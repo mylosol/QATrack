@@ -22,6 +22,8 @@ namespace KanbanBoard.Api.Middleware;
 public sealed class UiRequestGuardMiddleware
 {
     public const string PathPrefix = "/api/ui";
+    /// <summary>Browser sign-in endpoints; guarded the same way (CSRF header, no agent headers).</summary>
+    public const string AuthPathPrefix = "/api/auth";
     public const string RequestedWithHeader = "X-Requested-With";
     public const string RequestedWithValue = "QATrack";
     public const string DisplayNameHeader = "X-User-Display-Name";
@@ -35,7 +37,8 @@ public sealed class UiRequestGuardMiddleware
 
     public async Task InvokeAsync(HttpContext context, ActorContext actor)
     {
-        if (!context.Request.Path.StartsWithSegments(PathPrefix))
+        if (!context.Request.Path.StartsWithSegments(PathPrefix) &&
+            !context.Request.Path.StartsWithSegments(AuthPathPrefix))
         {
             await _next(context);
             return;

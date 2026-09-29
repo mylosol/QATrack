@@ -60,6 +60,15 @@
     Install only: explicit AI agent API key (min 16 chars). By default an
     existing key is preserved and a new random key is generated only if none exists.
 
+.PARAMETER SharedPassword
+    Install / SetPassword: shared password that protects the browser board
+    (min 8 characters). Stored only as a PBKDF2-SHA256 hash. With
+    -Action SetPassword and no -SharedPassword you are prompted securely
+    (recommended: keeps the password out of your PowerShell history).
+
+.PARAMETER RemoveSharedPassword
+    Install / SetPassword: turn the shared password off.
+
 .PARAMETER SkipIisConfiguration
     Install only: copy files / protect data / configure the key but skip all
     IIS and ACL steps. Used by the automated tests; also handy for staging a
@@ -68,6 +77,10 @@
 .EXAMPLE
     # On the server: check prerequisites without changing anything
     .\deploy-iis.ps1 -Action Diagnose
+
+.EXAMPLE
+    # On the server: set or change the board password (prompts; applies live, signs everyone out)
+    .\deploy-iis.ps1 -Action SetPassword -PhysicalPath C:\inetpub\QATrack
 
 .EXAMPLE
     # On the build machine
@@ -80,7 +93,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Package', 'Install', 'Diagnose')]
+    [ValidateSet('Package', 'Install', 'Diagnose', 'SetPassword')]
     [string]$Action,
 
     [string]$Version,
@@ -105,7 +118,13 @@ param(
 
     [string]$ApiKey,
 
-    [switch]$SkipIisConfiguration
+    [switch]$SkipIisConfiguration,
+
+    # Shared access password for the browser board (Install / SetPassword).
+    [string]$SharedPassword,
+
+    # Turns the shared access password off (board open to anyone who can reach it).
+    [switch]$RemoveSharedPassword
 )
 
 Set-StrictMode -Version Latest
@@ -257,6 +276,11 @@ function Invoke-Package {
     New-Item -ItemType Directory -Force -Path $appData | Out-Null
     foreach ($pattern in $ProtectedDataPatterns) {
         Get-ChildItem -Path $appData -Filter $pattern -File -ErrorAction SilentlyContinue | Remove-Item -Force
+    }
+    # Cookie-encryption keys and DB backups are server state - never ship them.
+    foreach ($dir in @('keys', 'backups')) {
+        $stale = Join-Path $appData $dir
+        if (Test-Path $stale) { Remove-Item $stale -Recurse -Force }
     }
     if (-not (Test-Path (Join-Path $appData 'README.txt'))) {
         Set-Content -Path (Join-Path $appData 'README.txt') -Value 'SQLite data directory. kanban.db is created on first start.' -Encoding ASCII
@@ -450,7 +474,11 @@ function Invoke-Diagnose {
     $packageVersion = Get-QATrackVersion $SourcePath
     if ($packageVersion) { Write-Host "    Package in this folder: QATrack $packageVersion" }
     $installed = Get-QATrackVersion $PhysicalPath
-    if ($installed) { Write-Host "    Installed at ${PhysicalPath}: QATrack $installed" }
+    if ($installed) {
+        Write-Host "    Installed at ${PhysicalPath}: QATrack $installed"
+        if (Test-SharedPasswordConfigured $PhysicalPath) { Write-Host '    Board password: set' }
+        else { Write-Host '    Board password: NOT set (board open to anyone who can reach it)' -ForegroundColor Yellow }
+    }
 
     $failed = @($checks | Where-Object { -not $_.Ok })
     Write-Host ''
@@ -473,7 +501,7 @@ function Copy-PackageFiles([string]$From, [string]$To) {
         $excludeFiles += 'appsettings.Production.json'
         Write-Host '    Preserving existing appsettings.Production.json (server configuration).'
     }
-    $excludeDirs = @((Join-Path $From 'logs'), (Join-Path $From 'App_Data\backups'))
+    $excludeDirs = @((Join-Path $From 'logs'), (Join-Path $From 'App_Data\backups'), (Join-Path $From 'App_Data\keys'))
 
     $robocopyArgs = @($From, $To, '/E', '/R:2', '/W:2', '/NP', '/NFL', '/NDL', '/XF') + $excludeFiles + @('/XD') + $excludeDirs
     & robocopy @robocopyArgs | Out-Host
@@ -507,6 +535,109 @@ function Backup-Database([string]$SiteRoot) {
         Sort-Object Name -Descending | Select-Object -Skip 10 |
         ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
     return $target
+}
+
+function Read-SiteSettings([string]$SiteRoot) {
+    <# appsettings.Production.json of a site as an object ({} when missing). #>
+    $path = Join-Path $SiteRoot 'appsettings.Production.json'
+    if (Test-Path $path) { return (Get-Content $path -Raw | ConvertFrom-Json) }
+    return (New-Object psobject)
+}
+
+function Save-SiteSettings([string]$SiteRoot, $Settings) {
+    $Settings | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $SiteRoot 'appsettings.Production.json') -Encoding UTF8
+}
+
+function Get-OrAddSection($Settings, [string]$Name) {
+    # Properties['x'] returns $null when missing ('.Properties.Name' throws under strict mode).
+    if ($null -eq $Settings.PSObject.Properties[$Name]) {
+        $Settings | Add-Member -NotePropertyName $Name -NotePropertyValue (New-Object psobject)
+    }
+    return $Settings.$Name
+}
+
+function New-SharedPasswordHash([string]$Password) {
+    <#
+      PBKDF2-HMAC-SHA256, 600,000 iterations, 16-byte salt, 32-byte hash:
+      "pbkdf2-sha256$600000$<salt b64>$<hash b64>" - the exact format the app's
+      SharedPasswordHasher verifies (cross-checked by DeployScriptTests).
+      Needs .NET Framework 4.7.2+ (Windows Server 2019+ ships it).
+    #>
+    $iterations = 600000
+    $salt = New-Object byte[] 16
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($salt) } finally { $rng.Dispose() }
+    $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Password, $salt, $iterations, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    try { $hash = $kdf.GetBytes(32) } finally { $kdf.Dispose() }
+    return ('pbkdf2-sha256${0}${1}${2}' -f $iterations, [Convert]::ToBase64String($salt), [Convert]::ToBase64String($hash))
+}
+
+function Assert-SharedPasswordStrength([string]$Password) {
+    if ($Password.Length -lt 8) { throw 'The shared password must be at least 8 characters.' }
+}
+
+function Set-SharedPasswordHash([string]$SiteRoot, [string]$Hash) {
+    <# Writes (or clears, with '') AccessControl:SharedPasswordHash. The app reloads it live. #>
+    $settings = Read-SiteSettings $SiteRoot
+    $section = Get-OrAddSection $settings 'AccessControl'
+    if ($null -eq $section.PSObject.Properties['SharedPasswordHash']) {
+        $section | Add-Member -NotePropertyName SharedPasswordHash -NotePropertyValue ''
+    }
+    $section.SharedPasswordHash = $Hash
+    Save-SiteSettings $SiteRoot $settings
+}
+
+function Test-SharedPasswordConfigured([string]$SiteRoot) {
+    $settings = Read-SiteSettings $SiteRoot
+    if ($null -eq $settings.PSObject.Properties['AccessControl']) { return $false }
+    $section = $settings.AccessControl
+    if ($null -eq $section.PSObject.Properties['SharedPasswordHash']) { return $false }
+    return -not [string]::IsNullOrWhiteSpace([string]$section.SharedPasswordHash)
+}
+
+function Read-SharedPasswordInteractively {
+    <# Prompts twice without echo; the password never appears in history or logs. #>
+    $first = Read-Host -Prompt 'New shared board password (min 8 characters)' -AsSecureString
+    $second = Read-Host -Prompt 'Repeat the password' -AsSecureString
+    $a = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($first))
+    $b = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($second))
+    if ($a -cne $b) { throw 'The passwords do not match. Nothing was changed.' }
+    return $a
+}
+
+function Update-SharedPassword([string]$SiteRoot) {
+    <# Applies -SharedPassword / -RemoveSharedPassword to a site folder. #>
+    if ($RemoveSharedPassword) {
+        Set-SharedPasswordHash $SiteRoot ''
+        Write-Host '    Shared password removed: the board is open to anyone who can reach it.' -ForegroundColor Yellow
+    }
+    elseif ($SharedPassword) {
+        Set-SharedPasswordHash $SiteRoot (New-SharedPasswordHash $SharedPassword)
+        Write-Host '    Shared board password set. Existing browser sessions are signed out.' -ForegroundColor Green
+    }
+    elseif (Test-SharedPasswordConfigured $SiteRoot) {
+        Write-Host '    Keeping the existing shared board password.'
+    }
+    else {
+        Write-Warning "No shared board password is set: anyone who can reach this site can use the board. Set one with: .\deploy-iis.ps1 -Action SetPassword -PhysicalPath $SiteRoot"
+    }
+}
+
+function Invoke-SetPassword {
+    <# Sets, changes or removes the board password of an installed site - no redeploy, applies live. #>
+    $target = [System.IO.Path]::GetFullPath($PhysicalPath)
+    if (-not (Test-Path (Join-Path $target 'KanbanBoard.Api.dll'))) {
+        throw "No QATrack installation found at '$target'. Pass -PhysicalPath <site folder>."
+    }
+    if ($RemoveSharedPassword -and $SharedPassword) { throw 'Use either -SharedPassword or -RemoveSharedPassword, not both.' }
+    if (-not $RemoveSharedPassword -and -not $SharedPassword) {
+        $script:SharedPassword = Read-SharedPasswordInteractively
+    }
+    if (-not $RemoveSharedPassword) { Assert-SharedPasswordStrength $SharedPassword }
+
+    Write-Step "Updating the shared board password for $target"
+    Update-SharedPassword $target
+    Write-Host '    Applied immediately (no restart needed).'
 }
 
 function Set-AgentApiKey([string]$SiteRoot) {
@@ -734,6 +865,8 @@ function Get-HttpErrorSummary($ErrorRecord) {
 
 function Invoke-Install {
     # Validate every input before touching the server.
+    if ($SharedPassword) { Assert-SharedPasswordStrength $SharedPassword }
+    if ($SharedPassword -and $RemoveSharedPassword) { throw 'Use either -SharedPassword or -RemoveSharedPassword, not both.' }
     if ($ApiKey -and $ApiKey.Length -lt $MinimumApiKeyLength) {
         throw "-ApiKey must be at least $MinimumApiKeyLength characters."
     }
@@ -802,6 +935,9 @@ function Invoke-Install {
         Write-Step 'Configuring the AI agent API key'
         Set-AgentApiKey $target
 
+        Write-Step 'Configuring the shared board password'
+        Update-SharedPassword $target
+
         if (-not $SkipIisConfiguration) {
             Write-Step "Configuring IIS app pool '$AppPoolName' and site '$SiteName'"
             Set-IisSite $target
@@ -822,12 +958,15 @@ function Invoke-Install {
     }
 
     if (-not $SkipIisConfiguration) {
-        Write-Step 'Warm-up request (runs pending migrations)'
+        # /api/version is public, so this works whether or not the board is
+        # password protected; the first request starts the app, which runs
+        # pending migrations before serving.
+        Write-Step 'Warm-up request (starts the app, runs pending migrations)'
         $hostName = 'localhost'
         if ($HostHeader) { $hostName = $HostHeader }
         $sitePort = Get-SiteHttpPort $SiteName
         if (-not $sitePort) { $sitePort = $Port }
-        $url = "http://${hostName}:$sitePort/api/ui/board"
+        $url = "http://${hostName}:$sitePort/api/version"
         try {
             $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 60
             Write-Host "    $url -> HTTP $($response.StatusCode)" -ForegroundColor Green
@@ -852,4 +991,5 @@ switch ($Action) {
     'Package' { Invoke-Package | Out-Null }
     'Install' { Invoke-Install }
     'Diagnose' { Invoke-Diagnose }
+    'SetPassword' { Invoke-SetPassword }
 }

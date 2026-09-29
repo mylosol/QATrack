@@ -10,10 +10,11 @@
  * set PW_CHANNEL=chromium after `npx playwright install chromium`.
  */
 import { defineConfig, devices } from '@playwright/test';
+import { pbkdf2Sync, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { E2E_API_KEY } from './tests/e2e/helpers';
+import { E2E_API_KEY, E2E_PASSWORD } from './tests/e2e/helpers';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.E2E_PORT ?? 5199);
@@ -35,6 +36,17 @@ if (!process.env.QATRACK_E2E_DATA) {
 }
 const dbPath = path.join(process.env.QATRACK_E2E_DATA, 'kanban.db');
 
+// The E2E server runs WITH a shared access password, like production. The
+// 'setup' project signs in through the real dialog once and saves the session
+// cookie to STORAGE_STATE, which every other test (and its `request` fixture)
+// reuses. Hash format matches SharedPasswordHasher / deploy-iis.ps1.
+if (!process.env.QATRACK_E2E_PASSWORD_HASH) {
+  const salt = randomBytes(16);
+  const hash = pbkdf2Sync(E2E_PASSWORD, salt, 10_000, 32, 'sha256');
+  process.env.QATRACK_E2E_PASSWORD_HASH = `pbkdf2-sha256$10000$${salt.toString('base64')}$${hash.toString('base64')}`;
+}
+process.env.QATRACK_E2E_STATE ??= path.join(process.env.QATRACK_E2E_DATA, 'storage-state.json');
+
 const channel = process.env.PW_CHANNEL ?? 'msedge';
 
 export default defineConfig({
@@ -53,11 +65,19 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices['Desktop Edge'], channel: channel === 'chromium' ? undefined : channel },
+    },
+    {
       name: channel,
+      dependencies: ['setup'],
+      testIgnore: /auth\.setup\.ts/,
       use: {
         ...devices['Desktop Edge'],
         channel: channel === 'chromium' ? undefined : channel,
         viewport: { width: 1440, height: 900 },
+        storageState: process.env.QATRACK_E2E_STATE,
       },
     },
   ],
@@ -74,6 +94,9 @@ export default defineConfig({
       ConnectionStrings__Kanban: `Data Source=${dbPath};Cache=Shared;Mode=ReadWriteCreate;`,
       AiAgentApi__ApiKey: E2E_API_KEY,
       Database__SeedSampleData: 'false',
+      AccessControl__SharedPasswordHash: process.env.QATRACK_E2E_PASSWORD_HASH,
+      AccessControl__LoginAttemptsPerMinute: '100',
+      AccessControl__KeyDirectory: path.join(process.env.QATRACK_E2E_DATA, 'keys'),
     },
   },
 });

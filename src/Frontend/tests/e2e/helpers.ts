@@ -7,6 +7,9 @@ import type { WorkItem, WorkItemState } from '../../src/services/types';
 /** API key the E2E backend is started with (see playwright.config.ts). */
 export const E2E_API_KEY = 'e2e-api-key-0123456789abcdef';
 
+/** Shared access password the E2E backend is protected with (see playwright.config.ts). */
+export const E2E_PASSWORD = 'e2e-shared-password';
+
 export const UI_HEADERS = { 'X-Requested-With': 'QATrack' };
 
 export function agentHeaders(identity = 'E2E-Agent-v1', apiKey = E2E_API_KEY): Record<string, string> {

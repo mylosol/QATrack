@@ -16,6 +16,8 @@ src/Backend/KanbanBoard.Api/wwwroot/
 # Patterns use **/ because a slash-containing pattern is otherwise anchored to
 # the repo root and would miss src/Backend/KanbanBoard.Api/App_Data.
 **/App_Data/*.db
+**/App_Data/keys/
+**/App_Data/backups/
 **/App_Data/*.db-journal
 **/App_Data/*.db-wal
 **/App_Data/*.db-shm

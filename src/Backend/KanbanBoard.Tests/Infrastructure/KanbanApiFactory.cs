@@ -41,6 +41,8 @@ public class KanbanApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Kanban", $"Data Source={DatabasePath};Cache=Shared;Mode=ReadWriteCreate;");
         builder.UseSetting("Database:SeedSampleData", "false");
         builder.UseSetting("AiAgentApi:ApiKey", TestApiKey);
+        // Keep cookie-encryption keys out of the repo's App_Data.
+        builder.UseSetting("AccessControl:KeyDirectory", Path.Combine(_directory, "keys"));
     }
 
     /// <summary>Client pre-configured like the browser SPA (anti-forgery header).</summary>
