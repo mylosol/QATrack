@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest';
+import { makeItem } from '../test/fixtures';
+import { describeChanges, diffForUpdate } from './workItemDialog';
+
+describe('diffForUpdate', () => {
+  const item = makeItem({ id: 1, title: 'T', description: 'd', assignedTo: 'Ana', priority: 2 });
+  const form = {
+    title: 'T', description: 'd', type: item.type, state: item.state, priority: 2, severity: item.severity,
+    assignedTo: 'Ana', areaPath: item.areaPath, iterationPath: item.iterationPath,
+  };
+
+  it('returns an empty patch when nothing changed', () => {
+    expect(diffForUpdate(item, { ...form, title: '  T  ' })).toEqual({});
+  });
+
+  it('includes only changed fields', () => {
+    expect(diffForUpdate(item, { ...form, state: 'Active', priority: 1 })).toEqual({ state: 'Active', priority: 1 });
+  });
+
+  it('sends empty strings to clear assignee and description', () => {
+    expect(diffForUpdate(item, { ...form, assignedTo: ' ', description: '' })).toEqual({ assignedTo: '', description: '' });
+  });
+});
+
+describe('describeChanges', () => {
+  it('describes set, cleared and changed fields', () => {
+    const lines = describeChanges({
+      id: 1, workItemId: 1, changeDate: '', author: 'a', isAiAction: false, agentName: null, comment: null,
+      changedFields: {
+        Title: { old: null, new: 'New title' },
+        AssignedTo: { old: 'Ana', new: null },
+        State: { old: 'New', new: 'Active' },
+      },
+    });
+    expect(lines).toEqual(['Title set to "New title"', 'AssignedTo cleared (was "Ana")', 'State: "New" → "Active"']);
+  });
+});
