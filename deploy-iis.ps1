@@ -95,7 +95,9 @@ param(
 
     [string]$HostHeader = '',
 
-    [string]$SourcePath = $PSScriptRoot,
+    # Defaults to this script's folder (resolved below: $PSScriptRoot can be
+    # empty while param defaults are evaluated under Windows PowerShell 5.1).
+    [string]$SourcePath,
 
     [string]$ApiKey,
 
@@ -104,6 +106,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Folder containing this script. Resolved in the script body, not in the
+# param block, because Windows PowerShell 5.1 can leave $PSScriptRoot empty
+# when evaluating parameter defaults.
+$ScriptDirectory = $PSScriptRoot
+if (-not $ScriptDirectory) { $ScriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Definition }
+if (-not $SourcePath) { $SourcePath = $ScriptDirectory }
 
 # Files that must never be copied over, deleted or overwritten on the server.
 $ProtectedDataPatterns = @('*.db', '*.db-wal', '*.db-shm', '*.db-journal')
@@ -163,7 +172,7 @@ function New-ZipArchive([string]$SourceDirectory, [string]$DestinationPath) {
 }
 
 function Invoke-Package {
-    $repoRoot = $PSScriptRoot
+    $repoRoot = $ScriptDirectory
     $frontend = Join-Path $repoRoot 'src\Frontend'
     $apiProject = Join-Path $repoRoot 'src\Backend\KanbanBoard.Api\KanbanBoard.Api.csproj'
     $artifacts = Join-Path $repoRoot 'artifacts'
@@ -327,10 +336,12 @@ function Set-AgentApiKey([string]$SiteRoot) {
     else {
         $json = New-Object psobject
     }
-    if (-not ($json.PSObject.Properties.Name -contains 'AiAgentApi')) {
+    # Properties['x'] returns $null when missing; '.Properties.Name' throws
+    # under Set-StrictMode on an object with no properties.
+    if ($null -eq $json.PSObject.Properties['AiAgentApi']) {
         $json | Add-Member -NotePropertyName AiAgentApi -NotePropertyValue (New-Object psobject)
     }
-    if (-not ($json.AiAgentApi.PSObject.Properties.Name -contains 'ApiKey')) {
+    if ($null -eq $json.AiAgentApi.PSObject.Properties['ApiKey']) {
         $json.AiAgentApi | Add-Member -NotePropertyName ApiKey -NotePropertyValue ''
     }
 
