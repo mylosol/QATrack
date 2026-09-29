@@ -17,6 +17,21 @@ describe('createCard', () => {
     expect(li.textContent).toContain('Assigned to Ana');
   });
 
+  it('shows the program and tags as text inside the described meta (1.4.0)', () => {
+    const li = createCard(makeItem({ id: 9, program: 'ProveOut', tags: ['login', '<b>x</b>'] }));
+    const meta = li.querySelector('#card-meta-9')!;
+    expect(meta.querySelector('[data-testid="card-program"]')!.textContent).toBe('Program ProveOut');
+    const chips = [...meta.querySelectorAll('.tag-chip')].map((c) => c.textContent);
+    expect(chips).toEqual(['login, ', '<b>x</b>']);
+    expect(meta.querySelector('b')).toBeNull();
+  });
+
+  it('omits program and tag markup when there are none', () => {
+    const li = createCard(makeItem({ program: null, tags: [] }));
+    expect(li.querySelector('[data-testid="card-program"]')).toBeNull();
+    expect(li.querySelector('[data-testid="card-tags"]')).toBeNull();
+  });
+
   it('is labelled by its title and described by meta + keyboard instructions', () => {
     const article = createCard(makeItem({ id: 7 })).querySelector('article')!;
     expect(article.getAttribute('aria-labelledby')).toBe('card-title-7');

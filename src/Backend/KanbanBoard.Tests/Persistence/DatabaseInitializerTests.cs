@@ -2,6 +2,7 @@ using KanbanBoard.Api.Models;
 using KanbanBoard.Tests.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace KanbanBoard.Tests.Persistence;
 
@@ -83,6 +84,30 @@ public class DatabaseInitializerTests
         var items = await verify.WorkItems.ToListAsync();
         var item = Assert.Single(items);
         Assert.Equal("Production data that must survive", item.Title);
+    }
+
+    [Fact]
+    public async Task Upgrade_From130Schema_KeepsExistingItems_AndAddsPrograms()
+    {
+        // A database created by 1.3.0 (InitialCreate only) with a live item.
+        using var temp = new TempSqliteDatabase();
+        await using (var old = temp.CreateContext())
+        {
+            await old.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20260929161034_InitialCreate");
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItem (Title, Type, State, Priority, Severity, AreaPath, IterationPath, AiModified, LastModifiedBy, CreatedAt, UpdatedAt) " +
+                "VALUES ('Pre-1.4 item', 'Bug', 'Active', 1, '1 - Critical', 'Tools/QA', 'Current', 0, 'tester', '2026-09-01 00:00:00', '2026-09-01 00:00:00')");
+        }
+
+        await temp.InitializeAsync();
+
+        await using var db = temp.CreateContext();
+        var item = await db.WorkItems.Include(w => w.Tags).SingleAsync();
+        Assert.Equal("Pre-1.4 item", item.Title);
+        Assert.Null(item.ProgramId);
+        Assert.Empty(item.Tags);
+        Assert.Equal(new[] { "ProveOut", "CallOut" }, await db.Programs.OrderBy(p => p.SortOrder).Select(p => p.Name).ToListAsync());
     }
 
     [Fact]

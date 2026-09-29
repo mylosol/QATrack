@@ -36,6 +36,9 @@ public sealed class WorkItemService
     public async Task<IReadOnlyList<WorkItemDto>> ListAsync(WorkItemQuery query, CancellationToken ct = default)
     {
         var items = await ApplyFilters(_db.WorkItems.AsNoTracking(), query)
+            .Include(w => w.Program)
+            .Include(w => w.Tags)
+            .AsSplitQuery()
             .OrderBy(w => w.Id)
             .Take(Math.Clamp(query.Top ?? DefaultTop, 1, 1000))
             .ToListAsync(ct);
@@ -48,6 +51,8 @@ public sealed class WorkItemService
     {
         var item = await _db.WorkItems.AsNoTracking()
                        .Include(w => w.History)
+                       .Include(w => w.Program)
+                       .Include(w => w.Tags)
                        .AsSplitQuery()
                        .FirstOrDefaultAsync(w => w.Id == id, ct)
                    ?? throw new WorkItemNotFoundException(id);
@@ -81,6 +86,12 @@ public sealed class WorkItemService
             CreatedAt = now,
         };
 
+        item.Program = await ResolveProgramAsync(request.Program, ct);
+        if (request.Tags is not null)
+        {
+            item.Tags.AddRange(await ResolveTagsAsync(NormalizeTags(request.Tags), ct));
+        }
+
         var changes = WorkItemChangeTracker.Diff(WorkItemSnapshot.Empty, WorkItemSnapshot.From(item), isCreation: true);
         StampAndRecord(item, changes, TextSanitizer.MultiLine(request.Comment, WorkItemDefaults.CommentMaxLength), now);
 
@@ -96,7 +107,12 @@ public sealed class WorkItemService
     /// <exception cref="WorkItemNotFoundException">When the id does not exist.</exception>
     public async Task<WorkItemDto> UpdateAsync(int id, UpdateWorkItemRequest request, CancellationToken ct = default)
     {
-        var item = await _db.WorkItems.Include(w => w.History).AsSplitQuery().FirstOrDefaultAsync(w => w.Id == id, ct)
+        var item = await _db.WorkItems
+                       .Include(w => w.History)
+                       .Include(w => w.Program)
+                       .Include(w => w.Tags)
+                       .AsSplitQuery()
+                       .FirstOrDefaultAsync(w => w.Id == id, ct)
                    ?? throw new WorkItemNotFoundException(id);
 
         var before = WorkItemSnapshot.From(item);
@@ -150,6 +166,23 @@ public sealed class WorkItemService
         {
             item.IterationPath = TextSanitizer.SingleLine(request.IterationPath, WorkItemDefaults.ShortTextMaxLength)
                                  ?? WorkItemDefaults.IterationPath;
+        }
+
+        if (request.Program is not null)
+        {
+            // Empty string removes the program.
+            var program = await ResolveProgramAsync(request.Program, ct);
+            item.Program = program;
+            item.ProgramId = program?.Id;
+        }
+
+        if (request.Tags is not null)
+        {
+            // Replace-all semantics. Tags are shared rows, so the tracked
+            // instances are reused (EF identity resolution keeps them unique).
+            var wanted = await ResolveTagsAsync(NormalizeTags(request.Tags), ct);
+            item.Tags.RemoveAll(t => !wanted.Contains(t));
+            item.Tags.AddRange(wanted.Where(t => !item.Tags.Contains(t)).ToList());
         }
 
         var changes = WorkItemChangeTracker.Diff(before, WorkItemSnapshot.From(item));
@@ -211,7 +244,117 @@ public sealed class WorkItemService
             }
         }
 
+        var program = TextSanitizer.SingleLine(query.Program, WorkItemDefaults.ProgramNameMaxLength);
+        if (program is not null)
+        {
+            var normalized = program.ToUpperInvariant();
+            source = source.Where(w => w.Program != null && w.Program.NormalizedName == normalized);
+        }
+
+        var tag = TextSanitizer.SingleLine(query.Tag, WorkItemDefaults.TagMaxLength);
+        if (tag is not null)
+        {
+            var normalized = tag.ToUpperInvariant();
+            source = source.Where(w => w.Tags.Any(t => t.NormalizedName == normalized));
+        }
+
         return source;
+    }
+
+    /// <summary>
+    /// Cleans a tag list: trims, strips control characters, splits on ',' and ';'
+    /// (so "ui, login" is two tags), drops blanks and case-insensitive duplicates.
+    /// </summary>
+    /// <exception cref="WorkItemValidationException">A tag is too long or there are too many.</exception>
+    internal static IReadOnlyList<string> NormalizeTags(IEnumerable<string?> input)
+    {
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in input)
+        {
+            foreach (var part in (raw ?? string.Empty).Split(',', ';'))
+            {
+                var tag = TextSanitizer.SingleLine(part, int.MaxValue);
+                if (tag is null)
+                {
+                    continue;
+                }
+
+                if (tag.Length > WorkItemDefaults.TagMaxLength)
+                {
+                    throw new WorkItemValidationException(nameof(WorkItem.Tags),
+                        $"Tags can be at most {WorkItemDefaults.TagMaxLength} characters long.");
+                }
+
+                if (seen.Add(tag))
+                {
+                    result.Add(tag);
+                }
+            }
+        }
+
+        if (result.Count > WorkItemDefaults.MaxTagsPerItem)
+        {
+            throw new WorkItemValidationException(nameof(WorkItem.Tags),
+                $"A work item can have at most {WorkItemDefaults.MaxTagsPerItem} tags.");
+        }
+
+        return result;
+    }
+
+    /// <summary>Finds a program by name (case-insensitive). Blank means "no program".</summary>
+    /// <exception cref="WorkItemValidationException">The program does not exist.</exception>
+    private async Task<WorkProgram?> ResolveProgramAsync(string? name, CancellationToken ct)
+    {
+        var clean = TextSanitizer.SingleLine(name, WorkItemDefaults.ProgramNameMaxLength);
+        if (clean is null)
+        {
+            return null;
+        }
+
+        var normalized = clean.ToUpperInvariant();
+        var program = await _db.Programs.FirstOrDefaultAsync(p => p.NormalizedName == normalized, ct);
+        if (program is not null)
+        {
+            return program;
+        }
+
+        var known = await _db.Programs.OrderBy(p => p.SortOrder).Select(p => p.Name).ToListAsync(ct);
+        throw new WorkItemValidationException(nameof(WorkItem.Program),
+            $"Unknown program '{clean}'. Use one of: {string.Join(", ", known)} - or add it first with POST /api/v1/programs.");
+    }
+
+    /// <summary>Maps cleaned tag names to Tag entities, creating the ones that do not exist yet.</summary>
+    private async Task<List<Tag>> ResolveTagsAsync(IReadOnlyList<string> names, CancellationToken ct)
+    {
+        var result = new List<Tag>(names.Count);
+        if (names.Count == 0)
+        {
+            return result;
+        }
+
+        var normalized = names.Select(n => n.ToUpperInvariant()).Distinct().ToList();
+        var byKey = await _db.Tags
+            .Where(t => normalized.Contains(t.NormalizedName))
+            .ToDictionaryAsync(t => t.NormalizedName, ct);
+
+        foreach (var name in names)
+        {
+            var key = name.ToUpperInvariant();
+            if (!byKey.TryGetValue(key, out var tag))
+            {
+                tag = new Tag { Name = name, NormalizedName = key };
+                _db.Tags.Add(tag);
+                byKey[key] = tag;
+            }
+
+            if (!result.Contains(tag))
+            {
+                result.Add(tag);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

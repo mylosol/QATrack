@@ -60,6 +60,15 @@ export function createCard(item: WorkItem): HTMLLIElement {
       h('span', { title: `Priority ${item.priority} - ${priorityLabel}` }, `P${item.priority} ${priorityLabel}`),
       item.type === 'Bug' ? h('span', {}, `Severity ${item.severity}`) : null,
       h('span', {}, item.assignedTo ? `Assigned to ${item.assignedTo}` : 'Unassigned'),
+      item.program ? h('span', { class: 'card-program', 'data-testid': 'card-program' }, h('span', { class: 'sr-only' }, 'Program '), item.program) : null,
+      item.tags?.length
+        ? h(
+            'span',
+            { class: 'card-tags', 'data-testid': 'card-tags' },
+            h('span', { class: 'sr-only' }, 'Tags: '),
+            ...item.tags.map((t, i) => h('span', { class: 'tag-chip' }, t, i < item.tags.length - 1 ? h('span', { class: 'sr-only' }, ', ') : null)),
+          )
+        : null,
     ),
   );
 

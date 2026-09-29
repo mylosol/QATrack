@@ -3,6 +3,38 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-29
+
+### Added
+- **Program dropdown** (replaces the free-text "Area path" in the card dialog).
+  - Starts with **ProveOut** and **CallOut**. The **+** button next to it adds more programs inline; a name that already exists (in any letter case) is simply selected.
+  - Cards show their program, and the toolbar has a **Program** filter.
+  - Changes are recorded in the card's history.
+- **Tags** on work items.
+  - Type a tag and press Enter or comma; each chip has its own remove button. Suggestions come from tags already in use.
+  - At most 20 tags per item, 50 characters each; letter case is ignored when matching ("UI" and "ui" are one tag).
+  - Cards show their tags, and the toolbar has a **Tag** filter. Tag changes are recorded in history.
+- **Rich text editor** for descriptions and comments.
+  - Toolbar: bold, italic, strikethrough, inline code, headings, bulleted and numbered lists, quote, code block, image, undo/redo, and a **Markdown** toggle for the raw text.
+  - **Images:** insert from the toolbar, paste, or drag and drop. PNG, JPEG, GIF or WebP up to 5 MB. Images are uploaded and stored inside `kanban.db` (so database backups include them); descriptions reference them by link, never inline base64.
+  - Content is still stored as **Markdown**, so the AI agent API is unchanged.
+  - Text that the rich view cannot show without losing something (for example tables or HTML written by an agent) opens in Markdown mode, untouched. Saving a card only sends the description if you actually edited it.
+  - Accessible: labelled toolbar with arrow-key navigation and pressed states. Tab always leaves the editor (indent list items with Ctrl+] / Ctrl+[).
+- **AI agent API:**
+  - `program` and `tags` on create, update, list and board; `program` and `tag` list/board filters.
+  - `GET/POST /api/v1/programs` (`listPrograms`, `createProgram`).
+  - `POST /api/v1/attachments` (multipart, `uploadAttachment`) returns ready-to-paste image markdown; `GET /api/v1/attachments/{id}` (`getAttachment`).
+
+### Changed
+- Additive database migration `AddProgramsTagsAttachments`: new `Program`, `Tag`, `WorkItemTag` and `Attachment` tables, plus a nullable `WorkItem.ProgramId`. Existing cards are kept unchanged (no program, no tags).
+- `areaPath` stays in the API for compatibility, but the board no longer shows or edits it.
+- Uploaded files are checked by their actual bytes, not their name or declared type. SVG is refused because it can contain script. Identical uploads are stored once.
+- The maximum request size is now 8 MB (was 4 MB) to fit a 5 MB image upload.
+- Adding a comment keeps unsaved edits in the rest of the dialog (previously the dialog was redrawn).
+
+### Fixed
+- Elements marked `hidden` could still show when they also had a layout class such as `flex`.
+
 ## [1.3.0] - 2026-09-29
 
 ### Added
@@ -20,7 +52,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - The installer's warm-up request uses the public `/api/version`, since board data may now require sign-in.
-- Packages never include `App_Data\keys` or `App_Dataackups`, and installs never overwrite the server's keys.
+- Packages never include `App_Data\keys` or `App_Data\backups`, and installs never overwrite the server's keys.
 - With no password configured, the board stays open exactly as in 1.2.x (backwards compatible).
 
 ## [1.2.3] - 2026-09-29

@@ -18,6 +18,8 @@ public static class WorkItemMapper
         AssignedTo = item.AssignedTo,
         AreaPath = item.AreaPath,
         IterationPath = item.IterationPath,
+        Program = item.Program?.Name,
+        Tags = item.Tags.Select(t => t.Name).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList(),
         AiModified = item.AiModified,
         AiAgentIdentity = item.AiAgentIdentity,
         LastModifiedBy = item.LastModifiedBy,

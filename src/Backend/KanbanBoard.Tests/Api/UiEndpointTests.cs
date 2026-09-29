@@ -154,6 +154,10 @@ public sealed class UiEndpointTests : IClassFixture<KanbanApiFactory>
         Assert.Contains("updateWorkItem", operationIds);
         Assert.Contains("addWorkItemComment", operationIds);
         Assert.Contains("getBoard", operationIds);
+        Assert.Contains("listPrograms", operationIds);
+        Assert.Contains("createProgram", operationIds);
+        Assert.Contains("uploadAttachment", operationIds);
+        Assert.Contains("getAttachment", operationIds);
     }
 
     [Fact]

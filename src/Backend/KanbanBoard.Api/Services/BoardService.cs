@@ -33,6 +33,9 @@ public sealed class BoardService
 
         var visible = await WorkItemService.ApplyFilters(_db.WorkItems.AsNoTracking(), filter)
             .Where(w => w.State != WorkItemState.Removed)
+            .Include(w => w.Program)
+            .Include(w => w.Tags)
+            .AsSplitQuery()
             .OrderBy(w => w.Priority)
             .ThenBy(w => w.Id)
             .ToListAsync(ct);
@@ -43,6 +46,15 @@ public sealed class BoardService
             .Distinct()
             .OrderBy(a => a)
             .ToListAsync(ct);
+
+        var programs = await _db.Programs.AsNoTracking()
+            .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+            .Select(p => p.Name)
+            .ToListAsync(ct);
+
+        var tags = (await _db.Tags.AsNoTracking().Select(t => t.Name).ToListAsync(ct))
+            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var byState = visible.ToLookup(w => w.State);
 
@@ -71,6 +83,8 @@ public sealed class BoardService
                 Severities = WorkItemDefaults.Severities,
                 Priorities = WorkItemDefaults.Priorities,
                 Assignees = assignees,
+                Programs = programs,
+                Tags = tags,
             },
         };
     }

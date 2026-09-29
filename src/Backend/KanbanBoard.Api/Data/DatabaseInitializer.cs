@@ -110,6 +110,16 @@ public sealed class DatabaseInitializer
             new WorkItem { Title = "Upgrade test runner to latest", Type = WorkItemType.Task, State = WorkItemState.Closed, Priority = 4, Severity = "4 - Low" },
         };
 
+        // 1.4.0: show programs and tags on the demo board.
+        var programs = await _db.Programs.ToDictionaryAsync(p => p.Name, ct);
+        Tag NewTag(string name) => new() { Name = name, NormalizedName = name.ToUpperInvariant() };
+        var regression = NewTag("regression");
+        samples[0].Program = programs.GetValueOrDefault("ProveOut");
+        samples[0].Tags.AddRange(new[] { NewTag("login"), regression });
+        samples[1].Program = programs.GetValueOrDefault("CallOut");
+        samples[3].Program = programs.GetValueOrDefault("ProveOut");
+        samples[3].Tags.AddRange(new[] { NewTag("flaky"), regression });
+
         foreach (var item in samples)
         {
             item.CreatedAt = now;

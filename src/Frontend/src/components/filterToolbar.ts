@@ -1,6 +1,6 @@
 /**
- * Quick-filter toolbar (spec 5.1): Work Item Type, Assigned To, State and
- * AI-modified status, plus the "New work item" action and the optional
+ * Quick-filter toolbar (spec 5.1): Work Item Type, Assigned To, State,
+ * Program, Tag (1.4.0) and AI-modified status, plus the "New work item" action and the optional
  * display name used to attribute browser edits in the audit trail.
  */
 import { BOARD_STATES, TYPE_LABELS, WORK_ITEM_TYPES, type BoardFilter, type WorkItemState, type WorkItemType } from '../services/types';
@@ -35,6 +35,8 @@ export class FilterToolbar {
   private readonly typeSelect: HTMLSelectElement;
   private readonly stateSelect: HTMLSelectElement;
   private readonly assigneeSelect: HTMLSelectElement;
+  private readonly programSelect: HTMLSelectElement;
+  private readonly tagSelect: HTMLSelectElement;
   private readonly aiCheckbox: HTMLInputElement;
   private readonly summary: HTMLElement;
   private readonly nameInput: HTMLInputElement;
@@ -57,6 +59,16 @@ export class FilterToolbar {
       { class: 'field', name: 'state', 'data-testid': 'filter-state' },
       h('option', { value: '' }, 'All states'),
       ...BOARD_STATES.map((s) => h('option', { value: s }, s)),
+    );
+    this.programSelect = h(
+      'select',
+      { class: 'field', name: 'program', 'data-testid': 'filter-program' },
+      h('option', { value: '' }, 'All programs'),
+    );
+    this.tagSelect = h(
+      'select',
+      { class: 'field', name: 'tag', 'data-testid': 'filter-tag' },
+      h('option', { value: '' }, 'Any tag'),
     );
     this.aiCheckbox = h('input', { type: 'checkbox', name: 'aiModified', class: 'h-4 w-4', 'data-testid': 'filter-ai' });
     this.summary = h('span', { class: 'text-sm text-muted', 'data-testid': 'filter-summary' });
@@ -82,6 +94,8 @@ export class FilterToolbar {
       h('label', { class: 'field-label' }, 'Work item type', this.typeSelect),
       h('label', { class: 'field-label' }, 'Assigned to', this.assigneeSelect),
       h('label', { class: 'field-label' }, 'State', this.stateSelect),
+      h('label', { class: 'field-label' }, 'Program', this.programSelect),
+      h('label', { class: 'field-label' }, 'Tag', this.tagSelect),
       h('label', { class: 'flex items-center gap-2 pb-1.5 text-sm font-medium' }, this.aiCheckbox, 'AI-modified only'),
       clearButton,
       this.summary,
@@ -91,7 +105,7 @@ export class FilterToolbar {
     );
 
     form.addEventListener('submit', (e) => e.preventDefault());
-    for (const control of [this.typeSelect, this.assigneeSelect, this.stateSelect, this.aiCheckbox]) {
+    for (const control of [this.typeSelect, this.assigneeSelect, this.stateSelect, this.programSelect, this.tagSelect, this.aiCheckbox]) {
       control.addEventListener('change', () => this.handlers.onFilterChange(this.value));
     }
     clearButton.addEventListener('click', () => {
@@ -112,6 +126,8 @@ export class FilterToolbar {
       state: (this.stateSelect.value || '') as WorkItemState | '',
       assignedTo: this.assigneeSelect.value || undefined,
       aiModified: this.aiCheckbox.checked || undefined,
+      program: this.programSelect.value || undefined,
+      tag: this.tagSelect.value || undefined,
     };
   }
 
@@ -123,7 +139,7 @@ export class FilterToolbar {
   /** True when any filter is active. */
   get isFiltered(): boolean {
     const v = this.value;
-    return Boolean(v.type || v.state || v.assignedTo || v.aiModified);
+    return Boolean(v.type || v.state || v.assignedTo || v.aiModified || v.program || v.tag);
   }
 
   reset(): void {
@@ -131,6 +147,27 @@ export class FilterToolbar {
     this.stateSelect.value = '';
     this.assigneeSelect.value = '';
     this.aiCheckbox.checked = false;
+    this.programSelect.value = '';
+    this.tagSelect.value = '';
+  }
+
+  /** Refreshes the Program filter options, keeping the selection. */
+  setPrograms(programs: string[]): void {
+    FilterToolbar.fillOptions(this.programSelect, programs);
+  }
+
+  /** Refreshes the Tag filter options, keeping the selection. */
+  setTags(tags: string[]): void {
+    FilterToolbar.fillOptions(this.tagSelect, tags);
+  }
+
+  /** Replaces every option after the first ("All ...") one. */
+  private static fillOptions(select: HTMLSelectElement, values: string[]): void {
+    const selected = select.value;
+    while (select.options.length > 1) select.remove(1);
+    for (const value of values) select.appendChild(h('option', { value }, value));
+    if (selected && !values.includes(selected)) select.appendChild(h('option', { value: selected }, selected));
+    select.value = selected;
   }
 
   /** Refreshes the assignee options from board metadata, keeping the selection. */

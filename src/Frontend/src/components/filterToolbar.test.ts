@@ -26,6 +26,27 @@ describe('FilterToolbar', () => {
     expect(root.querySelector('form')!.getAttribute('role')).toBe('search');
   });
 
+  it('filters by program and tag, keeping the selection across refreshes (1.4.0)', () => {
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+    toolbar.setPrograms(['ProveOut', 'CallOut']);
+    toolbar.setTags(['api', 'ui']);
+
+    select('filter-program').value = 'CallOut';
+    select('filter-program').dispatchEvent(new Event('change'));
+    select('filter-tag').value = 'ui';
+    select('filter-tag').dispatchEvent(new Event('change'));
+
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ program: 'CallOut', tag: 'ui' }));
+    expect(toolbar.isFiltered).toBe(true);
+
+    toolbar.setTags(['api']); // "ui" is no longer in use but stays selected
+    expect(select('filter-tag').value).toBe('ui');
+
+    toolbar.reset();
+    expect(toolbar.value.program).toBeUndefined();
+    expect(toolbar.value.tag).toBeUndefined();
+  });
+
   it('emits the combined filter on change', () => {
     const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
     select('filter-type').value = 'Bug';
