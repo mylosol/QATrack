@@ -111,6 +111,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Whether the operator explicitly asked for a port / host name (vs. defaults).
+# Explicit values are applied to an existing site's HTTP binding on reinstall.
+$PortSpecified = $PSBoundParameters.ContainsKey('Port')
+$HostHeaderSpecified = $PSBoundParameters.ContainsKey('HostHeader')
+
 # Folder containing this script. Resolved in the script body, not in the
 # param block, because Windows PowerShell 5.1 can leave $PSScriptRoot empty
 # when evaluating parameter defaults.
@@ -434,6 +439,12 @@ function Invoke-Diagnose {
     <# Read-only report of the server prerequisites and any existing QATrack install. #>
     Write-Step 'QATrack server prerequisites (read-only, nothing is changed)'
     $checks = Get-PrerequisiteReport
+    $conflict = Get-PortConflict -CheckPort $Port -CheckHost $HostHeader -OwnSite $SiteName
+    $checks += [pscustomobject]@{
+        Name = "Port $Port"; Ok = (-not $conflict)
+        Detail = $(if ($conflict) { $conflict } else { "free (or used by site '$SiteName')" })
+        Fix = 'Pick another port with -Port, or stop the program using it.'
+    }
     Write-PrerequisiteReport $checks
 
     $packageVersion = Get-QATrackVersion $SourcePath
@@ -550,7 +561,73 @@ function Grant-AppDataPermissions([string]$SiteRoot) {
     if ($LASTEXITCODE -ne 0) { throw "icacls failed granting read access on $SiteRoot." }
 }
 
+function Get-SiteHttpPort([string]$Name) {
+    <# First HTTP port bound to an IIS site, or $null. #>
+    $binding = Get-WebBinding -Name $Name -Protocol http -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $binding) { return $null }
+    return [int](($binding.bindingInformation -split ':')[1])
+}
+
+function Get-PortConflict([int]$CheckPort, [string]$CheckHost, [string]$OwnSite) {
+    <#
+      Returns a human readable description of whatever already uses
+      $CheckPort (another started IIS site with the same host name, or any
+      other listening process), or $null when the port is free for $OwnSite.
+      HRESULT 0x80070020 from Start-Website is exactly this situation.
+    #>
+    $ownSiteListening = $false
+
+    # Other IIS sites (needs WebAdministration + elevation; skipped otherwise).
+    if ((Test-IsAdministrator) -and (Get-Module -ListAvailable -Name WebAdministration)) {
+        try {
+            Import-Module WebAdministration -ErrorAction Stop
+            foreach ($site in Get-Website) {
+                foreach ($binding in $site.bindings.Collection) {
+                    if ($binding.protocol -notin @('http', 'https')) { continue }
+                    $parts = ([string]$binding.bindingInformation) -split ':'
+                    if ($parts.Count -lt 2 -or [int]$parts[1] -ne $CheckPort) { continue }
+                    $bindingHost = ''
+                    if ($parts.Count -ge 3) { $bindingHost = $parts[2] }
+                    if ($site.Name -ieq $OwnSite) {
+                        if ($site.State -eq 'Started') { $ownSiteListening = $true }
+                        continue
+                    }
+                    if ($bindingHost -ieq $CheckHost -and $site.State -eq 'Started') {
+                        return "IIS site '$($site.Name)' is already bound to port $CheckPort" +
+                            $(if ($bindingHost) { " for host '$bindingHost'" } else { '' }) + ' and is running'
+                    }
+                }
+            }
+        }
+        catch {
+            # Could not query IIS; fall through to the TCP check.
+        }
+    }
+
+    # Any other process listening on the port.
+    try {
+        $listeners = @(Get-NetTCPConnection -LocalPort $CheckPort -State Listen -ErrorAction Stop)
+    }
+    catch {
+        $listeners = @()
+    }
+    foreach ($listener in $listeners) {
+        $processId = [int]$listener.OwningProcess
+        if ($processId -eq 4) {
+            # PID 4 = the kernel HTTP.sys listener shared by IIS and other HTTP.sys apps.
+            if ($ownSiteListening -or $CheckHost) { continue }
+            return "port $CheckPort is held by the Windows HTTP service (HTTP.sys, PID 4) for something other than the '$OwnSite' site - see 'netsh http show servicestate'"
+        }
+        $processName = 'unknown'
+        $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+        if ($process) { $processName = $process.ProcessName }
+        return "port $CheckPort is in use by process '$processName' (PID $processId)"
+    }
+    return $null
+}
+
 function Set-IisSite([string]$SiteRoot) {
+    <# Creates/updates the app pool and site. Does NOT start the site (see Start-QATrackSite). #>
     Import-Module WebAdministration
 
     $poolPath = "IIS:\AppPools\$AppPoolName"
@@ -571,14 +648,37 @@ function Set-IisSite([string]$SiteRoot) {
         $siteArgs = @{ Name = $SiteName; PhysicalPath = $SiteRoot; ApplicationPool = $AppPoolName; Port = $Port }
         if ($HostHeader) { $siteArgs.HostHeader = $HostHeader }
         New-Website @siteArgs | Out-Null
+        # New-Website may auto-start the site; start it explicitly later, after ACLs.
+        if ((Get-WebsiteState -Name $SiteName).Value -eq 'Started') { Stop-Website -Name $SiteName -ErrorAction SilentlyContinue }
     }
     else {
         Set-ItemProperty $sitePath -Name physicalPath -Value $SiteRoot
         Set-ItemProperty $sitePath -Name applicationPool -Value $AppPoolName
+        if ($PortSpecified -or $HostHeaderSpecified) {
+            $currentPort = Get-SiteHttpPort $SiteName
+            Write-Host "    Updating HTTP binding of '$SiteName' to port $Port$(if ($HostHeader) { " (host $HostHeader)" }) (was $currentPort). HTTPS bindings are kept."
+            Get-WebBinding -Name $SiteName -Protocol http -ErrorAction SilentlyContinue | Remove-WebBinding
+            New-WebBinding -Name $SiteName -Protocol http -Port $Port -HostHeader $HostHeader | Out-Null
+        }
     }
+}
 
+function Start-QATrackSite {
+    <# Starts pool and site, translating the common "port in use" failure into plain language. #>
     if ((Get-WebAppPoolState -Name $AppPoolName).Value -ne 'Started') { Start-WebAppPool -Name $AppPoolName }
-    if ((Get-WebsiteState -Name $SiteName).Value -ne 'Started') { Start-Website -Name $SiteName }
+    if ((Get-WebsiteState -Name $SiteName).Value -eq 'Started') { return }
+    try {
+        Start-Website -Name $SiteName -ErrorAction Stop
+    }
+    catch {
+        $sitePort = Get-SiteHttpPort $SiteName
+        if ($_.Exception.Message -match '0x80070020|being used by another process') {
+            $conflict = Get-PortConflict -CheckPort $sitePort -CheckHost $HostHeader -OwnSite $SiteName
+            if (-not $conflict) { $conflict = "port $sitePort is already in use" }
+            throw "IIS could not start site '$SiteName': $conflict. Re-run Install with a free port, e.g. -Port $($sitePort + 1) (the existing site's binding is updated), or stop whatever holds port $sitePort. Files, data and permissions are already in place."
+        }
+        throw
+    }
 }
 
 function Invoke-Install {
@@ -601,6 +701,20 @@ function Invoke-Install {
     else {
         Write-Step 'Checking prerequisites'
         Assert-Prerequisites
+
+        # Port pre-flight, before anything on the server is changed. For an
+        # existing site without an explicit -Port, its current binding is kept.
+        Import-Module WebAdministration
+        $checkPort = $Port
+        if ((Test-Path "IIS:\Sites\$SiteName") -and -not $PortSpecified) {
+            $existingPort = Get-SiteHttpPort $SiteName
+            if ($existingPort) { $checkPort = $existingPort }
+        }
+        $conflict = Get-PortConflict -CheckPort $checkPort -CheckHost $HostHeader -OwnSite $SiteName
+        if ($conflict) {
+            throw "Cannot use port ${checkPort}: $conflict. Choose a free port with -Port (for example -Port $($checkPort + 1)) or stop the other program. Nothing has been changed."
+        }
+        Write-Host "    [ OK ] Port ${checkPort} is available for '$SiteName'." -ForegroundColor Green
     }
 
     New-Item -ItemType Directory -Force -Path $target | Out-Null
@@ -641,8 +755,12 @@ function Invoke-Install {
             Write-Step "Configuring IIS app pool '$AppPoolName' and site '$SiteName'"
             Set-IisSite $target
 
+            # Permissions BEFORE starting, so the app can create its database on first request.
             Write-Step 'Granting App_Data permissions'
             Grant-AppDataPermissions $target
+
+            Write-Step "Starting site '$SiteName'"
+            Start-QATrackSite
         }
     }
     finally {
@@ -656,7 +774,9 @@ function Invoke-Install {
         Write-Step 'Warm-up request (runs pending migrations)'
         $hostName = 'localhost'
         if ($HostHeader) { $hostName = $HostHeader }
-        $url = "http://${hostName}:$Port/api/ui/board"
+        $sitePort = Get-SiteHttpPort $SiteName
+        if (-not $sitePort) { $sitePort = $Port }
+        $url = "http://${hostName}:$sitePort/api/ui/board"
         try {
             $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 60
             Write-Host "    $url -> HTTP $($response.StatusCode)" -ForegroundColor Green
@@ -665,7 +785,7 @@ function Invoke-Install {
             Write-Warning "Warm-up request to $url failed: $($_.Exception.Message). Check Event Viewer or enable stdout logging in web.config."
         }
         try {
-            $running = Invoke-RestMethod -Uri "http://${hostName}:$Port/api/version" -TimeoutSec 30
+            $running = Invoke-RestMethod -Uri "http://${hostName}:$sitePort/api/version" -TimeoutSec 30
             Write-Host "    Running version reported by the site: $($running.version)" -ForegroundColor Green
         }
         catch {

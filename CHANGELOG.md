@@ -3,6 +3,18 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-09-29
+
+### Fixed
+- Install failed at `Start-Website` with "The process cannot access the file because it is being used by another process (HRESULT: 0x80070020)" when the chosen port was already taken. The error gave no hint about the cause, and it also skipped the `App_Data` permission step. Now:
+  - A port pre-flight runs before anything is changed. It names the other started IIS site or the process (name and PID) holding the port, and ignores QATrack's own site.
+  - `App_Data` permissions are granted before the site is started. The site starts last, and if it still can't start, the failure is explained in plain language.
+  - Passing `-Port`/`-HostHeader` on a re-install updates an existing site's HTTP binding. HTTPS bindings are kept.
+  - The warm-up request and the version check use the site's actual port.
+
+### Added
+- `-Action Diagnose` also reports whether `-Port` is free.
+
 ## [1.2.1] - 2026-09-29
 
 ### Fixed
@@ -49,6 +61,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - OpenAPI at `/api/openapi.json` and Swagger UI at `/api/docs`.
 - `deploy-iis.ps1` packaging and data-safe IIS install.
 
+[1.2.2]: https://semver.org/spec/v2.0.0.html
 [1.2.1]: https://semver.org/spec/v2.0.0.html
 [1.2.0]: https://semver.org/spec/v2.0.0.html
 [1.1.0]: https://semver.org/spec/v2.0.0.html
