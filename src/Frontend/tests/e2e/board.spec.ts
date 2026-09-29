@@ -16,6 +16,18 @@ test.describe('Board', () => {
     await expect(page.getByTestId('wip-Closed')).toHaveText(/^\d+$/);
   });
 
+  test('shows the Semantic Version in the header, matching the server', async ({ page, request }) => {
+    const server = await (await request.get('api/version')).json();
+    expect(server.version).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
+    await openBoard(page);
+
+    const badge = page.getByTestId('app-version');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText(`v${server.version}`);
+    await expect(badge).toHaveAttribute('aria-label', `Version ${server.version}`);
+    await expect(badge).toHaveAttribute('title', new RegExp(`^QATrack ${server.version.replace(/\./g, '\\.')}(\\+[0-9a-f]{7})?$`));
+  });
+
   test('creates a work item from the dialog', async ({ page }) => {
     const title = uniqueTitle('Created in UI');
     await openBoard(page);

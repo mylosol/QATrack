@@ -1,8 +1,7 @@
 {
   "name": "qatrack-frontend",
-  "version": "1.0.0",
   "private": true,
-  "description": "QATrack board SPA (TypeScript + Vite + Tailwind). Builds into the ASP.NET Core wwwroot.",
+  "description": "QATrack board SPA (TypeScript + Vite + Tailwind). Builds into the ASP.NET Core wwwroot. The product version lives in the ROOT package.json.",
   "type": "module",
   "scripts": {
     "dev": "vite",

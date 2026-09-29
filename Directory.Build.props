@@ -1,0 +1,27 @@
+<Project>
+  <!--
+    Semantic Versioning (https://semver.org) - single source of truth.
+
+    The product version lives ONLY in the root package.json "version" field
+    (bump it with `npm run release:patch|minor|major`). Every .NET project
+    reads it from there, so the API assembly, the SPA (see vite.config.ts)
+    and the release zip can never disagree.
+
+    - Version / PackageVersion      = MAJOR.MINOR.PATCH[-prerelease]
+    - AssemblyInformationalVersion  = Version + "+<git commit>" (SemVer build
+      metadata, appended automatically by the .NET SDK from the git checkout)
+  -->
+  <PropertyGroup>
+    <QATrackVersionMatch>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)package.json')), '"version"\s*:\s*"[^"]*"').Value)</QATrackVersionMatch>
+    <QATrackVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(QATrackVersionMatch)', '^"version"\s*:\s*"|"$', ''))</QATrackVersion>
+    <Version>$(QATrackVersion)</Version>
+    <Product>QATrack</Product>
+    <Company>QATrack</Company>
+  </PropertyGroup>
+
+  <!-- Fail the build on anything that is not strict SemVer 2.0 (build metadata is added automatically, so it is not allowed here). -->
+  <Target Name="ValidateQATrackSemVer" BeforeTargets="PrepareForBuild">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(QATrackVersion)', '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$'))"
+           Text="package.json version '$(QATrackVersion)' is not a valid Semantic Version (MAJOR.MINOR.PATCH[-prerelease]). See https://semver.org" />
+  </Target>
+</Project>

@@ -28,7 +28,8 @@ public static class OpenApiDocumentation
             options.SwaggerDoc(DocumentName, new OpenApiInfo
             {
                 Title = "QATrack Kanban API",
-                Version = "v1",
+                // Application SemVer (the URL segment /api/v1 is the API contract version).
+                Version = AppVersion.Current.Version,
                 Description =
                     "REST API for AI agents to query, create, update, document and close QA work items. " +
                     "Every request must send the pre-shared `X-API-Key` header and an `X-Agent-Identity` " +
