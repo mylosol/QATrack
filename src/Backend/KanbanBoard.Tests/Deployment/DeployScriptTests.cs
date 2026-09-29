@@ -85,6 +85,77 @@ public sealed class DeployScriptTests : IDisposable
         return (process.ExitCode, stdout.Result + stderr.Result);
     }
 
+    /// <summary>
+    /// Runs the script exactly as an operator does on the server: from inside
+    /// the extracted package, as .\deploy-iis.ps1, WITHOUT -SourcePath.
+    /// </summary>
+    private (int ExitCode, string Output) RunInstallFromPackageFolder()
+    {
+        File.Copy(ScriptPath(), Path.Combine(_package, "deploy-iis.ps1"), overwrite: true);
+        var psi = new ProcessStartInfo("powershell.exe")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            WorkingDirectory = _package,
+        };
+        foreach (var arg in new[]
+                 {
+                     "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", @".\deploy-iis.ps1",
+                     "-Action", "Install", "-PhysicalPath", _site, "-SkipIisConfiguration",
+                 })
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(psi)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(120_000))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException("deploy-iis.ps1 did not finish within 2 minutes.");
+        }
+
+        return (process.ExitCode, stdout.Result + stderr.Result);
+    }
+
+    [Fact]
+    public void Install_WithoutSourcePath_DefaultsToTheScriptFolder()
+    {
+        // Regression: -SourcePath defaulted to $PSScriptRoot in the param block,
+        // which Windows PowerShell 5.1 left empty -> "Cannot bind argument to
+        // parameter 'Path' because it is an empty string."
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunInstallFromPackageFolder();
+
+        Assert.True(exitCode == 0, output);
+        Assert.Equal("new build", File.ReadAllText(Path.Combine(_site, "KanbanBoard.Api.dll")));
+        Assert.True(File.Exists(Path.Combine(_site, "deploy-iis.ps1")));
+    }
+
+    [Fact]
+    public void Install_WhenNoProductionSettingsExist_CreatesThemWithAKey()
+    {
+        // Regression: '.PSObject.Properties.Name' threw PropertyNotFoundStrict
+        // under Set-StrictMode for an empty settings object.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        File.Delete(Path.Combine(_package, "appsettings.Production.json"));
+
+        var (exitCode, output) = RunInstall();
+
+        Assert.True(exitCode == 0, output);
+        Assert.True(ApiKeyOnSite().Length >= 32);
+    }
+
     private string ApiKeyOnSite()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_site, "appsettings.Production.json")));
