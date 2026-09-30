@@ -3,6 +3,19 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-09-30
+
+### Fixed
+- **Picking a tag suggestion now adds it as a chip immediately.** Previously you had to type a comma or press Enter after choosing from the list.
+- Choosing a suggestion with the arrow keys and pressing Enter could add the half-typed text (e.g. "lo") instead of the suggestion ("login"). Enter now adds the highlighted suggestion, or exactly what you typed if nothing is highlighted.
+
+### Changed
+- The tag suggestions are now QATrack's own list instead of the browser's built-in one, so they look and work the same in Edge, Chrome, Firefox and Safari.
+  - Suggestions appear as you type (matches at the start first), or on ArrowDown. Click one, or highlight it with the arrow keys and press Enter.
+  - Tags already on the card are no longer suggested.
+  - Escape closes the list without closing the dialog.
+  - It follows the accessible combobox pattern, so screen readers announce the highlighted suggestion.
+
 ## [1.6.0] - 2026-09-30
 
 ### Removed

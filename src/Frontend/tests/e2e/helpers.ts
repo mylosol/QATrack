@@ -1,6 +1,7 @@
 /**
  * Shared helpers for the QATrack end-to-end suite.
  */
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
 import type { WorkItem, WorkItemState } from '../../src/services/types';
@@ -96,4 +97,13 @@ export function makePng(width = 2, height = 2): Buffer {
     chunk('IDAT', pixels),
     chunk('IEND', Buffer.alloc(0)),
   ]);
+}
+
+const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+
+/** Runs an axe-core WCAG 2.1 AA scan of the current page state. */
+export async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
+  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+  const summary = results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes) e.g. ${v.nodes[0]?.target.join(' ')}`);
+  expect(summary, `${label} axe violations`).toEqual([]);
 }

@@ -3,17 +3,8 @@
  * announcements, WIP overage alerts, the theme switcher, and automated
  * axe-core WCAG 2.1 AA scans in both themes.
  */
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
-import { cardLocator, columnList, createViaAgent, createViaUi, getItem, openBoard, uniqueTitle } from './helpers';
-
-const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
-
-async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
-  const summary = results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes) e.g. ${v.nodes[0]?.target.join(' ')}`);
-  expect(summary, `${label} axe violations`).toEqual([]);
-}
+import { expect, test } from '@playwright/test';
+import { cardLocator, columnList, createViaAgent, createViaUi, expectNoAxeViolations, getItem, openBoard, uniqueTitle } from './helpers';
 
 test.describe('Keyboard operability', () => {
   test('Space picks up, arrows move between columns, Enter drops and persists', async ({ page, request }) => {

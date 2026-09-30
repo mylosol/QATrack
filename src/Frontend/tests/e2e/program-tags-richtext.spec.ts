@@ -3,7 +3,7 @@
  * image insertion - through the real browser UI against the real backend.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { agentHeaders, cardLocator, createViaAgent, createViaUi, getItem, makePng, openBoard, uniqueTitle } from './helpers';
+import { agentHeaders, cardLocator, createViaAgent, createViaUi, expectNoAxeViolations, getItem, makePng, openBoard, uniqueTitle } from './helpers';
 
 /** A real, decodable 2x2 PNG (naturalWidth 2 once loaded). */
 const PNG_2X2 = makePng(2, 2);
@@ -91,6 +91,49 @@ test.describe('Tags', () => {
     await page.getByTestId('filter-tag').selectOption(tag);
     await expect(page.locator('article[data-card-id]')).toHaveCount(1);
     await expect(cardLocator(page, item.id)).toBeVisible();
+  });
+
+  test('picking a suggestion makes a chip immediately, by mouse or keyboard (1.6.1)', async ({ page, request }) => {
+    const stamp = Date.now().toString(36);
+    const [first, second] = [`sugg-alpha-${stamp}`, `sugg-beta-${stamp}`];
+    await createViaUi(request, { title: uniqueTitle('Seeds tags'), type: 'Task', tags: [first, second] });
+    const item = await createViaUi(request, { title: uniqueTitle('Pick tags'), type: 'Task' });
+    await openBoard(page);
+    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+    const dialog = page.getByRole('dialog');
+    const box = dialog.getByRole('combobox', { name: 'Tags' });
+    const listbox = dialog.getByRole('listbox', { name: 'Tag suggestions' });
+    const chips = dialog.getByTestId('dialog-tags').locator('li');
+
+    // Mouse: type part of it, click the suggestion - no comma, no Enter.
+    await box.pressSequentially(`sugg-al`);
+    await expect(listbox).toBeVisible();
+    await expect(box).toHaveAttribute('aria-expanded', 'true');
+    await expectNoAxeViolations(page, 'tag suggestions open');
+    await listbox.getByRole('option', { name: first }).click();
+    await expect(chips).toHaveCount(1);
+    await expect(chips.first()).toHaveAttribute('data-tag', first);
+    await expect(box).toHaveValue('');
+    await expect(box).toBeFocused();
+
+    // Keyboard: the picked tag is no longer offered; arrow to the other and press Enter.
+    await box.pressSequentially('sugg-');
+    await expect(listbox.getByRole('option')).toHaveText([second]);
+    await box.press('ArrowDown');
+    await expect(listbox.getByRole('option', { name: second })).toHaveAttribute('aria-selected', 'true');
+    await box.press('Enter');
+    await expect(chips).toHaveCount(2);
+    await expect(dialog).toBeVisible(); // Enter never submits the dialog
+
+    // Escape closes the list only; a second Escape closes the dialog.
+    await box.press('ArrowDown');
+    await box.press('Escape');
+    await expect(listbox).toBeHidden();
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByTestId('dialog-save').click();
+    await expect(dialog).toBeHidden();
+    expect((await getItem(request, item.id)).tags).toEqual([first, second]);
   });
 
   test('agents set tags and a program through /api/v1', async ({ page, request }) => {
