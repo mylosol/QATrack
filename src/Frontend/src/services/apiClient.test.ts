@@ -8,12 +8,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('buildQuery', () => {
   it('returns empty string when no filters are set', () => {
     expect(buildQuery({})).toBe('');
-    expect(buildQuery({ type: '', state: '', assignedTo: '  ', aiModified: false })).toBe('');
+    expect(buildQuery({ type: '', state: '', aiModified: false })).toBe('');
   });
 
   it('serializes all spec filters', () => {
-    expect(buildQuery({ type: 'Bug', state: 'Active', assignedTo: ' Ana ', aiModified: true })).toBe(
-      '?type=Bug&state=Active&assignedTo=Ana&aiModified=true',
+    expect(buildQuery({ type: 'Bug', state: 'Active', aiModified: true })).toBe(
+      '?type=Bug&state=Active&aiModified=true',
     );
   });
 
@@ -22,7 +22,7 @@ describe('buildQuery', () => {
   });
 
   it('encodes special characters', () => {
-    expect(buildQuery({ assignedTo: 'a&b=c' })).toBe('?assignedTo=a%26b%3Dc');
+    expect(buildQuery({ tag: 'a&b=c' })).toBe('?tag=a%26b%3Dc');
   });
 });
 

@@ -113,7 +113,7 @@ curl -X POST http://server:8080/api/v1/workitems \
 | List (filters: `type`, `state`, `aiModified`, `assignedTo`, `program`, `tag`, `top`) | `GET /api/v1/workitems` | `listWorkItems` |
 | Details + full audit history | `GET /api/v1/workitems/{id}` | `getWorkItem` |
 | Create | `POST /api/v1/workitems` | `createWorkItem` |
-| Update / move / reassign (partial; `""` clears assignee or description) | `PATCH /api/v1/workitems/{id}` | `updateWorkItem` |
+| Update / move (partial; `""` clears the description) | `PATCH /api/v1/workitems/{id}` | `updateWorkItem` |
 | Comment or test output | `POST /api/v1/workitems/{id}/comments` | `addWorkItemComment` |
 | Board, columns, WIP | `GET /api/v1/board` | `getBoard` |
 | Program dropdown options / add one | `GET` / `POST /api/v1/programs` | `listPrograms` / `createProgram` |
@@ -128,7 +128,7 @@ Point tool-calling agents at `/api/openapi.json`. It declares both headers as se
 
 | Signal | Where | Use |
 |---|---|---|
-| `X-API-Schema-Version: f79557855e81` | every `/api/v1` response, even errors | Fingerprint of the OpenAPI document. Changes only when the API changes. |
+| `X-API-Schema-Version: c008d4d6f5f9` | every `/api/v1` response, even errors | Fingerprint of the OpenAPI document. Changes only when the API changes. |
 | `Link: </api/openapi.json>; rel="service-desc"` | every `/api/v1` response | Where to re-read the API description. |
 | `GET /api/v1/meta?since=1.4.0` (`getApiMeta`) | API key required | Version, fingerprint and a plain-language list of API changes since a version. |
 | `ETag` on `/api/openapi.json` | public | Re-check with `If-None-Match`; HTTP 304 when unchanged. |

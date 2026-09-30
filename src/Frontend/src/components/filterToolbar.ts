@@ -1,5 +1,5 @@
 /**
- * Quick-filter toolbar (spec 5.1): Work Item Type, Assigned To, State,
+ * Quick-filter toolbar (spec 5.1): Work Item Type, State,
  * Program, Tag (1.4.0) and AI-modified status, plus the "New work item" action and the optional
  * display name used to attribute browser edits in the audit trail.
  */
@@ -34,7 +34,6 @@ function saveDisplayName(value: string): void {
 export class FilterToolbar {
   private readonly typeSelect: HTMLSelectElement;
   private readonly stateSelect: HTMLSelectElement;
-  private readonly assigneeSelect: HTMLSelectElement;
   private readonly programSelect: HTMLSelectElement;
   private readonly tagSelect: HTMLSelectElement;
   private readonly aiCheckbox: HTMLInputElement;
@@ -47,12 +46,6 @@ export class FilterToolbar {
       { class: 'field', name: 'type', 'data-testid': 'filter-type' },
       h('option', { value: '' }, 'All types'),
       ...WORK_ITEM_TYPES.map((t) => h('option', { value: t }, TYPE_LABELS[t])),
-    );
-    this.assigneeSelect = h(
-      'select',
-      { class: 'field', name: 'assignedTo', 'data-testid': 'filter-assignee' },
-      h('option', { value: '' }, 'Anyone'),
-      h('option', { value: 'unassigned' }, 'Unassigned'),
     );
     this.stateSelect = h(
       'select',
@@ -92,7 +85,6 @@ export class FilterToolbar {
         'aria-label': 'Filter work items',
       },
       h('label', { class: 'field-label' }, 'Work item type', this.typeSelect),
-      h('label', { class: 'field-label' }, 'Assigned to', this.assigneeSelect),
       h('label', { class: 'field-label' }, 'State', this.stateSelect),
       h('label', { class: 'field-label' }, 'Program', this.programSelect),
       h('label', { class: 'field-label' }, 'Tag', this.tagSelect),
@@ -105,7 +97,7 @@ export class FilterToolbar {
     );
 
     form.addEventListener('submit', (e) => e.preventDefault());
-    for (const control of [this.typeSelect, this.assigneeSelect, this.stateSelect, this.programSelect, this.tagSelect, this.aiCheckbox]) {
+    for (const control of [this.typeSelect, this.stateSelect, this.programSelect, this.tagSelect, this.aiCheckbox]) {
       control.addEventListener('change', () => this.handlers.onFilterChange(this.value));
     }
     clearButton.addEventListener('click', () => {
@@ -124,7 +116,6 @@ export class FilterToolbar {
     return {
       type: (this.typeSelect.value || '') as WorkItemType | '',
       state: (this.stateSelect.value || '') as WorkItemState | '',
-      assignedTo: this.assigneeSelect.value || undefined,
       aiModified: this.aiCheckbox.checked || undefined,
       program: this.programSelect.value || undefined,
       tag: this.tagSelect.value || undefined,
@@ -139,13 +130,12 @@ export class FilterToolbar {
   /** True when any filter is active. */
   get isFiltered(): boolean {
     const v = this.value;
-    return Boolean(v.type || v.state || v.assignedTo || v.aiModified || v.program || v.tag);
+    return Boolean(v.type || v.state || v.aiModified || v.program || v.tag);
   }
 
   reset(): void {
     this.typeSelect.value = '';
     this.stateSelect.value = '';
-    this.assigneeSelect.value = '';
     this.aiCheckbox.checked = false;
     this.programSelect.value = '';
     this.tagSelect.value = '';
@@ -168,17 +158,6 @@ export class FilterToolbar {
     for (const value of values) select.appendChild(h('option', { value }, value));
     if (selected && !values.includes(selected)) select.appendChild(h('option', { value: selected }, selected));
     select.value = selected;
-  }
-
-  /** Refreshes the assignee options from board metadata, keeping the selection. */
-  setAssignees(assignees: string[]): void {
-    const selected = this.assigneeSelect.value;
-    while (this.assigneeSelect.options.length > 2) this.assigneeSelect.remove(2);
-    for (const name of assignees) this.assigneeSelect.appendChild(h('option', { value: name }, name));
-    if (selected && ![...this.assigneeSelect.options].some((o) => o.value === selected)) {
-      this.assigneeSelect.appendChild(h('option', { value: selected }, selected));
-    }
-    this.assigneeSelect.value = selected;
   }
 
   /** Updates the visible result summary; returns the text for announcements. */

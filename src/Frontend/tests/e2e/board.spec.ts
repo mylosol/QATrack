@@ -144,12 +144,13 @@ test.describe('Board', () => {
   });
 
   test('quick filters narrow the visible cards', async ({ page, request }) => {
-    const owner = `Owner ${Date.now().toString(36)}`;
-    const mine = await createViaUi(request, { title: uniqueTitle('Filtered bug'), type: 'Bug', assignedTo: owner });
+    const tag = `only-${Date.now().toString(36)}`;
+    const mine = await createViaUi(request, { title: uniqueTitle('Filtered bug'), type: 'Bug', tags: [tag] });
     const other = await createViaUi(request, { title: uniqueTitle('Other feature'), type: 'Feature' });
     await openBoard(page);
+    await expect(page.getByTestId('filter-assignee')).toHaveCount(0);
 
-    await page.getByTestId('filter-assignee').selectOption(owner);
+    await page.getByTestId('filter-tag').selectOption(tag);
     await expect(cardLocator(page, mine.id)).toBeVisible();
     await expect(cardLocator(page, other.id)).toHaveCount(0);
     await expect(page.getByTestId('filter-summary')).toHaveText(/Showing 1 of \d+ items/);
