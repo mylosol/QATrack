@@ -64,6 +64,7 @@ export class App {
       programs: () => this.board?.metadata.programs ?? [],
       tags: () => this.board?.metadata.tags ?? [],
       onProgramAdded: () => void this.refresh({ quiet: true }),
+      onRead: () => void this.refresh({ quiet: true }),
     });
   }
 
@@ -100,6 +101,7 @@ export class App {
       this.boardView.render(board);
       this.toolbar.setPrograms(board.metadata.programs ?? []);
       this.toolbar.setTags(board.metadata.tags ?? []);
+      this.toolbar.setDiscussionCounts(board.metadata.unreadReplyCount ?? 0, board.metadata.awaitingAgentCount ?? 0);
       const visible = board.columns.reduce((n, c) => n + c.items.length, 0);
       const total = board.columns.reduce((n, c) => n + c.itemCount, 0);
       const summary = this.toolbar.setSummary(visible, total);

@@ -55,6 +55,7 @@ const PAIRS: Array<[string, string, number, string]> = [
   ['color-primary', 'color-surface', TEXT, 'links in markdown'],
   ['color-header-fg', 'color-header', TEXT, 'top bar'],
   ['color-ai-fg', 'color-ai', TEXT, 'AI badge'],
+  ['color-ai', 'color-surface', TEXT, 'Waiting for AI pill'],
   ['color-alert-fg', 'color-alert', TEXT, 'WIP alerts, error notices'],
   ['color-surface', 'color-fg', TEXT, 'AI tooltip (inverted)'],
   ['type-bug', 'color-surface', TEXT, 'Bug label'],

@@ -124,6 +124,17 @@ Work items carry `program` (one of the programs, or null), `tags` (a list) and, 
 
 Point tool-calling agents at `/api/openapi.json`. It declares both headers as security schemes.
 
+### Answering human comments (discussion status)
+
+Each card's `discussionStatus` says who its discussion is waiting for:
+
+| Status | Meaning | Clears when |
+|---|---|---|
+| `AwaitingAgent` ("Waiting for AI" on the board) | A person commented after the last agent comment | An agent adds a comment (moving the card doesn't count) |
+| `UnreadReply` ("New reply" on the board) | An agent commented after the last human comment | A person opens the card |
+
+Agents should call `GET /api/v1/workitems?discussion=AwaitingAgent` at the start of every session and before picking up new work (`GET /api/v1/meta` also reports `awaitingAgentCount`), then read and reply to each card. The API description tells them so.
+
 ### Noticing new human comments
 
 Comments live in each item's history, which only `GET /api/v1/workitems/{id}` returns. To spot new ones cheaply, agents:
@@ -137,7 +148,7 @@ Fill in **Your name (for history)** on the board so your comments show a name in
 
 | Signal | Where | Use |
 |---|---|---|
-| `X-API-Schema-Version: fee4c6bc381c` | every `/api/v1` response, even errors | Fingerprint of the OpenAPI document. Changes only when the API changes. |
+| `X-API-Schema-Version: 968fcbd24974` | every `/api/v1` response, even errors | Fingerprint of the OpenAPI document. Changes only when the API changes. |
 | `Link: </api/openapi.json>; rel="service-desc"` | every `/api/v1` response | Where to re-read the API description. |
 | `GET /api/v1/meta?since=1.4.0` (`getApiMeta`) | API key required | Version, fingerprint and a plain-language list of API changes since a version. |
 | `ETag` on `/api/openapi.json` | public | Re-check with `If-None-Match`; HTTP 304 when unchanged. |

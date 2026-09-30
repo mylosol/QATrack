@@ -28,6 +28,22 @@ export function createAiBadge(item: Pick<WorkItem, 'id' | 'aiAgentIdentity'>, id
   );
 }
 
+/** "New reply" / "Waiting for AI" pill for a card's discussion (1.9.0), or null. */
+export function createDiscussionPill(item: Pick<WorkItem, 'discussionStatus' | 'lastAgentCommentBy'>): HTMLElement | null {
+  if (item.discussionStatus === 'UnreadReply') {
+    const who = item.lastAgentCommentBy ?? 'an AI agent';
+    return h('span', {
+      class: 'discussion-pill discussion-unread', 'data-testid': 'discussion-pill', title: `New comment from ${who} that nobody has read yet`,
+    }, 'New reply', h('span', { class: 'sr-only' }, ` from ${who}, not read yet`));
+  }
+  if (item.discussionStatus === 'AwaitingAgent') {
+    return h('span', {
+      class: 'discussion-pill discussion-waiting', 'data-testid': 'discussion-pill', title: 'A person commented and no AI agent has replied yet',
+    }, 'Waiting for AI');
+  }
+  return null;
+}
+
 /** Builds the list item for one card. */
 export function createCard(item: WorkItem): HTMLLIElement {
   const titleId = `card-title-${item.id}`;
@@ -42,6 +58,7 @@ export function createCard(item: WorkItem): HTMLLIElement {
       draggable: 'true',
       'data-card-id': item.id,
       'data-state': item.state,
+      'data-discussion': item.discussionStatus ?? null,
       'aria-labelledby': titleId,
       'aria-describedby': `${metaId} kb-instructions`,
       'aria-roledescription': 'movable card',
@@ -56,11 +73,17 @@ export function createCard(item: WorkItem): HTMLLIElement {
     h(
       'div',
       { class: 'card-meta', id: metaId },
+      createDiscussionPill(item),
       h('span', {}, `#${item.id}`),
       h('span', { title: `Priority ${item.priority} - ${priorityLabel}` }, `P${item.priority} ${priorityLabel}`),
       item.type === 'Bug' ? h('span', {}, `Severity ${item.severity}`) : null,
       item.type === 'Bug' && item.programVersion
         ? h('span', { 'data-testid': 'card-program-version', title: 'Program version the bug was found in' }, `Version ${item.programVersion}`)
+        : null,
+      item.commentCount
+        ? h('span', { 'data-testid': 'card-comments', title: `${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}` },
+            h('span', { 'aria-hidden': 'true' }, `💬 ${item.commentCount}`),
+            h('span', { class: 'sr-only' }, `${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}`))
         : null,
       item.program ? h('span', { class: 'card-program', 'data-testid': 'card-program' }, h('span', { class: 'sr-only' }, 'Program '), item.program) : null,
       item.tags?.length

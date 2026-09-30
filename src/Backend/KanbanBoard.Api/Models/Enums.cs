@@ -28,6 +28,19 @@ public enum WorkItemState
 }
 
 /// <summary>
+/// Who the discussion on a work item is waiting for (1.9.0). Derived from the
+/// latest human comment, the latest agent comment and when a human last read it.
+/// </summary>
+public enum DiscussionStatus
+{
+    /// <summary>A human commented after the last agent comment: an agent should read and reply.</summary>
+    AwaitingAgent,
+
+    /// <summary>An agent commented after the last human comment and no human has opened the card since.</summary>
+    UnreadReply,
+}
+
+/// <summary>
 /// Canonical constants shared by validation, seeding and the API surface.
 /// </summary>
 public static class WorkItemDefaults

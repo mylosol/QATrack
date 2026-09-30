@@ -290,6 +290,37 @@
 .tag-input-box:focus-visible {
   outline-offset: 0;
 }
+/* Discussion status (1.9.0): "New reply" / "Waiting for AI" on cards and in the toolbar.
+ * Unread uses the primary button pairing; waiting uses the AI colour on the surface (both >= 4.5:1). */
+.discussion-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+}
+.discussion-unread {
+  background: rgb(var(--color-primary));
+  color: rgb(var(--color-primary-fg));
+}
+.discussion-waiting {
+  border-color: rgb(var(--color-ai));
+  color: rgb(var(--color-ai));
+  background: rgb(var(--color-surface));
+}
+button.discussion-pill {
+  cursor: pointer;
+  min-height: 1.75rem;
+}
+button.discussion-pill[aria-pressed='true'] {
+  outline: 2px solid rgb(var(--color-fg));
+  outline-offset: 2px;
+}
+
 /* Tag suggestion listbox (1.6.1): anchored under the tag box. */
 .tag-suggestions {
   position: absolute;

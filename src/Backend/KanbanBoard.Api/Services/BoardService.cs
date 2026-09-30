@@ -56,6 +56,10 @@ public sealed class BoardService
             .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var onBoard = _db.WorkItems.AsNoTracking().Where(w => w.State != WorkItemState.Removed);
+        var awaitingAgent = await Discussion.Where(onBoard, DiscussionStatus.AwaitingAgent).CountAsync(ct);
+        var unreadReplies = await Discussion.Where(onBoard, DiscussionStatus.UnreadReply).CountAsync(ct);
+
         var byState = visible.ToLookup(w => w.State);
 
         return new BoardDto
@@ -85,6 +89,8 @@ public sealed class BoardService
                 Assignees = assignees,
                 Programs = programs,
                 Tags = tags,
+                AwaitingAgentCount = awaitingAgent,
+                UnreadReplyCount = unreadReplies,
             },
         };
     }

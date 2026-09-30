@@ -37,6 +37,26 @@ describe('createCard', () => {
     expect(createCard(makeItem({ type: 'Bug', programVersion: null })).querySelector('[data-testid="card-program-version"]')).toBeNull();
   });
 
+  it('flags an unread AI reply, naming the agent for screen readers (1.9.0)', () => {
+    const li = createCard(makeItem({ id: 5, discussionStatus: 'UnreadReply', lastAgentCommentBy: 'Codex-Fixer', commentCount: 2 }));
+    const pill = li.querySelector('#card-meta-5 [data-testid="discussion-pill"]')!;
+    expect(pill.textContent).toBe('New reply from Codex-Fixer, not read yet');
+    expect(pill.classList.contains('discussion-unread')).toBe(true);
+    expect(li.querySelector('article')!.dataset.discussion).toBe('UnreadReply');
+    expect(li.querySelector('[data-testid="card-comments"]')!.textContent).toBe('💬 22 comments');
+  });
+
+  it('shows "Waiting for AI" when a person commented last, and nothing when quiet', () => {
+    const waiting = createCard(makeItem({ discussionStatus: 'AwaitingAgent', commentCount: 1 }));
+    expect(waiting.querySelector('[data-testid="discussion-pill"]')!.textContent).toBe('Waiting for AI');
+    expect(waiting.querySelector('[data-testid="card-comments"] .sr-only')!.textContent).toBe('1 comment');
+
+    const quiet = createCard(makeItem({ discussionStatus: null, commentCount: 0 }));
+    expect(quiet.querySelector('[data-testid="discussion-pill"]')).toBeNull();
+    expect(quiet.querySelector('[data-testid="card-comments"]')).toBeNull();
+    expect(quiet.querySelector('article')!.hasAttribute('data-discussion')).toBe(false);
+  });
+
   it('omits program and tag markup when there are none', () => {
     const li = createCard(makeItem({ program: null, tags: [] }));
     expect(li.querySelector('[data-testid="card-program"]')).toBeNull();

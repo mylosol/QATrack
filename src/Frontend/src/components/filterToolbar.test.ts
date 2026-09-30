@@ -48,6 +48,31 @@ describe('FilterToolbar', () => {
     expect(toolbar.value.tag).toBeUndefined();
   });
 
+  it('filters by discussion status, with counts and one-click shortcuts (1.9.0)', () => {
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+    toolbar.setDiscussionCounts(2, 1);
+
+    const options = [...select('filter-discussion').options].map((o) => o.textContent);
+    expect(options).toEqual(['All cards', 'New AI replies (2)', 'Waiting for AI (1)']);
+
+    const unread = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-UnreadReply"]')!;
+    expect(unread.textContent).toBe('💬 2 new replies');
+    unread.click();
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ discussion: 'UnreadReply' }));
+    expect(toolbar.isFiltered).toBe(true);
+
+    // Clicking the active shortcut again clears it.
+    toolbar.setDiscussionCounts(2, 1);
+    const again = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-UnreadReply"]')!;
+    expect(again.getAttribute('aria-pressed')).toBe('true');
+    again.click();
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ discussion: undefined }));
+
+    expect(root.querySelector('[data-testid="shortcut-AwaitingAgent"]')!.textContent).toBe('1 waiting for AI');
+    toolbar.setDiscussionCounts(0, 0);
+    expect(root.querySelector('[data-testid="discussion-shortcuts"]')!.children).toHaveLength(0);
+  });
+
   it('emits the combined filter on change', () => {
     const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
     select('filter-type').value = 'Bug';
@@ -56,7 +81,7 @@ describe('FilterToolbar', () => {
     ai.checked = true;
     ai.dispatchEvent(new Event('change'));
 
-    expect(onFilterChange).toHaveBeenLastCalledWith({ type: 'Bug', state: '', aiModified: true });
+    expect(onFilterChange).toHaveBeenLastCalledWith({ type: 'Bug', state: '', aiModified: true, program: undefined, tag: undefined, discussion: undefined });
     expect(toolbar.isFiltered).toBe(true);
   });
 
@@ -65,7 +90,7 @@ describe('FilterToolbar', () => {
     select('filter-state').value = 'Active';
     root.querySelector<HTMLButtonElement>('[data-testid="filter-clear"]')!.click();
     expect(toolbar.isFiltered).toBe(false);
-    expect(onFilterChange).toHaveBeenCalledWith({ type: '', state: '', aiModified: undefined });
+    expect(onFilterChange).toHaveBeenCalledWith({ type: '', state: '', aiModified: undefined, program: undefined, tag: undefined, discussion: undefined });
   });
 
   it('summarizes results', () => {

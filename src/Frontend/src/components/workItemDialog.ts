@@ -34,6 +34,8 @@ export interface WorkItemDialogHandlers {
   tags(): string[];
   /** A program was added from the dialog's "+" button. */
   onProgramAdded?(name: string): void;
+  /** The card's unread AI reply was marked read by opening it (1.9.0). */
+  onRead?(id: number): void;
 }
 
 interface FormControls {
@@ -134,6 +136,10 @@ export class WorkItemDialog {
       this.item = item;
       this.render(item);
       this.show();
+      if (item.discussionStatus === 'UnreadReply') {
+        // Opening the card is reading it. Best effort: a failure only leaves the badge up.
+        void this.api.markRead(id).then(() => this.handlers.onRead?.(id), () => undefined);
+      }
     } catch (err) {
       this.announcer.announce(err instanceof Error ? err.message : 'Could not open the work item.', 'assertive');
       throw err;

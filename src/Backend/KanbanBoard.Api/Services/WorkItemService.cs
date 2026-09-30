@@ -219,6 +219,27 @@ public sealed class WorkItemService
         return WorkItemMapper.ToDto(entry);
     }
 
+    /// <summary>
+    /// Records that a human opened the card, clearing an unread agent reply. Not an
+    /// edit: no history row, UpdatedAt unchanged (so agents polling updatedSince
+    /// are not woken up by it).
+    /// </summary>
+    /// <exception cref="WorkItemNotFoundException">When the id does not exist.</exception>
+    public async Task MarkReadAsync(int id, CancellationToken ct = default)
+    {
+        var item = await _db.WorkItems.FirstOrDefaultAsync(w => w.Id == id, ct)
+                   ?? throw new WorkItemNotFoundException(id);
+        if (Discussion.StatusOf(item) == DiscussionStatus.UnreadReply)
+        {
+            item.HumanReadAt = _clock.GetUtcNow().UtcDateTime;
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    /// <summary>Counts items on the board (Removed excluded) matching the filters.</summary>
+    public Task<int> CountOnBoardAsync(WorkItemQuery query, CancellationToken ct = default) =>
+        ApplyFilters(_db.WorkItems.AsNoTracking(), query).CountAsync(w => w.State != WorkItemState.Removed, ct);
+
     /// <summary>Applies the shared list/board filters to a query.</summary>
     internal static IQueryable<WorkItem> ApplyFilters(IQueryable<WorkItem> source, WorkItemQuery query)
     {
@@ -256,6 +277,11 @@ public sealed class WorkItemService
         {
             var normalized = program.ToUpperInvariant();
             source = source.Where(w => w.Program != null && w.Program.NormalizedName == normalized);
+        }
+
+        if (query.Discussion is not null)
+        {
+            source = Discussion.Where(source, query.Discussion.Value);
         }
 
         if (query.UpdatedSince is not null)
@@ -389,11 +415,21 @@ public sealed class WorkItemService
             item.AiModified = true;
             item.AiAgentIdentity = _actor.AgentIdentity;
         }
-        else if (comment is not null)
+
+        if (comment is not null)
         {
-            // Lets agents spot new human comments from list/board results.
-            item.LastHumanCommentAt = now;
-            item.LastHumanCommentBy = _actor.DisplayName;
+            // Drives DiscussionStatus and lets agents/humans spot new comments from list/board results.
+            item.CommentCount++;
+            if (_actor.IsAi)
+            {
+                item.LastAgentCommentAt = now;
+                item.LastAgentCommentBy = _actor.AgentIdentity;
+            }
+            else
+            {
+                item.LastHumanCommentAt = now;
+                item.LastHumanCommentBy = _actor.DisplayName;
+            }
         }
 
         var entry = new WorkItemHistory

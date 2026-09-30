@@ -88,6 +88,21 @@ public sealed class WorkItemDto
     /// <summary>Who wrote that most recent human comment.</summary>
     public string? LastHumanCommentBy { get; init; }
 
+    /// <summary>When an AI agent last commented on this item (UTC), or null.</summary>
+    public DateTime? LastAgentCommentAt { get; init; }
+
+    /// <summary>Which agent wrote that most recent agent comment.</summary>
+    public string? LastAgentCommentBy { get; init; }
+
+    /// <summary>Number of comments in the item's history.</summary>
+    public int CommentCount { get; init; }
+
+    /// <summary>
+    /// AwaitingAgent: a human commented and no agent has replied yet - read the item's history and reply
+    /// with a comment. UnreadReply: an agent replied and no human has read it yet. Null: nothing pending.
+    /// </summary>
+    public DiscussionStatus? DiscussionStatus { get; init; }
+
     public string LastModifiedBy { get; init; } = string.Empty;
 
     public DateTime CreatedAt { get; init; }
@@ -237,6 +252,12 @@ public sealed class WorkItemQuery
     public string? Tag { get; set; }
 
     /// <summary>
+    /// Only items whose discussion is in this state. AwaitingAgent lists every card with a human comment
+    /// no agent has answered yet.
+    /// </summary>
+    public DiscussionStatus? Discussion { get; set; }
+
+    /// <summary>
     /// Only items changed (fields, state, comments) strictly after this instant. Pass the newest
     /// <c>updatedAt</c> you have seen, e.g. 2026-09-30T14:05:12.3456789Z (always include the Z or an offset).
     /// </summary>
@@ -291,6 +312,12 @@ public sealed class BoardMetadataDto
 
     /// <summary>Every known tag, alphabetically (for suggestions and the tag filter).</summary>
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
+    /// <summary>Cards on the board awaiting an agent reply (whole board, ignoring filters).</summary>
+    public int AwaitingAgentCount { get; init; }
+
+    /// <summary>Cards with an agent reply no human has read yet (whole board, ignoring filters).</summary>
+    public int UnreadReplyCount { get; init; }
 }
 
 /// <summary>Full board payload (spec 4.2 GET /api/v1/board).</summary>
@@ -378,8 +405,14 @@ public sealed class ApiMetaDto
     /// <summary>Human-readable API docs.</summary>
     public string DocsUrl { get; init; } = string.Empty;
 
-    /// <summary>How agents should use schemaVersion.</summary>
+    /// <summary>How agents should use schemaVersion and answer human comments.</summary>
     public string Instructions { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Cards with a human comment no agent has answered yet. When above zero, list them with
+    /// GET /api/v1/workitems?discussion=AwaitingAgent and reply to each.
+    /// </summary>
+    public int AwaitingAgentCount { get; init; }
 
     /// <summary>API changes, newest first (only those after ?since= when given).</summary>
     public IReadOnlyList<ApiChangeDto> Changes { get; init; } = Array.Empty<ApiChangeDto>();

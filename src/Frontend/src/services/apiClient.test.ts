@@ -17,6 +17,10 @@ describe('buildQuery', () => {
     );
   });
 
+  it('serializes the discussion filter (1.9.0)', () => {
+    expect(buildQuery({ discussion: 'AwaitingAgent' })).toBe('?discussion=AwaitingAgent');
+  });
+
   it('serializes the program and tag filters (1.4.0)', () => {
     expect(buildQuery({ program: 'ProveOut', tag: 'ui & api' })).toBe('?program=ProveOut&tag=ui+%26+api');
   });
@@ -59,6 +63,18 @@ describe('ApiClient', () => {
     // The browser must set the multipart boundary itself.
     expect(headers['Content-Type']).toBeUndefined();
     expect(info.url).toBe('api/ui/attachments/1');
+  });
+
+  it('marks a card read with a bodiless POST that is not an edit', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const api = new ApiClient({ fetchImpl });
+
+    await api.markRead(12);
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('api/ui/workitems/12/read');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as RequestInit).body).toBeUndefined();
   });
 
   it('creates programs with a JSON body', async () => {

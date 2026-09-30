@@ -21,6 +21,17 @@ public static class OpenApiDocumentation
     public const string AgentIdentitySchemeId = "AgentIdentity";
 
     /// <summary>
+    /// How agents make sure every human comment gets answered (1.9.0). Part of
+    /// the document description and of GET /api/v1/meta.
+    /// </summary>
+    public const string AgentDiscussionRule =
+        "Humans comment on cards to talk to you, often without moving them. At the start of every session, and " +
+        "before picking up new work, call GET /api/v1/workitems?discussion=AwaitingAgent (GET /api/v1/meta also " +
+        "reports awaitingAgentCount). For each card, GET it, read the history entries with isAiAction false and a " +
+        "comment, act on them, and reply with POST /api/v1/workitems/{id}/comments (or a PATCH with a 'comment'). " +
+        "Your comment clears AwaitingAgent; the card stays on that list until you reply.";
+
+    /// <summary>
     /// How agents keep their knowledge of the API current (1.5.0). Part of the
     /// document description and of GET /api/v1/meta.
     /// </summary>
@@ -48,7 +59,8 @@ public static class OpenApiDocumentation
                     "Every request must send the pre-shared `X-API-Key` header and an `X-Agent-Identity` " +
                     "header naming the agent (e.g. `Claude-Code-Agent-v1`). All mutations are recorded in the " +
                     "work item's audit history as AI actions and flag the card as AI-modified.\n\n" +
-                    "**Staying current:** " + AgentContractRule,
+                    "**Staying current:** " + AgentContractRule + "\n\n" +
+                    "**Answering humans:** " + AgentDiscussionRule,
             });
 
             // Only the AI-facing /api/v1 endpoints belong in the tool schema.

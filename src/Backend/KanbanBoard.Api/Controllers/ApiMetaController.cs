@@ -11,10 +11,12 @@ namespace KanbanBoard.Api.Controllers;
 public sealed class ApiMetaController : ControllerBase
 {
     private readonly ApiContract _contract;
+    private readonly WorkItemService _items;
 
-    public ApiMetaController(ApiContract contract)
+    public ApiMetaController(ApiContract contract, WorkItemService items)
     {
         _contract = contract;
+        _items = items;
     }
 
     /// <summary>Check whether your knowledge of this API is current, and see what changed.</summary>
@@ -24,10 +26,11 @@ public sealed class ApiMetaController : ControllerBase
     /// version you last saw) to list only the API changes made after it.
     /// </remarks>
     /// <param name="since">Only list changes newer than this Semantic Version, e.g. 1.4.0.</param>
+    /// <param name="ct">Cancellation token.</param>
     [HttpGet(Name = "getApiMeta")]
     [ProducesResponseType(typeof(ApiMetaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    public ActionResult<ApiMetaDto> Get([FromQuery] string? since = null)
+    public async Task<ActionResult<ApiMetaDto>> Get([FromQuery] string? since = null, CancellationToken ct = default)
     {
         if (since is not null && !AppVersion.IsValidSemVer(since))
         {
@@ -41,7 +44,8 @@ public sealed class ApiMetaController : ControllerBase
             SchemaVersion = _contract.SchemaVersion,
             OpenApiUrl = $"{pathBase}{OpenApiDocumentation.SchemaPath}",
             DocsUrl = $"{pathBase}/{OpenApiDocumentation.UiRoutePrefix}",
-            Instructions = OpenApiDocumentation.AgentContractRule,
+            Instructions = OpenApiDocumentation.AgentContractRule + " " + OpenApiDocumentation.AgentDiscussionRule,
+            AwaitingAgentCount = await _items.CountOnBoardAsync(new WorkItemQuery { Discussion = DiscussionStatus.AwaitingAgent }, ct),
             Changes = ApiChangeLog.Since(since),
         });
     }
