@@ -59,6 +59,8 @@ export interface WorkItem {
   iterationPath: string;
   /** Program name (1.4.0), or null. */
   program: string | null;
+  /** Version of the program a bug was found in (1.7.0), or null. */
+  programVersion: string | null;
   /** Tags, sorted (1.4.0). */
   tags: string[];
   aiModified: boolean;
@@ -124,6 +126,7 @@ export interface CreateWorkItemRequest {
   areaPath?: string;
   iterationPath?: string;
   program?: string | null;
+  programVersion?: string;
   tags?: string[];
   comment?: string;
 }
@@ -140,6 +143,8 @@ export type UpdateWorkItemRequest = Partial<{
   iterationPath: string;
   /** '' removes the program. */
   program: string;
+  /** '' clears it. */
+  programVersion: string;
   /** Replaces all tags. */
   tags: string[];
   comment: string;

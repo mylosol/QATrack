@@ -83,6 +83,7 @@ public sealed class WorkItemService
                        ?? WorkItemDefaults.AreaPath,
             IterationPath = TextSanitizer.SingleLine(request.IterationPath, WorkItemDefaults.ShortTextMaxLength)
                             ?? WorkItemDefaults.IterationPath,
+            ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength),
             CreatedAt = now,
         };
 
@@ -166,6 +167,12 @@ public sealed class WorkItemService
         {
             item.IterationPath = TextSanitizer.SingleLine(request.IterationPath, WorkItemDefaults.ShortTextMaxLength)
                                  ?? WorkItemDefaults.IterationPath;
+        }
+
+        if (request.ProgramVersion is not null)
+        {
+            // Empty string clears it.
+            item.ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength);
         }
 
         if (request.Program is not null)

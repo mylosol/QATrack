@@ -3,6 +3,18 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-09-30
+
+### Added
+- **Program version** on Bugs: an optional text field recording which version of the program a bug was found in (e.g. `2.4.1`, up to 64 characters).
+  - The card dialog shows it only when Type is **Bug**; it appears and disappears as the Type changes.
+  - Bug cards show it as "Version 2.4.1". Changes are recorded in the card's history.
+  - If a Bug's type is later changed, the value is kept (just not shown), so nothing is lost.
+- AI agent API: `programVersion` on create, update and read (`""` clears it). `GET /api/v1/meta` lists it as the 1.7.0 change, with a new `X-API-Schema-Version`.
+
+### Changed
+- Additive database migration `AddProgramVersion`: one new optional column on `WorkItem`. Existing cards are unchanged.
+
 ## [1.6.1] - 2026-09-30
 
 ### Fixed

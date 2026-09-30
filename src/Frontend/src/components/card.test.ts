@@ -28,6 +28,15 @@ describe('createCard', () => {
     expect(meta.querySelector('b')).toBeNull();
   });
 
+  it('shows the program version on Bug cards only (1.7.0)', () => {
+    const bug = createCard(makeItem({ type: 'Bug', programVersion: '2.4.1' }));
+    expect(bug.querySelector('[data-testid="card-program-version"]')!.textContent).toBe('Version 2.4.1');
+
+    const feature = createCard(makeItem({ type: 'Feature', programVersion: '2.4.1' }));
+    expect(feature.querySelector('[data-testid="card-program-version"]')).toBeNull();
+    expect(createCard(makeItem({ type: 'Bug', programVersion: null })).querySelector('[data-testid="card-program-version"]')).toBeNull();
+  });
+
   it('omits program and tag markup when there are none', () => {
     const li = createCard(makeItem({ program: null, tags: [] }));
     expect(li.querySelector('[data-testid="card-program"]')).toBeNull();

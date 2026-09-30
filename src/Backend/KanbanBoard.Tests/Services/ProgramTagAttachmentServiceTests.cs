@@ -108,6 +108,48 @@ public sealed class ProgramTagAttachmentServiceTests : IAsyncLifetime, IDisposab
         Assert.Null(unchanged.Program);
     }
 
+    // ---- program version (1.7.0) --------------------------------------------
+
+    [Fact]
+    public async Task ProgramVersion_IsStoredTrimmed_AndRecordedInHistory()
+    {
+        var created = await Items().CreateAsync(new CreateWorkItemRequest
+        {
+            Title = "Crash in 2.4", Type = WorkItemType.Bug, ProgramVersion = "  2.4.1\t",
+        });
+
+        Assert.Equal("2.4.1", created.ProgramVersion);
+        Assert.Equal("2.4.1", created.History![0].ChangedFields["ProgramVersion"].New);
+    }
+
+    [Fact]
+    public async Task ProgramVersion_ChangesAndClears_WithHistory_AndIsOptional()
+    {
+        var created = await Items().CreateAsync(Bug());
+        Assert.Null(created.ProgramVersion);
+        Assert.False(created.History![0].ChangedFields.ContainsKey("ProgramVersion"));
+
+        var set = await Items().UpdateAsync(created.Id, new UpdateWorkItemRequest { ProgramVersion = "3.0.0-beta" });
+        Assert.Equal("3.0.0-beta", set.ProgramVersion);
+        Assert.Equal(new FieldChange(null, "3.0.0-beta"), set.History![^1].ChangedFields["ProgramVersion"]);
+
+        var untouched = await Items().UpdateAsync(created.Id, new UpdateWorkItemRequest { Title = "Renamed" });
+        Assert.Equal("3.0.0-beta", untouched.ProgramVersion);
+
+        var cleared = await Items().UpdateAsync(created.Id, new UpdateWorkItemRequest { ProgramVersion = "" });
+        Assert.Null(cleared.ProgramVersion);
+        Assert.Equal(new FieldChange("3.0.0-beta", null), cleared.History![^1].ChangedFields["ProgramVersion"]);
+    }
+
+    [Fact]
+    public async Task ProgramVersion_IsKept_WhenTheTypeChangesAwayFromBug()
+    {
+        // The board only shows it for Bugs, but changing the type never loses it.
+        var created = await Items().CreateAsync(new CreateWorkItemRequest { Title = "x", Type = WorkItemType.Bug, ProgramVersion = "1.2" });
+        var feature = await Items().UpdateAsync(created.Id, new UpdateWorkItemRequest { Type = WorkItemType.Feature });
+        Assert.Equal("1.2", feature.ProgramVersion);
+    }
+
     // ---- tags ------------------------------------------------------------
 
     [Fact]

@@ -55,6 +55,9 @@ public class WorkItem
 
     public WorkProgram? Program { get; set; }
 
+    /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only.</summary>
+    public string? ProgramVersion { get; set; }
+
     /// <summary>Tags (many-to-many through the WorkItemTag table).</summary>
     public List<Tag> Tags { get; set; } = new();
 
