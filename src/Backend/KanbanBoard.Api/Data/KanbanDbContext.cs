@@ -57,6 +57,7 @@ public class KanbanDbContext : DbContext
                 .HasDefaultValue(WorkItemDefaults.AreaPath);
             e.Property(x => x.IterationPath).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength)
                 .HasDefaultValue(WorkItemDefaults.IterationPath);
+            e.Property(x => x.ProgramVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
             e.Property(x => x.AiModified).IsRequired().HasDefaultValue(false);
             e.Property(x => x.AiAgentIdentity).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.LastModifiedBy).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength);

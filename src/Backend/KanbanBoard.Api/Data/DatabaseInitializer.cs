@@ -115,6 +115,7 @@ public sealed class DatabaseInitializer
         Tag NewTag(string name) => new() { Name = name, NormalizedName = name.ToUpperInvariant() };
         var regression = NewTag("regression");
         samples[0].Program = programs.GetValueOrDefault("ProveOut");
+        samples[0].ProgramVersion = "2.4.1";
         samples[0].Tags.AddRange(new[] { NewTag("login"), regression });
         samples[1].Program = programs.GetValueOrDefault("CallOut");
         samples[3].Program = programs.GetValueOrDefault("ProveOut");

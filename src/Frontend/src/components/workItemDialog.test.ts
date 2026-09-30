@@ -7,7 +7,7 @@ describe('diffForUpdate', () => {
   const form = {
     title: 'T', description: 'd', type: item.type, state: item.state, priority: 2, severity: item.severity,
     iterationPath: item.iterationPath,
-    program: null as string | null, tags: [] as string[],
+    program: null as string | null, programVersion: null as string | null, tags: [] as string[],
   };
 
   it('returns an empty patch when nothing changed', () => {
@@ -16,6 +16,13 @@ describe('diffForUpdate', () => {
 
   it('includes only changed fields', () => {
     expect(diffForUpdate(item, { ...form, state: 'Active', priority: 1 })).toEqual({ state: 'Active', priority: 1 });
+  });
+
+  it('sets, changes and clears the program version, ignoring surrounding spaces', () => {
+    expect(diffForUpdate(item, { ...form, programVersion: ' 2.4.1 ' })).toEqual({ programVersion: '2.4.1' });
+    const versioned = { ...item, programVersion: '2.4.1' };
+    expect(diffForUpdate(versioned, { ...form, programVersion: '2.4.1' })).toEqual({});
+    expect(diffForUpdate(versioned, { ...form, programVersion: null })).toEqual({ programVersion: '' });
   });
 
   it('sets, changes and clears the program', () => {

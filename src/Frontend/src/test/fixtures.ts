@@ -17,6 +17,7 @@ export function makeItem(overrides: Partial<WorkItem> = {}): WorkItem {
     areaPath: 'Tools\\QA',
     iterationPath: 'Current',
     program: null,
+    programVersion: null,
     tags: [],
     aiModified: false,
     aiAgentIdentity: null,

@@ -59,6 +59,9 @@ export function createCard(item: WorkItem): HTMLLIElement {
       h('span', {}, `#${item.id}`),
       h('span', { title: `Priority ${item.priority} - ${priorityLabel}` }, `P${item.priority} ${priorityLabel}`),
       item.type === 'Bug' ? h('span', {}, `Severity ${item.severity}`) : null,
+      item.type === 'Bug' && item.programVersion
+        ? h('span', { 'data-testid': 'card-program-version', title: 'Program version the bug was found in' }, `Version ${item.programVersion}`)
+        : null,
       item.program ? h('span', { class: 'card-program', 'data-testid': 'card-program' }, h('span', { class: 'sr-only' }, 'Program '), item.program) : null,
       item.tags?.length
         ? h(

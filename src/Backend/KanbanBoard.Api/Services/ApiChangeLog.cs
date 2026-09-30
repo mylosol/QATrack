@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.7.0",
+            Date = "2026-09-30",
+            SchemaVersion = "9dbe70ea4782",
+            Breaking = false,
+            Summary = new[]
+            {
+                "Work items have an optional 'programVersion' (text, max 64 characters): the version of the program a bug was found in, e.g. \"2.4.1\". Set it when creating or updating Bugs; send \"\" to clear it. Changes are recorded in history.",
+                "The board shows and edits programVersion only for Bugs. It is still stored if the type later changes, so nothing is lost.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.6.0",
             Date = "2026-09-30",
             SchemaVersion = "c008d4d6f5f9",

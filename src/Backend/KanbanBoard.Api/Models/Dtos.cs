@@ -70,6 +70,9 @@ public sealed class WorkItemDto
     /// <summary>Program the item belongs to (e.g. "ProveOut"), or null.</summary>
     public string? Program { get; init; }
 
+    /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only.</summary>
+    public string? ProgramVersion { get; init; }
+
     /// <summary>Tags, sorted alphabetically.</summary>
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
@@ -132,6 +135,10 @@ public sealed class CreateWorkItemRequest
     [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
     public string? Program { get; set; }
 
+    /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only. Max 64 characters.</summary>
+    [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
+    public string? ProgramVersion { get; set; }
+
     /// <summary>Tags (max 20, each max 50 characters). New tags are created on first use.</summary>
     public List<string>? Tags { get; set; }
 
@@ -177,6 +184,10 @@ public sealed class UpdateWorkItemRequest
     /// <summary>Program name (case-insensitive). Empty string removes the program.</summary>
     [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
     public string? Program { get; set; }
+
+    /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only. Empty string clears it.</summary>
+    [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
+    public string? ProgramVersion { get; set; }
 
     /// <summary>Replaces ALL tags when present; send [] to remove every tag. Omit to leave tags unchanged.</summary>
     public List<string>? Tags { get; set; }

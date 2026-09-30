@@ -44,6 +44,8 @@ interface FormControls {
   severity: HTMLSelectElement;
   program: ProgramPicker;
   iterationPath: HTMLInputElement;
+  /** Bugs only (1.7.0). */
+  programVersion: HTMLInputElement;
   tags: TagInput;
   description: RichTextEditor;
 }
@@ -55,7 +57,7 @@ interface FormControls {
  */
 export type WorkItemForm = Pick<
   WorkItem,
-  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'iterationPath' | 'program' | 'tags'
+  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'iterationPath' | 'program' | 'programVersion' | 'tags'
 >;
 
 /**
@@ -71,6 +73,7 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
   if (form.priority !== item.priority) patch.priority = form.priority;
   if (form.severity !== item.severity) patch.severity = form.severity;
   if (form.iterationPath.trim() !== item.iterationPath) patch.iterationPath = form.iterationPath.trim();
+  if ((form.programVersion ?? '').trim() !== (item.programVersion ?? '')) patch.programVersion = (form.programVersion ?? '').trim();
   if ((form.program ?? '') !== (item.program ?? '')) patch.program = form.program ?? '';
   if (!sameTags(form.tags, item.tags ?? [])) patch.tags = [...form.tags];
   return patch;
@@ -198,6 +201,11 @@ export class WorkItemDialog {
         onAdded: (name) => this.handlers.onProgramAdded?.(name),
       }),
       iterationPath: h('input', { class: 'field', name: 'iterationPath', maxlength: 256, value: item?.iterationPath ?? 'Current' }),
+      programVersion: h('input', {
+        class: 'field', name: 'programVersion', maxlength: 64, value: item?.programVersion ?? '',
+        placeholder: 'e.g. 2.4.1', autocomplete: 'off', 'aria-describedby': 'program-version-help',
+        'data-testid': 'dialog-program-version',
+      }),
       tags: new TagInput({
         id: 'dialog-tags',
         initial: item?.tags ?? [],
@@ -217,6 +225,20 @@ export class WorkItemDialog {
       }),
     };
     this.controls = controls;
+
+    // Program version applies to Bugs only: shown and hidden as the Type changes.
+    const versionField = h('label', { class: 'field-label', 'data-testid': 'dialog-program-version-field' },
+      'Program version (optional)', controls.programVersion,
+      h('span', { id: 'program-version-help', class: 'text-xs font-normal text-muted' }, 'The version the bug was found in.'));
+    const iterationField = h('label', { class: 'field-label' }, 'Iteration path', controls.iterationPath);
+    const syncBugFields = (): void => {
+      const isBug = controls.type.value === 'Bug';
+      versionField.hidden = !isBug;
+      iterationField.classList.toggle('sm:col-span-2', isBug);
+      iterationField.classList.toggle('sm:col-span-3', !isBug);
+    };
+    controls.type.addEventListener('change', syncBugFields);
+    syncBugFields();
 
     const heading = isNew
       ? 'New work item'
@@ -248,7 +270,8 @@ export class WorkItemDialog {
           h('label', { class: 'field-label' }, 'Priority', controls.priority),
           h('label', { class: 'field-label' }, 'Severity', controls.severity),
           h('div', { class: 'sm:col-span-2' }, controls.program.element),
-          h('label', { class: 'field-label sm:col-span-3' }, 'Iteration path', controls.iterationPath),
+          versionField,
+          iterationField,
           h('div', { class: 'sm:col-span-3' }, controls.tags.element),
         ),
         h(
@@ -361,6 +384,8 @@ export class WorkItemDialog {
       priority: Number(c.priority.value),
       severity: c.severity.value,
       iterationPath: c.iterationPath.value,
+      // Hidden for other types: never changed from a non-Bug form.
+      programVersion: c.type.value === 'Bug' ? c.programVersion.value.trim() || null : (this.item?.programVersion ?? null),
       program: c.program.value || null,
       tags: c.tags.value,
     };
@@ -399,6 +424,7 @@ export class WorkItemDialog {
           severity: final.severity,
           description: final.description || null,
           iterationPath: final.iterationPath.trim() || undefined,
+          programVersion: final.programVersion || undefined,
           program: final.program || undefined,
           tags: final.tags.length > 0 ? final.tags : undefined,
         });

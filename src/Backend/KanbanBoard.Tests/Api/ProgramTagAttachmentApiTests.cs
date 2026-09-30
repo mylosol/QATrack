@@ -66,6 +66,28 @@ public sealed class ProgramTagAttachmentApiTests : IClassFixture<KanbanApiFactor
     }
 
     [Fact]
+    public async Task Agent_ReportsTheProgramVersionOfABug()
+    {
+        var agent = _factory.CreateAgentClient("Version-Bot");
+        var response = await agent.PostAsJsonAsync("/api/v1/workitems",
+            new { title = "Regression in 2.4.1", type = "Bug", program = "ProveOut", programVersion = "2.4.1" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = (await response.Content.ReadFromJsonAsync<WorkItemDto>(KanbanApiFactory.Json))!;
+        Assert.Equal("2.4.1", created.ProgramVersion);
+
+        var fetched = await agent.GetFromJsonAsync<WorkItemDto>($"/api/v1/workitems/{created.Id}", KanbanApiFactory.Json);
+        Assert.Equal("2.4.1", fetched!.ProgramVersion);
+    }
+
+    [Fact]
+    public async Task ProgramVersion_LongerThan64_Is400()
+    {
+        var response = await _factory.CreateUiClient().PostAsJsonAsync("/api/ui/workitems",
+            new { title = "x", type = "Bug", programVersion = new string('9', 65) });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UnknownProgram_Is400_ProblemDetails()
     {
         var response = await _factory.CreateUiClient().PostAsJsonAsync("/api/ui/workitems",

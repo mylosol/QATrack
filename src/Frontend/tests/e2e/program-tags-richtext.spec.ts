@@ -65,6 +65,50 @@ test.describe('Program dropdown', () => {
   });
 });
 
+test.describe('Program version (1.7.0)', () => {
+  test('appears only for Bugs, is saved, and shows on the bug card', async ({ page, request }) => {
+    const title = uniqueTitle('Versioned bug');
+    await openBoard(page);
+    await page.getByTestId('new-item').click();
+    const dialog = page.getByRole('dialog', { name: 'New work item' });
+    const version = dialog.getByLabel('Program version (optional)');
+
+    await expect(dialog.getByTestId('dialog-type')).toHaveValue('Bug');
+    await expect(version).toBeVisible();
+    await dialog.getByTestId('dialog-type').selectOption('Feature');
+    await expect(version).toBeHidden();
+    await dialog.getByTestId('dialog-type').selectOption('Bug');
+    await expect(version).toBeVisible();
+
+    await dialog.getByLabel('Title (required)').fill(title);
+    await version.fill('2.4.1');
+    await dialog.getByTestId('dialog-save').click();
+    await expect(dialog).toBeHidden();
+
+    const card = page.locator('article', { hasText: title });
+    await expect(card.getByTestId('card-program-version')).toHaveText('Version 2.4.1');
+    const id = Number(await card.getAttribute('data-card-id'));
+    const saved = await getItem(request, id);
+    expect(saved.programVersion).toBe('2.4.1');
+    expect(saved.history![0]!.changedFields.ProgramVersion).toEqual({ old: null, new: '2.4.1' });
+  });
+
+  test('a non-Bug keeps an agent-set version untouched when edited on the board', async ({ page, request }) => {
+    const item = await createViaAgent(request, { title: uniqueTitle('Feature with version'), type: 'Feature', programVersion: '9.9' });
+    await openBoard(page);
+    await expect(cardLocator(page, item.id).getByTestId('card-program-version')).toHaveCount(0);
+
+    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByLabel('Program version (optional)')).toBeHidden();
+    await dialog.getByTestId('dialog-priority').selectOption('1');
+    await dialog.getByTestId('dialog-save').click();
+    await expect(dialog).toBeHidden();
+
+    expect((await getItem(request, item.id)).programVersion).toBe('9.9');
+  });
+});
+
 test.describe('Tags', () => {
   test('adds tags with Enter and comma, removes one, and filters the board by tag', async ({ page, request }) => {
     const tag = `t-${Date.now().toString(36)}`;
