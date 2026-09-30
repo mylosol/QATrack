@@ -39,6 +39,11 @@ public class KanbanDbContext : DbContext
         toDb => toDb.Kind == DateTimeKind.Utc ? toDb : toDb.ToUniversalTime(),
         fromDb => DateTime.SpecifyKind(fromDb, DateTimeKind.Utc));
 
+    /// <summary>Nullable counterpart of <see cref="UtcConverter"/>.</summary>
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcConverter = new(
+        toDb => toDb == null ? null : toDb.Value.Kind == DateTimeKind.Utc ? toDb : toDb.Value.ToUniversalTime(),
+        fromDb => fromDb == null ? null : DateTime.SpecifyKind(fromDb.Value, DateTimeKind.Utc));
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<WorkItem>(e =>
@@ -58,6 +63,9 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.IterationPath).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength)
                 .HasDefaultValue(WorkItemDefaults.IterationPath);
             e.Property(x => x.ProgramVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
+            e.Property(x => x.LastHumanCommentAt).HasConversion(NullableUtcConverter);
+            e.Property(x => x.LastHumanCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
+            e.HasIndex(x => x.UpdatedAt);
             e.Property(x => x.AiModified).IsRequired().HasDefaultValue(false);
             e.Property(x => x.AiAgentIdentity).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.LastModifiedBy).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength);

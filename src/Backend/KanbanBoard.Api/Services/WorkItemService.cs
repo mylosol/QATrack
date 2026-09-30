@@ -258,6 +258,12 @@ public sealed class WorkItemService
             source = source.Where(w => w.Program != null && w.Program.NormalizedName == normalized);
         }
 
+        if (query.UpdatedSince is not null)
+        {
+            var since = query.UpdatedSince.Value.UtcDateTime;
+            source = source.Where(w => w.UpdatedAt > since);
+        }
+
         var tag = TextSanitizer.SingleLine(query.Tag, WorkItemDefaults.TagMaxLength);
         if (tag is not null)
         {
@@ -382,6 +388,12 @@ public sealed class WorkItemService
             // Sticky: once an agent touches a card it stays flagged.
             item.AiModified = true;
             item.AiAgentIdentity = _actor.AgentIdentity;
+        }
+        else if (comment is not null)
+        {
+            // Lets agents spot new human comments from list/board results.
+            item.LastHumanCommentAt = now;
+            item.LastHumanCommentBy = _actor.DisplayName;
         }
 
         var entry = new WorkItemHistory

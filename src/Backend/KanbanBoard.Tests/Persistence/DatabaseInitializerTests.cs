@@ -111,6 +111,39 @@ public class DatabaseInitializerTests
     }
 
     [Fact]
+    public async Task Upgrade_To180_BackfillsTheLastHumanComment_FromHistory()
+    {
+        using var temp = new TempSqliteDatabase();
+        await using (var old = temp.CreateContext())
+        {
+            await old.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20260930165826_AddProgramVersion");
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItem (Id, Title, Type, State, Priority, Severity, AreaPath, IterationPath, AiModified, LastModifiedBy, CreatedAt, UpdatedAt) VALUES " +
+                "(1, 'Commented', 'Bug', 'New', 2, '3 - Medium', 'x', 'Current', 1, 'Bot', '2026-09-30 10:00:00', '2026-09-30 13:00:00'), " +
+                "(2, 'Silent', 'Bug', 'New', 2, '3 - Medium', 'x', 'Current', 0, 'Dana', '2026-09-30 10:00:00', '2026-09-30 10:00:00')");
+            // Braces are doubled: ExecuteSqlRaw treats them as format placeholders.
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItemHistory (WorkItemId, ChangeDate, Author, IsAiAction, AgentName, ChangedFieldsJson, Comment) VALUES " +
+                "(1, '2026-09-30 10:00:00', 'Dana', 0, NULL, '{{}}', 'first human note'), " +
+                "(1, '2026-09-30 11:00:00', 'Robert', 0, NULL, '{{}}', 'latest human note'), " +
+                "(1, '2026-09-30 12:00:00', 'Robert', 0, NULL, '{{\"State\":{{}}}}', NULL), " +
+                "(1, '2026-09-30 13:00:00', 'Bot', 1, 'Bot', '{{}}', 'agent reply'), " +
+                "(2, '2026-09-30 10:00:00', 'Dana', 0, NULL, '{{}}', NULL)");
+        }
+
+        await temp.InitializeAsync();
+
+        await using var db = temp.CreateContext();
+        var commented = await db.WorkItems.SingleAsync(w => w.Id == 1);
+        Assert.Equal(new DateTime(2026, 9, 30, 11, 0, 0, DateTimeKind.Utc), commented.LastHumanCommentAt);
+        Assert.Equal("Robert", commented.LastHumanCommentBy);
+        var silent = await db.WorkItems.SingleAsync(w => w.Id == 2);
+        Assert.Null(silent.LastHumanCommentAt);
+        Assert.Null(silent.LastHumanCommentBy);
+    }
+
+    [Fact]
     public async Task Initialize_WithSeedOnEmptyBoard_InsertsSampleItemsOnce()
     {
         using var temp = new TempSqliteDatabase();
