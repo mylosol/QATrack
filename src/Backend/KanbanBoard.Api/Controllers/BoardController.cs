@@ -22,7 +22,7 @@ public sealed class BoardController : ControllerBase
     /// <c>itemCount</c> and <c>isOverWipLimit</c> always reflect the whole board; the optional
     /// filters only narrow the <c>items</c> listed per column. Removed items are excluded.
     /// </remarks>
-    /// <param name="filter">Optional filters: type, state, aiModified, assignedTo.</param>
+    /// <param name="filter">Optional filters: type, state, aiModified, assignedTo, program, tag, updatedSince.</param>
     /// <param name="ct">Cancellation token.</param>
     [HttpGet(Name = "getBoard")]
     [ProducesResponseType(typeof(BoardDto), StatusCodes.Status200OK)]

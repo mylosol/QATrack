@@ -65,6 +65,9 @@ export interface WorkItem {
   tags: string[];
   aiModified: boolean;
   aiAgentIdentity: string | null;
+  /** When a human last commented (1.8.0; used by agents), or null. */
+  lastHumanCommentAt?: string | null;
+  lastHumanCommentBy?: string | null;
   lastModifiedBy: string;
   createdAt: string;
   updatedAt: string;

@@ -19,6 +19,19 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.8.0",
+            Date = "2026-09-30",
+            SchemaVersion = "fee4c6bc381c",
+            Breaking = false,
+            Summary = new[]
+            {
+                "New 'updatedSince' filter on GET /api/v1/workitems and GET /api/v1/board: only items changed (fields, state or comments) strictly after that instant. Pass the newest 'updatedAt' you have seen, including its Z.",
+                "Work items now report 'lastHumanCommentAt' and 'lastHumanCommentBy': when and by whom a human (not an AI agent) last commented. They appear in list and board results too, so you can spot new human comments without opening every card. When lastHumanCommentAt is newer than the last human comment you read, GET the item and read its history: entries with isAiAction false and a comment are messages for you.",
+                "Existing comments were counted when upgrading, so these fields are filled in for older cards as well.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.7.0",
             Date = "2026-09-30",
             SchemaVersion = "9dbe70ea4782",

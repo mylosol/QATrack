@@ -23,6 +23,8 @@ public static class WorkItemMapper
         Tags = item.Tags.Select(t => t.Name).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList(),
         AiModified = item.AiModified,
         AiAgentIdentity = item.AiAgentIdentity,
+        LastHumanCommentAt = item.LastHumanCommentAt,
+        LastHumanCommentBy = item.LastHumanCommentBy,
         LastModifiedBy = item.LastModifiedBy,
         CreatedAt = item.CreatedAt,
         UpdatedAt = item.UpdatedAt,

@@ -58,6 +58,12 @@ public class WorkItem
     /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only.</summary>
     public string? ProgramVersion { get; set; }
 
+    /// <summary>When a human (not an AI agent) last wrote a comment on this item (UTC), or null. If it is newer than the last one you read, GET the item and read its history. Maintained by every mutation (1.8.0).</summary>
+    public DateTime? LastHumanCommentAt { get; set; }
+
+    /// <summary>Who wrote that most recent human comment.</summary>
+    public string? LastHumanCommentBy { get; set; }
+
     /// <summary>Tags (many-to-many through the WorkItemTag table).</summary>
     public List<Tag> Tags { get; set; } = new();
 

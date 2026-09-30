@@ -82,6 +82,12 @@ public sealed class WorkItemDto
     /// <summary>Most recent AI agent to modify the item.</summary>
     public string? AiAgentIdentity { get; init; }
 
+    /// <summary>When a human (not an AI agent) last wrote a comment on this item (UTC), or null. If it is newer than the last one you read, GET the item and read its history.</summary>
+    public DateTime? LastHumanCommentAt { get; init; }
+
+    /// <summary>Who wrote that most recent human comment.</summary>
+    public string? LastHumanCommentBy { get; init; }
+
     public string LastModifiedBy { get; init; } = string.Empty;
 
     public DateTime CreatedAt { get; init; }
@@ -229,6 +235,12 @@ public sealed class WorkItemQuery
     /// <summary>Only items carrying this tag (case-insensitive).</summary>
     [MaxLength(WorkItemDefaults.TagMaxLength)]
     public string? Tag { get; set; }
+
+    /// <summary>
+    /// Only items changed (fields, state, comments) strictly after this instant. Pass the newest
+    /// <c>updatedAt</c> you have seen, e.g. 2026-09-30T14:05:12.3456789Z (always include the Z or an offset).
+    /// </summary>
+    public DateTimeOffset? UpdatedSince { get; set; }
 
     /// <summary>Maximum number of items to return (1-1000, default 500).</summary>
     [Range(1, 1000)]

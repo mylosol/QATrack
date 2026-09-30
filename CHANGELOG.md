@@ -3,6 +3,19 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-09-30
+
+### Added
+- **AI agents can find what changed, including new human comments, without opening every card.**
+  - `updatedSince` filter on `GET /api/v1/workitems` and `GET /api/v1/board`: returns only items changed (fields, state or comments) strictly after the given instant. Agents pass the newest `updatedAt` they've seen.
+  - Every work item now reports `lastHumanCommentAt` and `lastHumanCommentBy`: when, and by whom, a person (not an AI agent) last commented. These are included in list and board results, which don't carry the full history.
+  - The comment text itself is still read from `GET /api/v1/workitems/{id}` (the item's history).
+  - `GET /api/v1/meta` lists this as the 1.8.0 change, with a new `X-API-Schema-Version`, so agents following the "staying current" rule pick it up automatically.
+
+### Changed
+- Additive database migration `AddLastHumanComment`: two new optional columns on `WorkItem`, filled in from existing history during the upgrade (so comments made before 1.8.0 count), plus an index on `UpdatedAt`.
+- The board itself looks and works the same.
+
 ## [1.7.0] - 2026-09-30
 
 ### Added
