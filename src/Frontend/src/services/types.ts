@@ -30,6 +30,13 @@ export const TYPE_LABELS: Readonly<Record<WorkItemType, string>> = {
   Task: 'Task',
 };
 
+/**
+ * Who a card's discussion is waiting for (1.9.0): AwaitingAgent = a human
+ * commented and no AI has replied; UnreadReply = an AI replied and nobody has
+ * opened the card since.
+ */
+export type DiscussionStatus = 'AwaitingAgent' | 'UnreadReply';
+
 export interface FieldChange {
   old: string | null;
   new: string | null;
@@ -68,6 +75,12 @@ export interface WorkItem {
   /** When a human last commented (1.8.0; used by agents), or null. */
   lastHumanCommentAt?: string | null;
   lastHumanCommentBy?: string | null;
+  /** When an AI agent last commented (1.9.0), or null. */
+  lastAgentCommentAt?: string | null;
+  lastAgentCommentBy?: string | null;
+  /** Comments in the card's history (1.9.0). */
+  commentCount?: number;
+  discussionStatus?: DiscussionStatus | null;
   lastModifiedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -99,6 +112,9 @@ export interface BoardMetadata {
   assignees: string[];
   programs: string[];
   tags: string[];
+  /** Whole-board counts for the Discussion filter (1.9.0). */
+  awaitingAgentCount?: number;
+  unreadReplyCount?: number;
 }
 
 export interface Board {
@@ -116,6 +132,7 @@ export interface BoardFilter {
   aiModified?: boolean;
   program?: string;
   tag?: string;
+  discussion?: DiscussionStatus;
 }
 
 export interface CreateWorkItemRequest {

@@ -64,6 +64,18 @@ public class WorkItem
     /// <summary>Who wrote that most recent human comment.</summary>
     public string? LastHumanCommentBy { get; set; }
 
+    /// <summary>When an AI agent last wrote a comment (1.9.0), or null.</summary>
+    public DateTime? LastAgentCommentAt { get; set; }
+
+    /// <summary>Which agent wrote that comment.</summary>
+    public string? LastAgentCommentBy { get; set; }
+
+    /// <summary>Number of history entries carrying a comment (1.9.0).</summary>
+    public int CommentCount { get; set; }
+
+    /// <summary>When a human last opened the card while it had an unread agent reply (1.9.0).</summary>
+    public DateTime? HumanReadAt { get; set; }
+
     /// <summary>Tags (many-to-many through the WorkItemTag table).</summary>
     public List<Tag> Tags { get; set; } = new();
 

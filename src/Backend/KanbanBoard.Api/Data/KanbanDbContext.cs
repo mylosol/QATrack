@@ -65,6 +65,10 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.ProgramVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
             e.Property(x => x.LastHumanCommentAt).HasConversion(NullableUtcConverter);
             e.Property(x => x.LastHumanCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
+            e.Property(x => x.LastAgentCommentAt).HasConversion(NullableUtcConverter);
+            e.Property(x => x.LastAgentCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
+            e.Property(x => x.CommentCount).IsRequired().HasDefaultValue(0);
+            e.Property(x => x.HumanReadAt).HasConversion(NullableUtcConverter);
             e.HasIndex(x => x.UpdatedAt);
             e.Property(x => x.AiModified).IsRequired().HasDefaultValue(false);
             e.Property(x => x.AiAgentIdentity).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);

@@ -61,4 +61,39 @@ public sealed class ChangeDetectionApiTests : IClassFixture<KanbanApiFactory>
         Assert.Equal(HttpStatusCode.OK, (await agent.GetAsync($"/api/v1/workitems?updatedSince={offset}")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await agent.GetAsync("/api/v1/workitems?updatedSince=yesterday")).StatusCode);
     }
+
+    [Fact]
+    public async Task Agent_FindsUnansweredHumanComments_ViaMetaAndTheDiscussionFilter()
+    {
+        var agent = _factory.CreateAgentClient("Reply-Bot");
+        var human = _factory.CreateUiClient("Robert");
+        var created = await (await agent.PostAsJsonAsync("/api/v1/workitems", new { title = "Talk to me", type = "Bug" }))
+            .Content.ReadFromJsonAsync<WorkItemDto>(KanbanApiFactory.Json);
+
+        await human.PostAsJsonAsync($"/api/ui/workitems/{created!.Id}/comments", new { text = "Please retest on 2.4.2." });
+
+        var meta = await agent.GetFromJsonAsync<ApiMetaDto>("/api/v1/meta", KanbanApiFactory.Json);
+        Assert.True(meta!.AwaitingAgentCount >= 1);
+        Assert.Contains("discussion=AwaitingAgent", meta.Instructions);
+        var waiting = await agent.GetFromJsonAsync<List<WorkItemDto>>("/api/v1/workitems?discussion=AwaitingAgent", KanbanApiFactory.Json);
+        Assert.Contains(waiting!, w => w.Id == created.Id && w.DiscussionStatus == DiscussionStatus.AwaitingAgent);
+
+        await agent.PostAsJsonAsync($"/api/v1/workitems/{created.Id}/comments", new { text = "Retested: fixed." });
+
+        var after = await agent.GetFromJsonAsync<List<WorkItemDto>>("/api/v1/workitems?discussion=AwaitingAgent", KanbanApiFactory.Json);
+        Assert.DoesNotContain(after!, w => w.Id == created.Id);
+
+        // The human sees an unread reply until they open the card.
+        var card = await human.GetFromJsonAsync<WorkItemDto>($"/api/ui/workitems/{created.Id}", KanbanApiFactory.Json);
+        Assert.Equal(DiscussionStatus.UnreadReply, card!.DiscussionStatus);
+        Assert.Equal(HttpStatusCode.NoContent, (await human.PostAsync($"/api/ui/workitems/{created.Id}/read", null)).StatusCode);
+        Assert.Null((await human.GetFromJsonAsync<WorkItemDto>($"/api/ui/workitems/{created.Id}", KanbanApiFactory.Json))!.DiscussionStatus);
+    }
+
+    [Fact]
+    public async Task MarkRead_NeedsTheAntiForgeryHeader_AndIsNotOnTheAgentApi()
+    {
+        Assert.Equal(HttpStatusCode.Forbidden, (await _factory.CreateClient().PostAsync("/api/ui/workitems/1/read", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _factory.CreateAgentClient().PostAsync("/api/v1/workitems/1/read", null)).StatusCode);
+    }
 }

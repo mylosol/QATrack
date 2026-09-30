@@ -3,6 +3,25 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-09-30
+
+### Added
+- **See at a glance who a card's discussion is waiting for.** Worked out automatically from who commented last:
+  - **"New reply"**: an AI agent commented and nobody has opened the card since. Opening the card marks it read.
+  - **"Waiting for AI"**: a person commented and no AI agent has replied yet. It stays until an agent replies with a comment. Moving the card doesn't count as a reply.
+  - Cards also show how many comments they have (💬 3).
+  - The toolbar shows clickable counters ("💬 2 new replies", "3 waiting for AI") that filter the board. There's also a **Discussion** filter with the same choices and counts.
+- **Making sure agents answer your comments.**
+  - Every work item has `discussionStatus` (`AwaitingAgent` / `UnreadReply` / null), plus `lastAgentCommentAt`, `lastAgentCommentBy` and `commentCount`.
+  - `GET /api/v1/workitems?discussion=AwaitingAgent` lists every card with an unanswered human comment, and `GET /api/v1/meta` now reports `awaitingAgentCount`.
+  - The API description tells agents to check this list at the start of every session and before picking up new work, and to reply with a comment. A card stays on the list until they do.
+  - `GET /api/v1/meta` lists this as the 1.9.0 change, with a new `X-API-Schema-Version`.
+
+### Changed
+- Additive database migration `AddDiscussionStatus`: four new columns on `WorkItem`, filled in from existing history. Cards an agent has already commented on show **"New reply"** after the upgrade, until you open them.
+- Opening a card with an unread reply records that it was read. This isn't an edit: no history entry, and `updatedAt` doesn't change.
+- The development sample data no longer records its creation note as a comment.
+
 ## [1.8.0] - 2026-09-30
 
 ### Added

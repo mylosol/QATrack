@@ -1,4 +1,5 @@
 using KanbanBoard.Api.Models;
+using KanbanBoard.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace KanbanBoard.Api.Data;
@@ -131,8 +132,10 @@ public sealed class DatabaseInitializer
                 ChangeDate = now,
                 Author = author,
                 IsAiAction = false,
-                ChangedFieldsJson = "{}",
-                Comment = "Sample item created by the development seeder.",
+                // A plain creation entry, not a comment: a seeder note would otherwise
+                // count as a human comment and flag every sample as "Waiting for AI".
+                ChangedFieldsJson = WorkItemChangeTracker.Serialize(
+                    WorkItemChangeTracker.Diff(WorkItemSnapshot.Empty, WorkItemSnapshot.From(item), isCreation: true)),
             });
         }
 

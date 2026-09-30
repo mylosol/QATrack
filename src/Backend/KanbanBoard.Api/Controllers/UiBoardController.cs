@@ -77,6 +77,14 @@ public sealed class UiBoardController : ControllerBase
     public async Task<ActionResult<WorkItemDto>> Update(int id, [FromBody] UpdateWorkItemRequest request, CancellationToken ct)
         => Ok(await _items.UpdateAsync(id, request, ct));
 
+    /// <summary>The card dialog was opened: clears an unread agent reply (1.9.0).</summary>
+    [HttpPost("workitems/{id:int}/read")]
+    public async Task<IActionResult> MarkRead(int id, CancellationToken ct)
+    {
+        await _items.MarkReadAsync(id, ct);
+        return NoContent();
+    }
+
     /// <summary>Add a discussion comment.</summary>
     [HttpPost("workitems/{id:int}/comments")]
     public async Task<ActionResult<WorkItemHistoryDto>> AddComment(int id, [FromBody] AddCommentRequest request, CancellationToken ct)

@@ -141,6 +141,15 @@ public class DatabaseInitializerTests
         var silent = await db.WorkItems.SingleAsync(w => w.Id == 2);
         Assert.Null(silent.LastHumanCommentAt);
         Assert.Null(silent.LastHumanCommentBy);
+
+        // 1.9.0 backfill: counts, last agent comment, and "unread" for agent replies nobody has opened.
+        Assert.Equal(3, commented.CommentCount);
+        Assert.Equal(new DateTime(2026, 9, 30, 13, 0, 0, DateTimeKind.Utc), commented.LastAgentCommentAt);
+        Assert.Equal("Bot", commented.LastAgentCommentBy);
+        Assert.Null(commented.HumanReadAt);
+        Assert.Equal(KanbanBoard.Api.Models.DiscussionStatus.UnreadReply, KanbanBoard.Api.Services.Discussion.StatusOf(commented));
+        Assert.Equal(0, silent.CommentCount);
+        Assert.Null(KanbanBoard.Api.Services.Discussion.StatusOf(silent));
     }
 
     [Fact]

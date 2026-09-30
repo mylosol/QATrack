@@ -68,6 +68,7 @@ export function buildQuery(filter: BoardFilter): string {
   if (filter.aiModified) params.set('aiModified', 'true');
   if (filter.program) params.set('program', filter.program);
   if (filter.tag) params.set('tag', filter.tag);
+  if (filter.discussion) params.set('discussion', filter.discussion);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
@@ -124,6 +125,11 @@ export class ApiClient {
 
   addComment(id: number, text: string): Promise<WorkItemHistoryEntry> {
     return this.request<WorkItemHistoryEntry>('POST', `workitems/${encodeURIComponent(String(id))}/comments`, { text });
+  }
+
+  /** Records that the card was opened, clearing an unread AI reply (not an edit). */
+  async markRead(id: number): Promise<void> {
+    await this.request<void>('POST', `workitems/${encodeURIComponent(String(id))}/read`);
   }
 
   /** Adds a Program dropdown option (returns the existing one for a duplicate name). */

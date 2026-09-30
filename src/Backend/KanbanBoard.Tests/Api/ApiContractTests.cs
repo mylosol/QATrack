@@ -171,12 +171,12 @@ public sealed class ApiContractTests : IClassFixture<KanbanApiFactory>
     }
 
     [Theory]
-    [InlineData("1.3.0", new[] { "1.8.0", "1.7.0", "1.6.0", "1.5.0", "1.4.0" })]
-    [InlineData("1.6.1", new[] { "1.8.0", "1.7.0" })]
-    [InlineData("1.7.0", new[] { "1.8.0" })]
-    [InlineData("1.8.0-rc.1", new[] { "1.8.0" })]
-    [InlineData("1.8.0", new string[0])]
-    [InlineData("0.9.0", new[] { "1.8.0", "1.7.0", "1.6.0", "1.5.0", "1.4.0", "1.0.0" })]
+    [InlineData("1.3.0", new[] { "1.9.0", "1.8.0", "1.7.0", "1.6.0", "1.5.0", "1.4.0" })]
+    [InlineData("1.7.0", new[] { "1.9.0", "1.8.0" })]
+    [InlineData("1.8.0", new[] { "1.9.0" })]
+    [InlineData("1.9.0-rc.1", new[] { "1.9.0" })]
+    [InlineData("1.9.0", new string[0])]
+    [InlineData("0.9.0", new[] { "1.9.0", "1.8.0", "1.7.0", "1.6.0", "1.5.0", "1.4.0", "1.0.0" })]
     public async Task Meta_Since_ListsOnlyNewerChanges(string since, string[] expected)
     {
         var meta = await _factory.CreateAgentClient().GetFromJsonAsync<ApiMetaDto>($"/api/v1/meta?since={since}", KanbanApiFactory.Json);

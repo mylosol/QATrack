@@ -19,6 +19,19 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.9.0",
+            Date = "2026-09-30",
+            SchemaVersion = "968fcbd24974",
+            Breaking = false,
+            Summary = new[]
+            {
+                "IMPORTANT - answering humans: humans comment on cards to talk to you, often without moving them. Every work item now has 'discussionStatus': 'AwaitingAgent' means a human commented after the last agent comment and is waiting for your reply.",
+                "At the start of every session and before picking up new work, call GET /api/v1/workitems?discussion=AwaitingAgent (GET /api/v1/meta also reports 'awaitingAgentCount'). For each card: GET it, read history entries with isAiAction false and a comment, act on them, then reply with POST /api/v1/workitems/{id}/comments (or a PATCH with 'comment'). Your comment clears AwaitingAgent; moving the card without a comment does not.",
+                "Also new on work items: 'lastAgentCommentAt', 'lastAgentCommentBy' and 'commentCount'. 'UnreadReply' (an agent replied and no human has opened the card yet) is for the humans; you can ignore it.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.8.0",
             Date = "2026-09-30",
             SchemaVersion = "fee4c6bc381c",
