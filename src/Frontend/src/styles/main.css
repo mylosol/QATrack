@@ -290,6 +290,37 @@
 .tag-input-box:focus-visible {
   outline-offset: 0;
 }
+/* Tag suggestion listbox (1.6.1): anchored under the tag box. */
+.tag-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  margin-top: 0.25rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 0.25rem;
+  background: rgb(var(--color-surface));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+  padding: 0.25rem 0;
+}
+.tag-suggestion {
+  cursor: pointer;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: rgb(var(--color-fg));
+}
+.tag-suggestion:hover {
+  background: rgb(var(--color-column));
+}
+/* The keyboard-highlighted option: same pairing as primary buttons (>= 4.5:1). */
+.tag-suggestion[aria-selected='true'] {
+  background: rgb(var(--color-primary));
+  color: rgb(var(--color-primary-fg));
+}
 
 /* ---------- Rich text editor (1.4.0) ----------
  * Outside @layer because TipTap/ProseMirror add these classes at runtime.
