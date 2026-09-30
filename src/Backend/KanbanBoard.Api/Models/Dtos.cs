@@ -60,6 +60,7 @@ public sealed class WorkItemDto
     /// <summary>"1 - Critical" | "2 - High" | "3 - Medium" | "4 - Low".</summary>
     public string Severity { get; init; } = string.Empty;
 
+    /// <summary>Assignee, if one was set. Optional and not shown on the board (since 1.6.0): the AI badge and history already identify the agent.</summary>
     public string? AssignedTo { get; init; }
 
     public string AreaPath { get; init; } = string.Empty;
@@ -115,11 +116,11 @@ public sealed class CreateWorkItemRequest
     [MaxLength(32)]
     public string? Severity { get; set; }
 
-    /// <summary>Assignee display name or email.</summary>
+    /// <summary>Assignee display name or email. Optional and not shown on the board (since 1.6.0): the AI badge and history already identify the agent.</summary>
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AssignedTo { get; set; }
 
-    /// <summary>Area path. Defaults to "Tools\QA".</summary>
+    /// <summary>Area path. Defaults to "Tools\QA". Not shown on the board since 1.4.0; use program instead.</summary>
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AreaPath { get; set; }
 
@@ -163,7 +164,7 @@ public sealed class UpdateWorkItemRequest
     [MaxLength(32)]
     public string? Severity { get; set; }
 
-    /// <summary>Reassign. Empty string unassigns.</summary>
+    /// <summary>Reassign; empty string unassigns. Optional and not shown on the board (since 1.6.0): the AI badge and history already identify the agent.</summary>
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AssignedTo { get; set; }
 
@@ -206,7 +207,7 @@ public sealed class WorkItemQuery
     /// <summary>Filter by AI-modified flag.</summary>
     public bool? AiModified { get; set; }
 
-    /// <summary>Exact (case-insensitive) assignee match. Use "unassigned" for items with no assignee.</summary>
+    /// <summary>Exact (case-insensitive) assignee match; "unassigned" finds items with none. The board no longer shows assignees (1.6.0).</summary>
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AssignedTo { get; set; }
 
@@ -259,7 +260,7 @@ public sealed class BoardMetadataDto
 
     public IReadOnlyDictionary<int, string> Priorities { get; init; } = new Dictionary<int, string>();
 
-    /// <summary>Distinct assignees currently on the board (for filter dropdowns).</summary>
+    /// <summary>Distinct assignees on the board. Kept for compatibility; the board no longer shows assignees (1.6.0).</summary>
     public IReadOnlyList<string> Assignees { get; init; } = Array.Empty<string>();
 
     /// <summary>Available programs in display order.</summary>

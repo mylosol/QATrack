@@ -3,6 +3,19 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-09-30
+
+### Removed
+- **"Assigned to" is gone from the board**, because AI agents work the cards and identify themselves.
+  - The card dialog no longer has the field, and cards no longer show "Assigned to …" / "Unassigned".
+  - The toolbar no longer has the "Assigned to" filter.
+  - The AI badge and each card's history still show exactly which agent made each change.
+
+### Changed
+- `assignedTo` is kept in the API, database and history for compatibility: agents may still send it and existing values are preserved, but the board neither shows nor changes it. The API documentation says so, and `GET /api/v1/meta` lists it as the 1.6.0 change (new `X-API-Schema-Version`).
+- The API documentation now also notes that `areaPath` hasn't been shown on the board since 1.4.0.
+- In the card dialog, Program now takes the space Assigned to used.
+
 ## [1.5.0] - 2026-09-29
 
 ### Added

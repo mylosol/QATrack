@@ -108,7 +108,6 @@ export interface Board {
 export interface BoardFilter {
   type?: WorkItemType | '';
   state?: WorkItemState | '';
-  assignedTo?: string;
   aiModified?: boolean;
   program?: string;
   tag?: string;

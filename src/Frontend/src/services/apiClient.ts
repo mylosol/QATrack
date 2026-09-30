@@ -65,7 +65,6 @@ export function buildQuery(filter: BoardFilter): string {
   const params = new URLSearchParams();
   if (filter.type) params.set('type', filter.type);
   if (filter.state) params.set('state', filter.state);
-  if (filter.assignedTo && filter.assignedTo.trim()) params.set('assignedTo', filter.assignedTo.trim());
   if (filter.aiModified) params.set('aiModified', 'true');
   if (filter.program) params.set('program', filter.program);
   if (filter.tag) params.set('tag', filter.tag);

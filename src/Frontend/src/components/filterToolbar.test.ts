@@ -20,7 +20,8 @@ describe('FilterToolbar', () => {
     new FilterToolbar(root, { onFilterChange, onNewItem });
     const labels = [...root.querySelectorAll('label')].map((l) => l.textContent);
     expect(labels.some((l) => l?.startsWith('Work item type'))).toBe(true);
-    expect(labels.some((l) => l?.startsWith('Assigned to'))).toBe(true);
+    expect(labels.some((l) => l?.startsWith('Assigned to'))).toBe(false); // removed in 1.6.0
+    expect(root.querySelector('[data-testid="filter-assignee"]')).toBeNull();
     expect(labels.some((l) => l?.startsWith('State'))).toBe(true);
     expect(labels.some((l) => l?.includes('AI-modified only'))).toBe(true);
     expect(root.querySelector('form')!.getAttribute('role')).toBe('search');
@@ -55,7 +56,7 @@ describe('FilterToolbar', () => {
     ai.checked = true;
     ai.dispatchEvent(new Event('change'));
 
-    expect(onFilterChange).toHaveBeenLastCalledWith({ type: 'Bug', state: '', assignedTo: undefined, aiModified: true });
+    expect(onFilterChange).toHaveBeenLastCalledWith({ type: 'Bug', state: '', aiModified: true });
     expect(toolbar.isFiltered).toBe(true);
   });
 
@@ -64,16 +65,7 @@ describe('FilterToolbar', () => {
     select('filter-state').value = 'Active';
     root.querySelector<HTMLButtonElement>('[data-testid="filter-clear"]')!.click();
     expect(toolbar.isFiltered).toBe(false);
-    expect(onFilterChange).toHaveBeenCalledWith({ type: '', state: '', assignedTo: undefined, aiModified: undefined });
-  });
-
-  it('keeps the selected assignee when options refresh', () => {
-    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
-    toolbar.setAssignees(['Ana', 'Bo']);
-    select('filter-assignee').value = 'Bo';
-    toolbar.setAssignees(['Ana']);
-    expect(select('filter-assignee').value).toBe('Bo');
-    expect([...select('filter-assignee').options].map((o) => o.value)).toEqual(['', 'unassigned', 'Ana', 'Bo']);
+    expect(onFilterChange).toHaveBeenCalledWith({ type: '', state: '', aiModified: undefined });
   });
 
   it('summarizes results', () => {

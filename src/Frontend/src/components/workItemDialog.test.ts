@@ -6,7 +6,7 @@ describe('diffForUpdate', () => {
   const item = makeItem({ id: 1, title: 'T', description: 'd', assignedTo: 'Ana', priority: 2 });
   const form = {
     title: 'T', description: 'd', type: item.type, state: item.state, priority: 2, severity: item.severity,
-    assignedTo: 'Ana', areaPath: item.areaPath, iterationPath: item.iterationPath,
+    iterationPath: item.iterationPath,
     program: null as string | null, tags: [] as string[],
   };
 
@@ -32,8 +32,15 @@ describe('diffForUpdate', () => {
     expect(diffForUpdate(tagged, { ...form, tags: [] })).toEqual({ tags: [] });
   });
 
-  it('sends empty strings to clear assignee and description', () => {
-    expect(diffForUpdate(item, { ...form, assignedTo: ' ', description: '' })).toEqual({ assignedTo: '', description: '' });
+  it('sends an empty string to clear the description', () => {
+    expect(diffForUpdate(item, { ...form, description: '' })).toEqual({ description: '' });
+  });
+
+  it('never touches the assignee or area path, which the board no longer edits', () => {
+    const patch = diffForUpdate(item, { ...form, title: 'Changed' });
+    expect(patch).toEqual({ title: 'Changed' });
+    expect(patch).not.toHaveProperty('assignedTo');
+    expect(patch).not.toHaveProperty('areaPath');
   });
 });
 

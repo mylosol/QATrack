@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.6.0",
+            Date = "2026-09-30",
+            SchemaVersion = "c008d4d6f5f9",
+            Breaking = false,
+            Summary = new[]
+            {
+                "The board no longer shows or edits 'assignedTo'. It is still accepted, stored and returned (and the assignedTo filter still works), but you do not need to set it: the AI badge and each card's history already record which agent made a change (X-Agent-Identity).",
+                "Documentation only: 'areaPath' has not been shown on the board since 1.4.0; use 'program' instead.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.5.0",
             Date = "2026-09-29",
             SchemaVersion = "f79557855e81",

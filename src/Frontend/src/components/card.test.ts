@@ -3,7 +3,7 @@ import { makeItem } from '../test/fixtures';
 import { aiTooltipText, createCard } from './card';
 
 describe('createCard', () => {
-  it('renders title, id, priority and assignee as text (no HTML injection)', () => {
+  it('renders title, id and priority as text (no HTML injection)', () => {
     const li = createCard(makeItem({ id: 42, title: '<img src=x onerror=alert(1)>', priority: 1, assignedTo: 'Ana' }));
     const article = li.querySelector('article')!;
 
@@ -14,7 +14,9 @@ describe('createCard', () => {
     expect(li.querySelector('.card-title')!.textContent).toBe('<img src=x onerror=alert(1)>');
     expect(li.textContent).toContain('#42');
     expect(li.textContent).toContain('P1 Critical');
-    expect(li.textContent).toContain('Assigned to Ana');
+    // Assignee is no longer shown (1.6.0): AI agents identify themselves with the AI badge.
+    expect(li.textContent).not.toContain('Ana');
+    expect(li.textContent).not.toContain('Unassigned');
   });
 
   it('shows the program and tags as text inside the described meta (1.4.0)', () => {

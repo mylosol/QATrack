@@ -28,8 +28,6 @@ import { sameTags, TagInput } from './tagInput';
 export interface WorkItemDialogHandlers {
   /** Called after a successful create/update/comment so the board can refresh. */
   onChanged(item: WorkItem, action: 'created' | 'updated' | 'commented'): void;
-  /** Current board assignees for the "Assigned to" suggestions. */
-  assignees(): string[];
   /** Program dropdown options, in display order. */
   programs(): string[];
   /** Known tags, for suggestions. */
@@ -44,17 +42,20 @@ interface FormControls {
   state: HTMLSelectElement;
   priority: HTMLSelectElement;
   severity: HTMLSelectElement;
-  assignedTo: HTMLInputElement;
   program: ProgramPicker;
   iterationPath: HTMLInputElement;
   tags: TagInput;
   description: RichTextEditor;
 }
 
-/** Editable fields as read from the form. */
+/**
+ * Editable fields as read from the form. Assigned to (1.6.0) and Area path
+ * (1.4.0) are no longer edited on the board; the API still accepts them and
+ * the dialog never changes them.
+ */
 export type WorkItemForm = Pick<
   WorkItem,
-  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'assignedTo' | 'areaPath' | 'iterationPath' | 'program' | 'tags'
+  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'iterationPath' | 'program' | 'tags'
 >;
 
 /**
@@ -69,8 +70,6 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
   if (form.state !== item.state) patch.state = form.state;
   if (form.priority !== item.priority) patch.priority = form.priority;
   if (form.severity !== item.severity) patch.severity = form.severity;
-  if ((form.assignedTo ?? '').trim() !== (item.assignedTo ?? '')) patch.assignedTo = (form.assignedTo ?? '').trim();
-  if (form.areaPath.trim() !== item.areaPath) patch.areaPath = form.areaPath.trim();
   if (form.iterationPath.trim() !== item.iterationPath) patch.iterationPath = form.iterationPath.trim();
   if ((form.program ?? '') !== (item.program ?? '')) patch.program = form.program ?? '';
   if (!sameTags(form.tags, item.tags ?? [])) patch.tags = [...form.tags];
@@ -190,10 +189,6 @@ export class WorkItemDialog {
       ),
       priority: this.select('priority', [1, 2, 3, 4].map((p) => [String(p), `${p} - ${PRIORITY_LABELS[p]}`]), String(item?.priority ?? 2)),
       severity: this.select('severity', SEVERITIES.map((s) => [s, s]), item?.severity ?? '3 - Medium'),
-      assignedTo: h('input', {
-        class: 'field', name: 'assignedTo', maxlength: 256, value: item?.assignedTo ?? '',
-        list: 'assignee-suggestions', autocomplete: 'off',
-      }),
       program: new ProgramPicker({
         programs: this.handlers.programs(),
         selected: item?.program ?? null,
@@ -222,9 +217,6 @@ export class WorkItemDialog {
       }),
     };
     this.controls = controls;
-
-    const datalist = h('datalist', { id: 'assignee-suggestions' },
-      ...this.handlers.assignees().map((a) => h('option', { value: a })));
 
     const heading = isNew
       ? 'New work item'
@@ -255,8 +247,7 @@ export class WorkItemDialog {
           h('label', { class: 'field-label' }, 'State', controls.state),
           h('label', { class: 'field-label' }, 'Priority', controls.priority),
           h('label', { class: 'field-label' }, 'Severity', controls.severity),
-          h('label', { class: 'field-label' }, 'Assigned to', controls.assignedTo, datalist),
-          controls.program.element,
+          h('div', { class: 'sm:col-span-2' }, controls.program.element),
           h('label', { class: 'field-label sm:col-span-3' }, 'Iteration path', controls.iterationPath),
           h('div', { class: 'sm:col-span-3' }, controls.tags.element),
         ),
@@ -369,9 +360,6 @@ export class WorkItemDialog {
       state: c.state.value as WorkItemState,
       priority: Number(c.priority.value),
       severity: c.severity.value,
-      assignedTo: c.assignedTo.value,
-      // Area path is no longer edited in the UI (replaced by Program).
-      areaPath: this.item?.areaPath ?? '',
       iterationPath: c.iterationPath.value,
       program: c.program.value || null,
       tags: c.tags.value,
@@ -410,7 +398,6 @@ export class WorkItemDialog {
           priority: final.priority,
           severity: final.severity,
           description: final.description || null,
-          assignedTo: (final.assignedTo ?? '').trim() || null,
           iterationPath: final.iterationPath.trim() || undefined,
           program: final.program || undefined,
           tags: final.tags.length > 0 ? final.tags : undefined,
