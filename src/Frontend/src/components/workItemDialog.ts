@@ -5,6 +5,7 @@
  * containment and Escape.
  */
 import { ApiError, type ApiClient } from '../services/apiClient';
+import type { ReadState } from '../services/readState';
 import {
   PRIORITY_LABELS,
   SEVERITIES,
@@ -36,6 +37,8 @@ export interface WorkItemDialogHandlers {
   onProgramAdded?(name: string): void;
   /** The card's unread AI reply was marked read by opening it (1.9.0). */
   onRead?(id: number): void;
+  /** This browser's per-card read tracking (1.10.0). */
+  readState?: ReadState;
 }
 
 interface FormControls {
@@ -96,6 +99,10 @@ export class WorkItemDialog {
   private commentEditor: RichTextEditor | null = null;
   private historyHost: HTMLElement | null = null;
   private returnFocus: HTMLElement | null = null;
+  /** What this browser had read when the dialog opened: decides which comments are highlighted. */
+  private readSnapshot: string | null = null;
+  /** Comments posted from this dialog: never shown as unread to their author. */
+  private readonly ownEntryIds = new Set<number>();
   private errorRegion: HTMLElement | null = null;
 
   constructor(
@@ -134,8 +141,12 @@ export class WorkItemDialog {
     try {
       const item = await this.api.getWorkItem(id);
       this.item = item;
+      this.ownEntryIds.clear();
+      this.readSnapshot = this.handlers.readState?.readAt(id) ?? null;
       this.render(item);
       this.show();
+      // Opening the card reads it - for this browser only.
+      this.handlers.readState?.markRead(item);
       if (item.discussionStatus === 'UnreadReply') {
         // Opening the card is reading it. Best effort: a failure only leaves the badge up.
         void this.api.markRead(id).then(() => this.handlers.onRead?.(id), () => undefined);
@@ -345,6 +356,24 @@ export class WorkItemDialog {
     );
   }
 
+  private isUnreadEntry(item: WorkItem, entry: WorkItemHistoryEntry): boolean {
+    const readState = this.handlers.readState;
+    return Boolean(entry.comment) && readState !== undefined && !this.ownEntryIds.has(entry.id) &&
+      readState.isEntryUnread(item.id, entry.changeDate, this.readSnapshot);
+  }
+
+  /** Marks this comment and every newer one unread for this browser (1.10.0). */
+  private markUnreadFrom(item: WorkItem, entry: WorkItemHistoryEntry): void {
+    const readState = this.handlers.readState;
+    if (!readState) return;
+    readState.markUnreadFrom(item.id, entry.changeDate);
+    this.readSnapshot = readState.readAt(item.id);
+    this.ownEntryIds.clear();
+    this.historyHost?.replaceChildren(this.renderHistory(item));
+    this.announcer.announce('Marked as unread. The card shows as unread on the board until you open it again.');
+    this.dialog.querySelector<HTMLElement>(`[data-history-id="${entry.id}"] [data-testid="mark-unread"]`)?.focus();
+  }
+
   private renderHistory(item: WorkItem): HTMLElement {
     const history = [...(item.history ?? [])].reverse();
     if (history.length === 0) return h('p', { class: 'text-sm text-muted' }, 'No history yet.');
@@ -354,10 +383,23 @@ export class WorkItemDialog {
       const changes = describeChanges(entry);
       const comment = h('div', { class: 'markdown mt-1' });
       if (entry.comment) setMarkdown(comment, entry.comment);
+      const unread = this.isUnreadEntry(item, entry);
+      let markUnread: HTMLButtonElement | null = null;
+      if (entry.comment && this.handlers.readState && !unread) {
+        markUnread = h('button', {
+          type: 'button', class: 'mark-unread-btn', 'data-testid': 'mark-unread',
+          title: 'Mark this comment and newer ones as unread for you',
+        }, h('span', { 'aria-hidden': 'true' }, '✉ '), 'Mark unread');
+        markUnread.addEventListener('click', () => this.markUnreadFrom(item, entry));
+      }
       list.appendChild(
         h(
           'li',
-          { class: 'rounded border border-line/40 p-2 text-sm', 'data-history-id': entry.id },
+          {
+            class: `rounded border border-line/40 p-2 text-sm${unread ? ' history-unread' : ''}`,
+            'data-history-id': entry.id,
+            'data-unread': unread ? 'true' : null,
+          },
           h(
             'div',
             { class: 'flex flex-wrap items-center gap-2' },
@@ -366,6 +408,9 @@ export class WorkItemDialog {
               ? createAiBadge({ id: entry.id, aiAgentIdentity: entry.agentName }, 'history')
               : null,
             h('time', { datetime: entry.changeDate, class: 'text-xs text-muted' }, formatDate(entry.changeDate)),
+            unread ? h('span', { class: 'discussion-pill discussion-unread', 'data-testid': 'comment-unread' }, 'New', h('span', { class: 'sr-only' }, ' unread comment')) : null,
+            markUnread ? h('span', { class: 'flex-1' }) : null,
+            markUnread,
           ),
           changes.length > 0 ? h('ul', { class: 'mt-1 list-disc pl-5 text-xs text-muted' }, ...changes.map((c) => h('li', {}, c))) : null,
           entry.comment ? comment : null,
@@ -462,8 +507,11 @@ export class WorkItemDialog {
     }
     button.disabled = true;
     try {
-      await this.api.addComment(this.item.id, text);
+      const posted = await this.api.addComment(this.item.id, text);
+      this.ownEntryIds.add(posted.id);
       const refreshed = await this.api.getWorkItem(this.item.id);
+      // Your own comment is read by definition.
+      this.handlers.readState?.markRead(refreshed);
       // Keep the fields being edited; only the history and comment box change.
       this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt };
       this.historyHost?.replaceChildren(this.renderHistory(refreshed));

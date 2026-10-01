@@ -81,6 +81,8 @@ export interface WorkItem {
   /** Comments in the card's history (1.9.0). */
   commentCount?: number;
   discussionStatus?: DiscussionStatus | null;
+  /** Client-only (1.10.0): this browser has not read the newest comment. */
+  unread?: boolean;
   lastModifiedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -133,6 +135,8 @@ export interface BoardFilter {
   program?: string;
   tag?: string;
   discussion?: DiscussionStatus;
+  /** Client-only (1.10.0): show only cards with comments this browser hasn't read. */
+  unreadOnly?: boolean;
 }
 
 export interface CreateWorkItemRequest {

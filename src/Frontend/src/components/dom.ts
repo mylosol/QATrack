@@ -53,6 +53,7 @@ export function byId<T extends HTMLElement = HTMLElement>(id: string, root: Docu
 
 /** Formats an ISO UTC timestamp in the viewer's locale. */
 export function formatDate(iso: string): string {
-  const d = new Date(iso);
+  // Trim 7-digit fractional seconds, which Safari cannot parse.
+  const d = new Date(iso.replace(/(\.\d{3})\d+/, '$1'));
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
