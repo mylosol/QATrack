@@ -37,13 +37,27 @@ describe('createCard', () => {
     expect(createCard(makeItem({ type: 'Bug', programVersion: null })).querySelector('[data-testid="card-program-version"]')).toBeNull();
   });
 
-  it('flags an unread AI reply, naming the agent for screen readers (1.9.0)', () => {
-    const li = createCard(makeItem({ id: 5, discussionStatus: 'UnreadReply', lastAgentCommentBy: 'Codex-Fixer', commentCount: 2 }));
-    const pill = li.querySelector('#card-meta-5 [data-testid="discussion-pill"]')!;
-    expect(pill.textContent).toBe('New reply from Codex-Fixer, not read yet');
-    expect(pill.classList.contains('discussion-unread')).toBe(true);
-    expect(li.querySelector('article')!.dataset.discussion).toBe('UnreadReply');
-    expect(li.querySelector('[data-testid="card-comments"]')!.textContent).toBe('💬 22 comments');
+  it('shows "Unread" and a bold comment count when this browser has unread comments (1.10.0)', () => {
+    const li = createCard(makeItem({ id: 5, unread: true, commentCount: 2 }));
+    const pill = li.querySelector('#card-meta-5 [data-testid="unread-pill"]')!;
+    expect(pill.textContent).toBe('Unread: new comments since you last opened it');
+    expect(li.querySelector('article')!.dataset.unread).toBe('true');
+    const count = li.querySelector('[data-testid="card-comments"]')!;
+    expect(count.classList.contains('comments-unread')).toBe(true);
+    expect(count.getAttribute('title')).toBe('2 comments, some unread');
+  });
+
+  it('shows a plain count when every comment is read', () => {
+    const li = createCard(makeItem({ unread: false, commentCount: 3 }));
+    expect(li.querySelector('[data-testid="unread-pill"]')).toBeNull();
+    expect(li.querySelector('[data-testid="card-comments"]')!.classList.contains('comments-read')).toBe(true);
+    expect(li.querySelector('article')!.hasAttribute('data-unread')).toBe(false);
+  });
+
+  it('can be unread and waiting for an AI at the same time', () => {
+    const li = createCard(makeItem({ unread: true, discussionStatus: 'AwaitingAgent', commentCount: 2 }));
+    expect(li.querySelector('[data-testid="unread-pill"]')).not.toBeNull();
+    expect(li.querySelector('[data-testid="discussion-pill"]')!.textContent).toBe('Waiting for AI');
   });
 
   it('shows "Waiting for AI" when a person commented last, and nothing when quiet', () => {

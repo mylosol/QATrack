@@ -28,20 +28,24 @@ export function createAiBadge(item: Pick<WorkItem, 'id' | 'aiAgentIdentity'>, id
   );
 }
 
-/** "New reply" / "Waiting for AI" pill for a card's discussion (1.9.0), or null. */
-export function createDiscussionPill(item: Pick<WorkItem, 'discussionStatus' | 'lastAgentCommentBy'>): HTMLElement | null {
-  if (item.discussionStatus === 'UnreadReply') {
-    const who = item.lastAgentCommentBy ?? 'an AI agent';
-    return h('span', {
-      class: 'discussion-pill discussion-unread', 'data-testid': 'discussion-pill', title: `New comment from ${who} that nobody has read yet`,
-    }, 'New reply', h('span', { class: 'sr-only' }, ` from ${who}, not read yet`));
+/**
+ * Discussion pills for a card: "Unread" when this browser has not read its
+ * newest comment (1.10.0), "Waiting for AI" when a person commented and no AI
+ * agent has replied yet (1.9.0).
+ */
+export function createDiscussionPills(item: Pick<WorkItem, 'discussionStatus' | 'unread'>): HTMLElement[] {
+  const pills: HTMLElement[] = [];
+  if (item.unread) {
+    pills.push(h('span', {
+      class: 'discussion-pill discussion-unread', 'data-testid': 'unread-pill', title: 'New comments since you last opened this card',
+    }, 'Unread', h('span', { class: 'sr-only' }, ': new comments since you last opened it')));
   }
   if (item.discussionStatus === 'AwaitingAgent') {
-    return h('span', {
+    pills.push(h('span', {
       class: 'discussion-pill discussion-waiting', 'data-testid': 'discussion-pill', title: 'A person commented and no AI agent has replied yet',
-    }, 'Waiting for AI');
+    }, 'Waiting for AI'));
   }
-  return null;
+  return pills;
 }
 
 /** Builds the list item for one card. */
@@ -59,6 +63,7 @@ export function createCard(item: WorkItem): HTMLLIElement {
       'data-card-id': item.id,
       'data-state': item.state,
       'data-discussion': item.discussionStatus ?? null,
+      'data-unread': item.unread ? 'true' : null,
       'aria-labelledby': titleId,
       'aria-describedby': `${metaId} kb-instructions`,
       'aria-roledescription': 'movable card',
@@ -73,7 +78,7 @@ export function createCard(item: WorkItem): HTMLLIElement {
     h(
       'div',
       { class: 'card-meta', id: metaId },
-      createDiscussionPill(item),
+      ...createDiscussionPills(item),
       h('span', {}, `#${item.id}`),
       h('span', { title: `Priority ${item.priority} - ${priorityLabel}` }, `P${item.priority} ${priorityLabel}`),
       item.type === 'Bug' ? h('span', {}, `Severity ${item.severity}`) : null,
@@ -81,7 +86,10 @@ export function createCard(item: WorkItem): HTMLLIElement {
         ? h('span', { 'data-testid': 'card-program-version', title: 'Program version the bug was found in' }, `Version ${item.programVersion}`)
         : null,
       item.commentCount
-        ? h('span', { 'data-testid': 'card-comments', title: `${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}` },
+        ? h('span', {
+            class: item.unread ? 'comments-unread' : 'comments-read', 'data-testid': 'card-comments',
+            title: `${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}${item.unread ? ', some unread' : ', all read'}`,
+          },
             h('span', { 'aria-hidden': 'true' }, `💬 ${item.commentCount}`),
             h('span', { class: 'sr-only' }, `${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}`))
         : null,

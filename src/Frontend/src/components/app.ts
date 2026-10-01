@@ -3,6 +3,7 @@
  * view, dialog and announcer together. All server calls go through ApiClient.
  */
 import { ApiClient, ApiError } from '../services/apiClient';
+import { ReadState } from '../services/readState';
 import type { Board, BoardFilter, WorkItem, WorkItemState } from '../services/types';
 import { Announcer } from './announcer';
 import { BoardView } from './board';
@@ -21,6 +22,8 @@ export class App {
   readonly toolbar: FilterToolbar;
   readonly dialog: WorkItemDialog;
   readonly themeSwitcher: ThemeSwitcher;
+  /** Per-browser read tracking for comments (1.10.0). */
+  readonly readState = new ReadState();
 
   private board: Board | null = null;
   private filter: BoardFilter = {};
@@ -44,6 +47,11 @@ export class App {
         void this.refresh({ announceSummary: true });
       },
       onNewItem: () => this.dialog.openNew(),
+      onMarkAllRead: () => {
+        const items = this.board?.columns.flatMap((c) => c.items) ?? [];
+        const count = this.readState.markAllRead(items);
+        this.announcer.announce(`Marked ${count} card${count === 1 ? '' : 's'} as read.`);
+      },
     });
 
     this.api = new ApiClient({
@@ -65,11 +73,14 @@ export class App {
       tags: () => this.board?.metadata.tags ?? [],
       onProgramAdded: () => void this.refresh({ quiet: true }),
       onRead: () => void this.refresh({ quiet: true }),
+      readState: this.readState,
     });
   }
 
   /** Initial load + background refresh. */
   start(): void {
+    // Read/unread changes (here or in another tab) only need a re-render.
+    this.readState.onChange(() => this.renderBoard());
     void this.refresh();
     window.setInterval(() => {
       if (document.hidden || this.dialog.isOpen || this.isInteracting()) return;
@@ -98,13 +109,7 @@ export class App {
       const board = await this.api.getBoard(this.filter);
       if (seq !== this.requestSeq) return null;
       this.board = board;
-      this.boardView.render(board);
-      this.toolbar.setPrograms(board.metadata.programs ?? []);
-      this.toolbar.setTags(board.metadata.tags ?? []);
-      this.toolbar.setDiscussionCounts(board.metadata.unreadReplyCount ?? 0, board.metadata.awaitingAgentCount ?? 0);
-      const visible = board.columns.reduce((n, c) => n + c.items.length, 0);
-      const total = board.columns.reduce((n, c) => n + c.itemCount, 0);
-      const summary = this.toolbar.setSummary(visible, total);
+      const summary = this.renderBoard();
       if (options.announceSummary) this.announcer.announce(summary);
       if (options.focusId !== undefined) this.boardView.focusCard(options.focusId);
       this.clearError();
@@ -116,6 +121,33 @@ export class App {
       }
       return null;
     }
+  }
+
+  /**
+   * Renders the last loaded board: marks cards unread for this browser,
+   * applies the client-side "Unread by me" filter, and updates the toolbar.
+   * Returns the summary text.
+   */
+  renderBoard(): string {
+    const board = this.board;
+    if (!board) return '';
+    const unreadOnly = Boolean(this.filter.unreadOnly);
+    let unreadCount = 0;
+    const columns = board.columns.map((column) => {
+      const items = column.items.map((item) => {
+        const unread = this.readState.isUnread(item);
+        if (unread) unreadCount++;
+        return { ...item, unread };
+      });
+      return { ...column, items: unreadOnly ? items.filter((i) => i.unread) : items };
+    });
+    this.boardView.render({ ...board, columns });
+    this.toolbar.setPrograms(board.metadata.programs ?? []);
+    this.toolbar.setTags(board.metadata.tags ?? []);
+    this.toolbar.setDiscussionCounts(unreadCount, board.metadata.awaitingAgentCount ?? 0);
+    const visible = columns.reduce((n, c) => n + c.items.length, 0);
+    const total = board.columns.reduce((n, c) => n + c.itemCount, 0);
+    return this.toolbar.setSummary(visible, total);
   }
 
   /**

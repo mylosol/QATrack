@@ -3,6 +3,22 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-10-01
+
+### Added
+- **Unread is now per person.** Each browser remembers which comments it has read, so when several people use the board, one person opening a card no longer hides a new comment from the others.
+  - Cards with comments you haven't read show **Unread** and a bold 💬 count. Cards whose comments you've all read show a plain grey count.
+  - This counts comments from AI agents and from other people. Your own comments are never unread to you.
+- **"Mark unread" on every comment** in a card's history, as in email: that comment and every newer one become unread for you, and the card shows **Unread** on the board until you open it again.
+- **Unread comments are highlighted** inside a card (a blue edge and a **New** label), so you can see which messages you haven't read yet.
+- The toolbar shows "💬 N unread", which filters to your unread cards, and a **Mark all read** button. The Discussion filter offers **Unread by me** and **Waiting for AI**.
+
+### Changed
+- The board's "New reply" label (1.9.0, shared by everyone) is replaced by the per-person **Unread** label. **Waiting for AI** works as before.
+- Read state lives in each browser (there are no user accounts). Another computer, another browser, or clearing site data starts fresh, showing all commented cards as unread; **Mark all read** clears that in one click.
+- Dates in the history now also display correctly in Safari.
+- No API or database changes: agents are unaffected and won't be prompted to re-read the API docs.
+
 ## [1.9.0] - 2026-09-30
 
 ### Added

@@ -11,6 +11,8 @@ export const DISPLAY_NAME_STORAGE_KEY = 'kanban_display_name';
 export interface FilterToolbarHandlers {
   onFilterChange(filter: BoardFilter): void;
   onNewItem(): void;
+  /** "Mark all read" in the toolbar (1.10.0). */
+  onMarkAllRead?(): void;
 }
 
 /** Reads the saved display name; storage may be unavailable (private mode). */
@@ -70,7 +72,7 @@ export class FilterToolbar {
       'select',
       { class: 'field', name: 'discussion', 'data-testid': 'filter-discussion' },
       h('option', { value: '' }, 'All cards'),
-      h('option', { value: 'UnreadReply' }, 'New AI replies'),
+      h('option', { value: 'Unread' }, 'Unread by me'),
       h('option', { value: 'AwaitingAgent' }, 'Waiting for AI'),
     );
     this.discussionShortcuts = h('span', { class: 'flex flex-wrap items-center gap-2', 'data-testid': 'discussion-shortcuts' });
@@ -132,7 +134,8 @@ export class FilterToolbar {
       aiModified: this.aiCheckbox.checked || undefined,
       program: this.programSelect.value || undefined,
       tag: this.tagSelect.value || undefined,
-      discussion: (this.discussionSelect.value || undefined) as DiscussionStatus | undefined,
+      discussion: this.discussionSelect.value === 'AwaitingAgent' ? 'AwaitingAgent' : undefined,
+      unreadOnly: this.discussionSelect.value === 'Unread' || undefined,
     };
   }
 
@@ -144,7 +147,7 @@ export class FilterToolbar {
   /** True when any filter is active. */
   get isFiltered(): boolean {
     const v = this.value;
-    return Boolean(v.type || v.state || v.aiModified || v.program || v.tag || v.discussion);
+    return Boolean(v.type || v.state || v.aiModified || v.program || v.tag || v.discussion || v.unreadOnly);
   }
 
   reset(): void {
@@ -157,15 +160,16 @@ export class FilterToolbar {
   }
 
   /**
-   * Shows how many cards have an unread AI reply / are waiting for an AI, as
-   * buttons that apply the Discussion filter; also labels the filter options.
+   * Shows how many cards have comments unread by this browser / are waiting
+   * for an AI, as buttons that apply the Discussion filter, plus "Mark all
+   * read"; also labels the filter options.
    */
-  setDiscussionCounts(unreadReplies: number, awaitingAgent: number): void {
+  setDiscussionCounts(unread: number, awaitingAgent: number): void {
     const [, unreadOption, waitingOption] = [...this.discussionSelect.options];
-    unreadOption!.textContent = `New AI replies (${unreadReplies})`;
+    unreadOption!.textContent = `Unread by me (${unread})`;
     waitingOption!.textContent = `Waiting for AI (${awaitingAgent})`;
 
-    const shortcut = (status: DiscussionStatus, text: string, cls: string): HTMLButtonElement => {
+    const shortcut = (status: 'Unread' | DiscussionStatus, text: string, cls: string): HTMLButtonElement => {
       const button = h('button', {
         type: 'button', class: `discussion-pill ${cls}`, 'data-testid': `shortcut-${status}`,
         'aria-pressed': String(this.discussionSelect.value === status),
@@ -177,9 +181,16 @@ export class FilterToolbar {
       return button;
     };
     this.discussionShortcuts.replaceChildren(
-      ...(unreadReplies > 0 ? [shortcut('UnreadReply', `💬 ${unreadReplies} new ${unreadReplies === 1 ? 'reply' : 'replies'}`, 'discussion-unread')] : []),
+      ...(unread > 0 ? [shortcut('Unread', `💬 ${unread} unread`, 'discussion-unread')] : []),
+      ...(unread > 0 ? [this.markAllReadButton()] : []),
       ...(awaitingAgent > 0 ? [shortcut('AwaitingAgent', `${awaitingAgent} waiting for AI`, 'discussion-waiting')] : []),
     );
+  }
+
+  private markAllReadButton(): HTMLButtonElement {
+    const button = h('button', { type: 'button', class: 'btn py-0.5 text-xs', 'data-testid': 'mark-all-read' }, 'Mark all read');
+    button.addEventListener('click', () => this.handlers.onMarkAllRead?.());
+    return button;
   }
 
   /** Refreshes the Program filter options, keeping the selection. */

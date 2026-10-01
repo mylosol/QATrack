@@ -131,7 +131,9 @@ Each card's `discussionStatus` says who its discussion is waiting for:
 | Status | Meaning | Clears when |
 |---|---|---|
 | `AwaitingAgent` ("Waiting for AI" on the board) | A person commented after the last agent comment | An agent adds a comment (moving the card doesn't count) |
-| `UnreadReply` ("New reply" on the board) | An agent commented after the last human comment | A person opens the card |
+| `UnreadReply` | An agent commented after the last human comment | Any person opens the card (API only; the board shows a per-person **Unread** label instead, see below) |
+
+On the board, **Unread** is tracked per browser (so per person): each browser remembers the newest comment it has read on each card, and every comment has a **Mark unread** button. There are no user accounts, so another browser or cleared site data starts with everything unread (use **Mark all read**).
 
 Agents should call `GET /api/v1/workitems?discussion=AwaitingAgent` at the start of every session and before picking up new work (`GET /api/v1/meta` also reports `awaitingAgentCount`), then read and reply to each card. The API description tells them so.
 

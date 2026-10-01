@@ -48,27 +48,33 @@ describe('FilterToolbar', () => {
     expect(toolbar.value.tag).toBeUndefined();
   });
 
-  it('filters by discussion status, with counts and one-click shortcuts (1.9.0)', () => {
-    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+  it('filters by "Unread by me" and "Waiting for AI", with counts and one-click shortcuts', () => {
+    const onMarkAllRead = vi.fn();
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem, onMarkAllRead });
     toolbar.setDiscussionCounts(2, 1);
 
     const options = [...select('filter-discussion').options].map((o) => o.textContent);
-    expect(options).toEqual(['All cards', 'New AI replies (2)', 'Waiting for AI (1)']);
+    expect(options).toEqual(['All cards', 'Unread by me (2)', 'Waiting for AI (1)']);
 
-    const unread = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-UnreadReply"]')!;
-    expect(unread.textContent).toBe('💬 2 new replies');
+    const unread = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-Unread"]')!;
+    expect(unread.textContent).toBe('💬 2 unread');
     unread.click();
-    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ discussion: 'UnreadReply' }));
+    // "Unread by me" is applied in the browser, never sent to the server.
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ unreadOnly: true, discussion: undefined }));
     expect(toolbar.isFiltered).toBe(true);
 
-    // Clicking the active shortcut again clears it.
     toolbar.setDiscussionCounts(2, 1);
-    const again = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-UnreadReply"]')!;
+    const again = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-Unread"]')!;
     expect(again.getAttribute('aria-pressed')).toBe('true');
     again.click();
-    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ discussion: undefined }));
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ unreadOnly: undefined }));
 
-    expect(root.querySelector('[data-testid="shortcut-AwaitingAgent"]')!.textContent).toBe('1 waiting for AI');
+    root.querySelector<HTMLButtonElement>('[data-testid="shortcut-AwaitingAgent"]')!.click();
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ discussion: 'AwaitingAgent', unreadOnly: undefined }));
+
+    root.querySelector<HTMLButtonElement>('[data-testid="mark-all-read"]')!.click();
+    expect(onMarkAllRead).toHaveBeenCalledOnce();
+
     toolbar.setDiscussionCounts(0, 0);
     expect(root.querySelector('[data-testid="discussion-shortcuts"]')!.children).toHaveLength(0);
   });
@@ -81,7 +87,7 @@ describe('FilterToolbar', () => {
     ai.checked = true;
     ai.dispatchEvent(new Event('change'));
 
-    expect(onFilterChange).toHaveBeenLastCalledWith({ type: 'Bug', state: '', aiModified: true, program: undefined, tag: undefined, discussion: undefined });
+    expect(onFilterChange).toHaveBeenLastCalledWith({ type: 'Bug', state: '', aiModified: true, program: undefined, tag: undefined, discussion: undefined, unreadOnly: undefined });
     expect(toolbar.isFiltered).toBe(true);
   });
 
@@ -90,7 +96,7 @@ describe('FilterToolbar', () => {
     select('filter-state').value = 'Active';
     root.querySelector<HTMLButtonElement>('[data-testid="filter-clear"]')!.click();
     expect(toolbar.isFiltered).toBe(false);
-    expect(onFilterChange).toHaveBeenCalledWith({ type: '', state: '', aiModified: undefined, program: undefined, tag: undefined, discussion: undefined });
+    expect(onFilterChange).toHaveBeenCalledWith({ type: '', state: '', aiModified: undefined, program: undefined, tag: undefined, discussion: undefined, unreadOnly: undefined });
   });
 
   it('summarizes results', () => {

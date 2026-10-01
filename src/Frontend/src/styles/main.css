@@ -321,6 +321,31 @@ button.discussion-pill[aria-pressed='true'] {
   outline-offset: 2px;
 }
 
+/* Per-person read state (1.10.0). */
+.comments-unread {
+  font-weight: 700;
+  color: rgb(var(--color-fg));
+}
+.comments-read {
+  color: rgb(var(--color-muted));
+}
+.history-unread {
+  border-left: 4px solid rgb(var(--color-primary));
+  background: rgb(var(--color-column) / 0.5);
+}
+.mark-unread-btn {
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(var(--color-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.mark-unread-btn:hover {
+  background: rgb(var(--color-column));
+}
+
 /* Tag suggestion listbox (1.6.1): anchored under the tag box. */
 .tag-suggestions {
   position: absolute;
