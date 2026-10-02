@@ -203,7 +203,7 @@ IIS cannot swap a single site with zero downtime. A redeploy shows the "being up
 
 - WCAG 2.1 AA colour tokens for light and dark themes. `src/styles/contrast.test.ts` fails the build if any text pairing drops below 4.5:1 or any UI boundary or focus ring below 3:1.
 - Keyboard card moves: focus a card, press **Space/Enter** to pick it up, **←/→** to change columns, **Space/Enter** to drop, and **Esc** to cancel.
-- `aria-live` announcements for moves, WIP-limit overages (assertive), filters, and theme changes.
+- `aria-live` announcements for moves, filters, and theme changes. (WIP-limit warnings are announced assertively too, but no column has a limit since 1.11.0.)
 - The Playwright suite runs axe-core scans of the board and dialogs in both themes.
 
 ## Security notes

@@ -26,7 +26,8 @@ export function wipLabel(count: number, limit: number | null): string {
 
 /** Screen-reader friendly description of the column's WIP status. */
 export function wipDescription(name: string, count: number, limit: number | null): string {
-  if (limit === null) return `${name}: ${count} ${count === 1 ? 'item' : 'items'}, no WIP limit.`;
+  // No column has a limit by default since 1.11.0, so don't repeat "no WIP limit" on every header.
+  if (limit === null) return `${name}: ${count} ${count === 1 ? 'item' : 'items'}.`;
   const base = `${name}: ${count} of ${limit} WIP limit.`;
   return isOverWip(count, limit) ? `${base} WIP limit exceeded by ${count - limit}.` : base;
 }

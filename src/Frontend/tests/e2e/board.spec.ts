@@ -6,14 +6,13 @@ import { expect, test } from '@playwright/test';
 import { cardLocator, columnList, createViaUi, getItem, openBoard, uniqueTitle } from './helpers';
 
 test.describe('Board', () => {
-  test('renders the four spec columns with WIP limits', async ({ page }) => {
+  test('renders the four spec columns with plain counts and no WIP limits (1.11.0)', async ({ page }) => {
     await openBoard(page);
 
     await expect(page.getByRole('heading', { level: 3 })).toHaveText(['New', 'Active', 'Resolved', 'Closed']);
-    await expect(page.getByTestId('wip-Active')).toHaveText(/\d+ \/ 5/);
-    await expect(page.getByTestId('wip-Resolved')).toHaveText(/\d+ \/ 5/);
-    await expect(page.getByTestId('wip-New')).toHaveText(/^\d+$/);
-    await expect(page.getByTestId('wip-Closed')).toHaveText(/^\d+$/);
+    for (const state of ['New', 'Active', 'Resolved', 'Closed']) {
+      await expect(page.getByTestId(`wip-${state}`)).toHaveText(/^\d+$/);
+    }
   });
 
   test('shows the Semantic Version in the header, matching the server', async ({ page, request }) => {
