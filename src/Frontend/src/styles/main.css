@@ -61,6 +61,13 @@
   .btn-primary {
     @apply border-primary bg-primary text-primary-fg hover:bg-primary/90;
   }
+  .btn-danger {
+    @apply border-alert bg-alert text-alert-fg hover:bg-alert/90;
+  }
+  /* "You have unsaved changes" question in the card dialog (1.13.0). */
+  .discard-bar {
+    @apply border-t-2 border-alert bg-column;
+  }
   .field-label {
     @apply flex flex-col gap-1 text-sm font-medium text-fg;
   }

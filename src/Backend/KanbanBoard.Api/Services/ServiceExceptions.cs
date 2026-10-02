@@ -32,3 +32,24 @@ public sealed class WorkItemValidationException : Exception
 
     public IReadOnlyDictionary<string, string[]> Errors { get; }
 }
+
+/// <summary>
+/// Raised when the caller may not perform an action on an existing resource,
+/// e.g. editing someone else's comment (1.13.0). Mapped to HTTP 403.
+/// </summary>
+public sealed class WorkItemForbiddenException : Exception
+{
+    public WorkItemForbiddenException(string message)
+        : base(message)
+    {
+    }
+}
+
+/// <summary>A comment (history entry) id that does not exist on the work item. Mapped to HTTP 404.</summary>
+public sealed class CommentNotFoundException : Exception
+{
+    public CommentNotFoundException(int workItemId, int commentId)
+        : base($"Comment {commentId} was not found on work item {workItemId}.")
+    {
+    }
+}

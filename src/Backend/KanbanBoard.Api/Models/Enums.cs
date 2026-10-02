@@ -75,6 +75,9 @@ public static class WorkItemDefaults
     /// <summary>Max length of a bug's program version (1.7.0).</summary>
     public const int ProgramVersionMaxLength = 64;
 
+    /// <summary>Max length of an in-app report's Idempotency-Key (1.13.0).</summary>
+    public const int ReportKeyMaxLength = 128;
+
     /// <summary>Max length of a tag.</summary>
     public const int TagMaxLength = 50;
 

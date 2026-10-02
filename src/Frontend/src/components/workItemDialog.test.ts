@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeItem } from '../test/fixtures';
-import { describeChanges, diffForUpdate } from './workItemDialog';
+import { canEditComment, commentButtonLabel, DEFAULT_HUMAN_NAME, describeChanges, diffForUpdate } from './workItemDialog';
 
 describe('diffForUpdate', () => {
   const item = makeItem({ id: 1, title: 'T', description: 'd', assignedTo: 'Ana', priority: 2 });
@@ -62,5 +62,39 @@ describe('describeChanges', () => {
       },
     });
     expect(lines).toEqual(['Title set to "New title"', 'AssignedTo cleared (was "Ana")', 'State: "New" → "Active"']);
+  });
+});
+
+describe('canEditComment (1.13.0)', () => {
+  const entry = {
+    id: 5, workItemId: 1, changeDate: '2026-10-02T10:00:00Z', author: 'Robert', isAiAction: false,
+    agentName: null, changedFields: {}, comment: 'Mine',
+  };
+
+  it('lets the author edit, ignoring case and spaces', () => {
+    expect(canEditComment(entry, 'Robert')).toBe(true);
+    expect(canEditComment(entry, '  robert ')).toBe(true);
+  });
+
+  it('refuses other people, AI comments and entries without a comment', () => {
+    expect(canEditComment(entry, 'Alex')).toBe(false);
+    expect(canEditComment({ ...entry, isAiAction: true }, 'Robert')).toBe(false);
+    expect(canEditComment({ ...entry, comment: null }, 'Robert')).toBe(false);
+  });
+
+  it('treats no name as the server default name', () => {
+    const anonymous = { ...entry, author: DEFAULT_HUMAN_NAME };
+    expect(canEditComment(anonymous, null)).toBe(true);
+    expect(canEditComment(anonymous, '   ')).toBe(true);
+    expect(canEditComment(entry, null)).toBe(false);
+  });
+});
+
+describe('commentButtonLabel (1.13.0)', () => {
+  it('says what the click will do', () => {
+    expect(commentButtonLabel(true, '')).toBe('Add comment');
+    expect(commentButtonLabel(false, '')).toBe('Add comment');
+    expect(commentButtonLabel(true, 'Closed')).toBe('Comment & move to Closed');
+    expect(commentButtonLabel(false, 'Resolved')).toBe('Move to Resolved');
   });
 });

@@ -20,6 +20,8 @@ public class KanbanDbContext : DbContext
 
     public DbSet<WorkItemHistory> WorkItemHistory => Set<WorkItemHistory>();
 
+    public DbSet<CommentRevision> CommentRevisions => Set<CommentRevision>();
+
     public DbSet<BoardColumn> BoardColumns => Set<BoardColumn>();
 
     public DbSet<Swimlane> Swimlanes => Set<Swimlane>();
@@ -69,6 +71,9 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.LastAgentCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.CommentCount).IsRequired().HasDefaultValue(0);
             e.Property(x => x.HumanReadAt).HasConversion(NullableUtcConverter);
+            e.Property(x => x.ReportKey).HasMaxLength(WorkItemDefaults.ReportKeyMaxLength);
+            // SQLite allows many NULLs in a unique index: only reports carry a key.
+            e.HasIndex(x => x.ReportKey).IsUnique();
             e.HasIndex(x => x.UpdatedAt);
             e.Property(x => x.AiModified).IsRequired().HasDefaultValue(false);
             e.Property(x => x.AiAgentIdentity).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
@@ -100,7 +105,22 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.AgentName).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.ChangedFieldsJson).IsRequired();
             e.Property(x => x.Comment);
+            e.Property(x => x.EditedAt).HasConversion(NullableUtcConverter);
             e.HasIndex(x => new { x.WorkItemId, x.ChangeDate });
+            e.HasMany(x => x.Revisions)
+                .WithOne(r => r.History!)
+                .HasForeignKey(r => r.HistoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CommentRevision>(e =>
+        {
+            e.ToTable("CommentRevision");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Comment).IsRequired();
+            e.Property(x => x.ReplacedAt).HasConversion(UtcConverter);
+            e.Property(x => x.ReplacedBy).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
         });
 
         modelBuilder.Entity<BoardColumn>(e =>

@@ -34,16 +34,53 @@ public sealed class ReportController : ControllerBase
     /// The card lands in New, tagged <c>in-app-report</c>, authored by <c>reporter</c> (or
     /// "In-app report"). To include a screenshot, upload it first with
     /// <c>POST /api/report/attachments</c> and put the returned <c>markdown</c> in the description.
+    ///
+    /// Send an <c>Idempotency-Key</c> header (a new UUID per report, reused when retrying the
+    /// same report) so a resend after a timeout never files a second card: the first send
+    /// answers 201 Created, any resend with the same key answers 200 OK with the same card and
+    /// <c>replayed: true</c> (whatever the resend's body says).
     /// </remarks>
     /// <param name="request">The report.</param>
+    /// <param name="idempotencyKey">Unique id of this report (e.g. a UUID), 1-128 visible ASCII characters. Optional but recommended.</param>
     /// <param name="ct">Cancellation token.</param>
     [HttpPost("issues", Name = "reportIssue")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(ReportReceiptDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ReportReceiptDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<ReportReceiptDto>> Report([FromBody] ReportIssueRequest request, CancellationToken ct)
-        => StatusCode(StatusCodes.Status201Created, await _reports.ReportAsync(request, ct));
+    public async Task<ActionResult<ReportReceiptDto>> Report(
+        [FromBody] ReportIssueRequest request,
+        [FromHeader(Name = IssueReportService.IdempotencyKeyHeader)] string? idempotencyKey,
+        CancellationToken ct)
+    {
+        var receipt = await _reports.ReportAsync(request, idempotencyKey, CardUrl, ct);
+        if (receipt.Replayed)
+        {
+            Response.Headers["Idempotent-Replayed"] = "true";
+            return Ok(receipt);
+        }
+
+        return StatusCode(StatusCodes.Status201Created, receipt);
+    }
+
+    /// <summary>Check the board is reachable and the reporter key works. Files nothing.</summary>
+    /// <remarks>
+    /// For a "Check connection" button. 200 means reports will be accepted; 401 means a wrong
+    /// key; 503 means reporting is switched off on the server. Pass <c>program</c> to also check
+    /// that the board knows the program name the app reports under. Counts toward the per-minute
+    /// limit like any other request.
+    /// </remarks>
+    /// <param name="program">Optional program name to check, e.g. "ProveOut".</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet("ping", Name = "reportPing")]
+    [ProducesResponseType(typeof(ReportPingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ReportPingDto>> Ping([FromQuery] string? program, CancellationToken ct)
+        => Ok(await _reports.PingAsync(program, ct));
+
+    /// <summary>Board link that opens the card, as the people who reported it would use it.</summary>
+    private string CardUrl(int id) => $"{Request.Scheme}://{Request.Host}{Request.PathBase}/?item={id}";
 
     /// <summary>Upload a screenshot (PNG, JPEG, GIF or WebP, max 5 MB) for a report.</summary>
     /// <remarks>

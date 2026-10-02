@@ -78,9 +78,14 @@ public static class OpenApiDocumentation
                     "land in New, are tagged `in-app-report`, and are authored by the `reporter` name you send.\n\n" +
                     "The reporter key ships inside the programs, so it is deliberately limited: it can only file reports and " +
                     "upload screenshots, cannot read or change the board, and requests are rate-limited per IP address " +
-                    "(HTTP 429 when exceeded; wait and retry). To attach a screenshot, upload it with POST /api/report/attachments " +
-                    "and put the returned `markdown` into the description. HTTP 503 with an HTML body means the server is " +
-                    "being updated: retry shortly.",
+                    "(HTTP 429 with a `Retry-After` header in seconds when exceeded; wait and retry). To attach a screenshot, " +
+                    "upload it with POST /api/report/attachments and put the returned `markdown` into the description.\n\n" +
+                    "Send an `Idempotency-Key` header (a new UUID per report, the same one on every retry of that report): a " +
+                    "resend answers 200 with the card filed the first time (`replayed: true`) instead of filing a duplicate. " +
+                    "The receipt's `id` and `url` identify the new card. GET /api/report/ping checks the key and connection " +
+                    "without filing anything.\n\n" +
+                    "HTTP 503 with a problem+json body means reporting is switched off on the server; 503 with an HTML body " +
+                    "means the server is being updated: retry shortly.",
             });
 
             // Each document lists only its own surface: the AI agent API (/api/v1)

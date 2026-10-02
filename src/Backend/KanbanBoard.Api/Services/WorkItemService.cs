@@ -60,7 +60,12 @@ public sealed class WorkItemService
     }
 
     /// <summary>Creates a work item and its "created" history entry.</summary>
-    public async Task<WorkItemDto> CreateAsync(CreateWorkItemRequest request, CancellationToken ct = default)
+    public Task<WorkItemDto> CreateAsync(CreateWorkItemRequest request, CancellationToken ct = default) =>
+        CreateAsync(request, reportKey: null, ct);
+
+    /// <summary>Creates a work item; <paramref name="reportKey"/> is an in-app report's Idempotency-Key (1.13.0).</summary>
+    /// <exception cref="DbUpdateException">Another card already carries <paramref name="reportKey"/>.</exception>
+    internal async Task<WorkItemDto> CreateAsync(CreateWorkItemRequest request, string? reportKey, CancellationToken ct)
     {
         var title = TextSanitizer.SingleLine(request.Title, WorkItemDefaults.TitleMaxLength)
                     ?? throw new WorkItemValidationException(nameof(request.Title), "Title is required.");
@@ -84,6 +89,7 @@ public sealed class WorkItemService
             IterationPath = TextSanitizer.SingleLine(request.IterationPath, WorkItemDefaults.ShortTextMaxLength)
                             ?? WorkItemDefaults.IterationPath,
             ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength),
+            ReportKey = reportKey,
             CreatedAt = now,
         };
 
@@ -215,6 +221,64 @@ public sealed class WorkItemService
                    ?? throw new WorkItemNotFoundException(id);
 
         var entry = StampAndRecord(item, new Dictionary<string, FieldChange>(), text, _clock.GetUtcNow().UtcDateTime);
+        await _db.SaveChangesAsync(ct);
+        return WorkItemMapper.ToDto(entry);
+    }
+
+    /// <summary>
+    /// A human edits the text of a comment they wrote (1.13.0). The replaced text
+    /// is kept as a <see cref="CommentRevision"/>. The edit counts as a fresh human
+    /// comment for the discussion status (the agent should re-read it) and moves
+    /// UpdatedAt, so agents polling updatedSince see it. No new history row.
+    /// </summary>
+    /// <exception cref="WorkItemNotFoundException">When the work item does not exist.</exception>
+    /// <exception cref="CommentNotFoundException">When the entry does not exist on it or has no comment.</exception>
+    /// <exception cref="WorkItemForbiddenException">An AI comment, or someone else's.</exception>
+    public async Task<WorkItemHistoryDto> EditCommentAsync(int id, int commentId, EditCommentRequest request, CancellationToken ct = default)
+    {
+        var text = TextSanitizer.MultiLine(request.Text, WorkItemDefaults.CommentMaxLength)
+                   ?? throw new WorkItemValidationException(nameof(request.Text), "Comment text is required.");
+
+        var item = await _db.WorkItems.FirstOrDefaultAsync(w => w.Id == id, ct)
+                   ?? throw new WorkItemNotFoundException(id);
+        var entry = await _db.WorkItemHistory.FirstOrDefaultAsync(h => h.Id == commentId && h.WorkItemId == id, ct);
+        if (entry?.Comment is null)
+        {
+            throw new CommentNotFoundException(id, commentId);
+        }
+
+        if (_actor.IsAi || entry.IsAiAction)
+        {
+            throw new WorkItemForbiddenException("AI agent comments cannot be edited.");
+        }
+
+        if (!string.Equals(entry.Author, _actor.DisplayName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new WorkItemForbiddenException(
+                $"Only {entry.Author} can edit this comment. Set your name on the board to the name the comment was posted under.");
+        }
+
+        if (entry.Comment == text)
+        {
+            return WorkItemMapper.ToDto(entry);
+        }
+
+        var now = _clock.GetUtcNow().UtcDateTime;
+        _db.CommentRevisions.Add(new CommentRevision
+        {
+            HistoryId = entry.Id,
+            Comment = entry.Comment,
+            ReplacedAt = now,
+            ReplacedBy = _actor.DisplayName,
+        });
+        entry.Comment = text;
+        entry.EditedAt = now;
+
+        item.UpdatedAt = now;
+        item.LastModifiedBy = _actor.DisplayName;
+        item.LastHumanCommentAt = now;
+        item.LastHumanCommentBy = _actor.DisplayName;
+
         await _db.SaveChangesAsync(ct);
         return WorkItemMapper.ToDto(entry);
     }

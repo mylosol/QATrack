@@ -11,11 +11,21 @@ using Microsoft.AspNetCore.Hosting;
 namespace KanbanBoard.Tests.Api;
 
 /// <summary>1.12.0: "Report an issue" from the programs under test (X-Reporter-Key).</summary>
-public sealed class ReportApiTests : IClassFixture<KanbanApiFactory>
+public sealed class ReportApiTests : IClassFixture<ReportApiTests.Factory>
 {
-    private readonly KanbanApiFactory _factory;
+    /// <summary>Every test here shares one IP: lift the per-minute limit (tested on its own below).</summary>
+    public sealed class Factory : KanbanApiFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.UseSetting("IssueReporting:RequestsPerMinute", "1000");
+        }
+    }
 
-    public ReportApiTests(KanbanApiFactory factory)
+    private readonly Factory _factory;
+
+    public ReportApiTests(Factory factory)
     {
         _factory = factory;
     }
@@ -153,12 +163,111 @@ public sealed class ReportApiTests : IClassFixture<KanbanApiFactory>
         var client = _factory.CreateClient();
         using var report = JsonDocument.Parse(await client.GetStringAsync("/api/openapi-report.json"));
         var paths = report.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ToList();
-        Assert.Equal(new[] { "/api/report/issues", "/api/report/attachments" }, paths);
+        Assert.Equal(new[] { "/api/report/attachments", "/api/report/issues", "/api/report/ping" }, paths.Order().ToArray());
         var schemes = report.RootElement.GetProperty("components").GetProperty("securitySchemes").EnumerateObject().Select(s => s.Name);
         Assert.Equal(new[] { "ReporterKey" }, schemes);
 
         using var agent = JsonDocument.Parse(await client.GetStringAsync("/api/openapi.json"));
         Assert.DoesNotContain(agent.RootElement.GetProperty("paths").EnumerateObject(), p => p.Name.StartsWith("/api/report"));
+    }
+
+    private HttpRequestMessage Report(object body, string? key)
+    {
+        var message = new HttpRequestMessage(HttpMethod.Post, "/api/report/issues") { Content = JsonContent.Create(body) };
+        if (key is not null)
+        {
+            message.Headers.Add("Idempotency-Key", key);
+        }
+
+        return message;
+    }
+
+    [Fact]
+    public async Task Receipt_LinksToTheCard()
+    {
+        var response = await _factory.CreateReporterClient().PostAsJsonAsync("/api/report/issues", new { title = "Link me" });
+        var receipt = (await response.Content.ReadFromJsonAsync<ReportReceiptDto>(KanbanApiFactory.Json))!;
+
+        Assert.Equal($"http://localhost/?item={receipt.Id}", receipt.Url);
+        Assert.False(receipt.Replayed);
+    }
+
+    [Fact]
+    public async Task Resend_WithTheSameIdempotencyKey_ReturnsTheSameCard()
+    {
+        var reporter = _factory.CreateReporterClient();
+        var key = Guid.NewGuid().ToString();
+
+        var first = await reporter.SendAsync(Report(new { title = "Timed out once", reporter = "Jane" }, key));
+        var again = await reporter.SendAsync(Report(new { title = "Timed out once (edited before resend)", reporter = "Jane" }, key));
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal("true", again.Headers.GetValues("Idempotent-Replayed").Single());
+        var a = (await first.Content.ReadFromJsonAsync<ReportReceiptDto>(KanbanApiFactory.Json))!;
+        var b = (await again.Content.ReadFromJsonAsync<ReportReceiptDto>(KanbanApiFactory.Json))!;
+        Assert.Equal(a.Id, b.Id);
+        Assert.True(b.Replayed);
+        Assert.Equal("Timed out once", b.Title);
+        Assert.Equal("Jane (in-app report)", b.ReportedBy);
+        Assert.Equal(a.Url, b.Url);
+
+        var cards = await _factory.CreateAgentClient().GetFromJsonAsync<List<WorkItemDto>>("/api/v1/workitems?tag=in-app-report", KanbanApiFactory.Json);
+        Assert.Single(cards!, c => c.Title.StartsWith("Timed out once"));
+
+        // A different key is a different report.
+        var other = await reporter.SendAsync(Report(new { title = "Timed out once" }, Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.Created, other.StatusCode);
+    }
+
+    [Fact]
+    public async Task SimultaneousResends_StillFileOneCard()
+    {
+        var reporter = _factory.CreateReporterClient();
+        var key = Guid.NewGuid().ToString();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => reporter.SendAsync(Report(new { title = "Double click" }, key))));
+
+        Assert.All(responses, r => Assert.True(r.IsSuccessStatusCode, r.StatusCode.ToString()));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Created);
+        var ids = await Task.WhenAll(responses.Select(async r => (await r.Content.ReadFromJsonAsync<ReportReceiptDto>(KanbanApiFactory.Json))!.Id));
+        Assert.Single(ids.Distinct());
+    }
+
+    [Theory]
+    [InlineData("has spaces in it")]
+    [InlineData("ünïcode")]
+    public async Task BadIdempotencyKey_Is400(string key)
+    {
+        var response = await _factory.CreateReporterClient().SendAsync(Report(new { title = "x" }, key));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Idempotency-Key", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task TooLongIdempotencyKey_Is400()
+    {
+        var response = await _factory.CreateReporterClient().SendAsync(Report(new { title = "x" }, new string('k', 129)));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ping_ChecksKeyAndProgram_WithoutFilingAnything()
+    {
+        var agent = _factory.CreateAgentClient();
+        var before = (await agent.GetFromJsonAsync<List<WorkItemDto>>("/api/v1/workitems", KanbanApiFactory.Json))!.Count;
+
+        var reporter = _factory.CreateReporterClient();
+        var ping = (await reporter.GetFromJsonAsync<ReportPingDto>("/api/report/ping", KanbanApiFactory.Json))!;
+        Assert.Equal("ok", ping.Status);
+        Assert.Equal(AppVersion.Current.Version, ping.Version);
+        Assert.Null(ping.ProgramKnown);
+
+        Assert.True((await reporter.GetFromJsonAsync<ReportPingDto>("/api/report/ping?program=proveout", KanbanApiFactory.Json))!.ProgramKnown);
+        Assert.False((await reporter.GetFromJsonAsync<ReportPingDto>("/api/report/ping?program=Nope", KanbanApiFactory.Json))!.ProgramKnown);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().GetAsync("/api/report/ping")).StatusCode);
+        Assert.Equal(before, (await agent.GetFromJsonAsync<List<WorkItemDto>>("/api/v1/workitems", KanbanApiFactory.Json))!.Count);
     }
 
     [Fact]

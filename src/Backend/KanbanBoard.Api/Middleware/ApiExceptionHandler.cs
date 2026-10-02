@@ -33,6 +33,24 @@ public sealed class ApiExceptionHandler : IExceptionHandler
                 };
                 break;
 
+            case CommentNotFoundException missingComment:
+                problem = new ProblemDetails
+                {
+                    Status = StatusCodes.Status404NotFound,
+                    Title = "Comment not found",
+                    Detail = missingComment.Message,
+                };
+                break;
+
+            case WorkItemForbiddenException forbidden:
+                problem = new ProblemDetails
+                {
+                    Status = StatusCodes.Status403Forbidden,
+                    Title = "Not allowed",
+                    Detail = forbidden.Message,
+                };
+                break;
+
             case WorkItemValidationException invalid:
                 problem = new ValidationProblemDetails(invalid.Errors.ToDictionary(k => k.Key, v => v.Value))
                 {

@@ -38,6 +38,13 @@ public sealed class WorkItemHistoryDto
 
     /// <summary>Discussion comment or automated test output, if any.</summary>
     public string? Comment { get; init; }
+
+    /// <summary>
+    /// UTC time the comment was last edited by its author (1.13.0), or null if it never was.
+    /// An edit also moves the card's lastHumanCommentAt forward, so an edited comment is
+    /// awaiting the agent again and shows up in updatedSince polls.
+    /// </summary>
+    public DateTime? EditedAt { get; init; }
 }
 
 /// <summary>Work item as returned by the API.</summary>
@@ -220,6 +227,15 @@ public sealed class UpdateWorkItemRequest
 
 /// <summary>Discussion comment or automated test output.</summary>
 public sealed class AddCommentRequest
+{
+    /// <summary>Comment text (markdown supported). Required.</summary>
+    [Required(AllowEmptyStrings = false)]
+    [MaxLength(WorkItemDefaults.CommentMaxLength)]
+    public string Text { get; set; } = string.Empty;
+}
+
+/// <summary>New text for a comment, edited by its author on the board (1.13.0).</summary>
+public sealed class EditCommentRequest
 {
     /// <summary>Comment text (markdown supported). Required.</summary>
     [Required(AllowEmptyStrings = false)]

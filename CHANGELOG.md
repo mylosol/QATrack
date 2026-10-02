@@ -3,6 +3,25 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-10-02
+
+### Added
+- **Unsaved changes are never lost by accident.** In the card dialog, a click outside, Escape, Cancel or ✕ no longer closes a dialog with typed fields, an unsent comment or an unsaved comment edit. It asks "Keep editing" / "Discard changes" instead. Reloading or leaving the page asks too. An untouched dialog still closes with a click outside or Escape.
+- **Comment and move in one step.** Under the comment box, **Then** offers "Keep in Active" or "Move to Closed" (or any other state). The button says what will happen ("Comment & move to Closed", or "Move to Closed" with no text) and saves the comment and the state change as one history entry.
+- **Edit your own comments.** Comments posted under your current board name have an **Edit** button; AI comments can't be edited.
+  - The comment shows "(edited ...)". The earlier text is kept in a new `CommentRevision` table for the audit trail.
+  - An edit counts as a new human comment: the card goes back to "Waiting for AI", and is unread again for other people.
+  - AI agent API: history entries have a new `editedAt` field, and an edit moves the card's `lastHumanCommentAt` and `updatedAt`. New `X-API-Schema-Version`; agents are told through `GET /api/v1/meta`.
+- **Card links.** `/?item=31` opens card 31, and the address bar shows the open card's link.
+- **In-app reporting** (for the programs under test):
+  - `Idempotency-Key` header on `POST /api/report/issues`: a resend with the same key returns the card filed the first time (HTTP 200, `replayed: true`) instead of filing a duplicate, even for simultaneous sends.
+  - The receipt includes `url`, a link that opens the new card on the board.
+  - `GET /api/report/ping` (optionally `?program=`) checks the key and connection without filing anything, for a "Check connection" button.
+  - `docs/in-app-reporting.md` rewritten as a full integration guide: fields, receipt, screenshots, idempotency, ping and every error status with example bodies.
+
+### Changed
+- Database: additive migration `AddCommentEditsAndReportKey` (new nullable columns `WorkItemHistory.EditedAt` and `WorkItem.ReportKey`, new table `CommentRevision`). Existing data is untouched.
+
 ## [1.12.0] - 2026-10-02
 
 ### Added

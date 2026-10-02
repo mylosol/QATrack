@@ -48,5 +48,6 @@ public static class WorkItemMapper
         AgentName = history.AgentName,
         ChangedFields = WorkItemChangeTracker.Deserialize(history.ChangedFieldsJson),
         Comment = history.Comment,
+        EditedAt = history.EditedAt,
     };
 }

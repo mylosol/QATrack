@@ -76,6 +76,12 @@ public class WorkItem
     /// <summary>When a human last opened the card while it had an unread agent reply (1.9.0).</summary>
     public DateTime? HumanReadAt { get; set; }
 
+    /// <summary>
+    /// The Idempotency-Key an in-app report was filed with (1.13.0): a resend
+    /// with the same key returns this card instead of filing a duplicate.
+    /// </summary>
+    public string? ReportKey { get; set; }
+
     /// <summary>Tags (many-to-many through the WorkItemTag table).</summary>
     public List<Tag> Tags { get; set; } = new();
 
