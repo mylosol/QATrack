@@ -16,6 +16,11 @@ public static class OpenApiDocumentation
 {
     public const string DocumentName = "v1";
     public const string SchemaPath = "/api/openapi.json";
+
+    /// <summary>Separate document for the in-app issue reporting API (1.12.0).</summary>
+    public const string ReportDocumentName = "report";
+    public const string ReportSchemaPath = "/api/openapi-report.json";
+    public const string ReporterKeySchemeId = "ReporterKey";
     public const string UiRoutePrefix = "api/docs";
     public const string ApiKeySchemeId = "ApiKey";
     public const string AgentIdentitySchemeId = "AgentIdentity";
@@ -63,9 +68,31 @@ public static class OpenApiDocumentation
                     "**Answering humans:** " + AgentDiscussionRule,
             });
 
-            // Only the AI-facing /api/v1 endpoints belong in the tool schema.
-            options.DocInclusionPredicate((_, api) =>
-                api.RelativePath?.StartsWith("api/v1/", StringComparison.OrdinalIgnoreCase) == true);
+            options.SwaggerDoc(ReportDocumentName, new OpenApiInfo
+            {
+                Title = "QATrack in-app issue reporting API",
+                Version = AppVersion.Current.Version,
+                Description =
+                    "Lets the programs under test file issues straight onto the QATrack board from a \"Report an issue\" " +
+                    "feature. Send the reporter key in `X-Reporter-Key`. Reports are recorded as human reports (never as AI), " +
+                    "land in New, are tagged `in-app-report`, and are authored by the `reporter` name you send.\n\n" +
+                    "The reporter key ships inside the programs, so it is deliberately limited: it can only file reports and " +
+                    "upload screenshots, cannot read or change the board, and requests are rate-limited per IP address " +
+                    "(HTTP 429 when exceeded; wait and retry). To attach a screenshot, upload it with POST /api/report/attachments " +
+                    "and put the returned `markdown` into the description. HTTP 503 with an HTML body means the server is " +
+                    "being updated: retry shortly.",
+            });
+
+            // Each document lists only its own surface: the AI agent API (/api/v1)
+            // for tool calling, and the in-app reporting API (/api/report).
+            options.DocInclusionPredicate((docName, api) =>
+            {
+                var path = api.RelativePath ?? string.Empty;
+                return docName == ReportDocumentName
+                    ? path.StartsWith("api/report/", StringComparison.OrdinalIgnoreCase)
+                    : path.StartsWith("api/v1/", StringComparison.OrdinalIgnoreCase);
+            });
+            options.DocumentFilter<ReportDocumentSecurityFilter>();
 
             var xml = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
             if (File.Exists(xml))
@@ -114,6 +141,7 @@ public static class OpenApiDocumentation
             options.RoutePrefix = UiRoutePrefix;
             // Relative so it also works when the site runs under an IIS virtual directory.
             options.SwaggerEndpoint("../openapi.json", "QATrack Kanban API v1");
+            options.SwaggerEndpoint("../openapi-report.json", "QATrack in-app issue reporting");
             options.DocumentTitle = "QATrack API docs";
             options.DisplayOperationId();
         });
@@ -150,6 +178,17 @@ public static class OpenApiDocumentation
             })
             .ExcludeFromDescription();
 
+        app.MapGet(ReportSchemaPath, (HttpRequest request, ISwaggerProvider provider) =>
+            {
+                var document = provider.GetSwagger(
+                    ReportDocumentName,
+                    host: $"{request.Scheme}://{request.Host}",
+                    basePath: request.PathBase.HasValue ? request.PathBase.Value : null);
+                request.HttpContext.Response.Headers.CacheControl = "no-cache";
+                return Results.Text(ApiContract.Serialize(document), "application/json");
+            })
+            .ExcludeFromDescription();
+
         return app;
     }
 }
@@ -162,6 +201,12 @@ internal sealed class ContractHeadersOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
+        // Only the AI agent API carries the contract headers.
+        if (context.ApiDescription.RelativePath?.StartsWith("api/v1/", StringComparison.OrdinalIgnoreCase) != true)
+        {
+            return;
+        }
+
         foreach (var response in operation.Responses.Values)
         {
             response.Headers[ApiContract.SchemaVersionHeader] = new OpenApiHeader
@@ -175,5 +220,36 @@ internal sealed class ContractHeadersOperationFilter : IOperationFilter
                 Schema = new OpenApiSchema { Type = "string" },
             };
         }
+    }
+}
+
+/// <summary>
+/// The reporting document authenticates with <c>X-Reporter-Key</c> only, not
+/// the AI agent headers (which are global security definitions).
+/// </summary>
+internal sealed class ReportDocumentSecurityFilter : IDocumentFilter
+{
+    public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+    {
+        if (context.DocumentName != OpenApiDocumentation.ReportDocumentName)
+        {
+            return;
+        }
+
+        swaggerDoc.Components.SecuritySchemes.Clear();
+        swaggerDoc.Components.SecuritySchemes[OpenApiDocumentation.ReporterKeySchemeId] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.ApiKey,
+            In = ParameterLocation.Header,
+            Name = KanbanBoard.Api.Middleware.IssueReportingOptions.KeyHeader,
+            Description = "Reporter key (IssueReporting:ApiKey on the server). Only files reports and uploads screenshots.",
+        };
+        swaggerDoc.SecurityRequirements = new List<OpenApiSecurityRequirement>
+        {
+            new()
+            {
+                [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = OpenApiDocumentation.ReporterKeySchemeId } }] = Array.Empty<string>(),
+            },
+        };
     }
 }

@@ -60,6 +60,12 @@
     Install only: explicit AI agent API key (min 16 chars). By default an
     existing key is preserved and a new random key is generated only if none exists.
 
+.PARAMETER ReporterApiKey
+    Install only: explicit reporter key for in-app "Report an issue" (min 16
+    chars, must differ from the AI agent key). By default an existing key is
+    preserved and a new random key is generated only if none exists. This key
+    ships inside the programs under test: it can only file reports.
+
 .PARAMETER SharedPassword
     Install / SetPassword: shared password that protects the browser board
     (min 8 characters). Stored only as a PBKDF2-SHA256 hash. With
@@ -117,6 +123,9 @@ param(
     [string]$SourcePath,
 
     [string]$ApiKey,
+
+    # Reporter key for in-app issue reports from the programs under test.
+    [string]$ReporterApiKey,
 
     [switch]$SkipIisConfiguration,
 
@@ -478,6 +487,8 @@ function Invoke-Diagnose {
         Write-Host "    Installed at ${PhysicalPath}: QATrack $installed"
         if (Test-SharedPasswordConfigured $PhysicalPath) { Write-Host '    Board password: set' }
         else { Write-Host '    Board password: NOT set (board open to anyone who can reach it)' -ForegroundColor Yellow }
+        if (Test-ReporterKeyConfigured $PhysicalPath) { Write-Host '    In-app issue reporting: reporter key set' }
+        else { Write-Host '    In-app issue reporting: no reporter key (run Install to generate one)' -ForegroundColor Yellow }
     }
 
     $failed = @($checks | Where-Object { -not $_.Ok })
@@ -676,6 +687,55 @@ function Set-AgentApiKey([string]$SiteRoot) {
     $json | ConvertTo-Json -Depth 10 | Set-Content -Path $path -Encoding UTF8
 }
 
+function Get-SettingsJson([string]$SiteRoot) {
+    <# Reads appsettings.Production.json, or an empty object when it doesn't exist yet. #>
+    $path = Join-Path $SiteRoot 'appsettings.Production.json'
+    if (Test-Path $path) { return Get-Content $path -Raw | ConvertFrom-Json }
+    return New-Object psobject
+}
+
+function Test-ReporterKeyConfigured([string]$SiteRoot) {
+    $json = Get-SettingsJson $SiteRoot
+    if ($null -eq $json.PSObject.Properties['IssueReporting']) { return $false }
+    if ($null -eq $json.IssueReporting.PSObject.Properties['ApiKey']) { return $false }
+    return ([string]$json.IssueReporting.ApiKey).Trim().Length -ge $MinimumApiKeyLength
+}
+
+function Set-ReporterApiKey([string]$SiteRoot) {
+    <# Ensures appsettings.Production.json holds a reporter key for in-app issue reports, distinct from the agent key. #>
+    $path = Join-Path $SiteRoot 'appsettings.Production.json'
+    $json = Get-SettingsJson $SiteRoot
+    if ($null -eq $json.PSObject.Properties['IssueReporting']) {
+        $json | Add-Member -NotePropertyName IssueReporting -NotePropertyValue (New-Object psobject)
+    }
+    if ($null -eq $json.IssueReporting.PSObject.Properties['ApiKey']) {
+        $json.IssueReporting | Add-Member -NotePropertyName ApiKey -NotePropertyValue ''
+    }
+
+    $agentKey = ''
+    if ($null -ne $json.PSObject.Properties['AiAgentApi'] -and $null -ne $json.AiAgentApi.PSObject.Properties['ApiKey']) {
+        $agentKey = ([string]$json.AiAgentApi.ApiKey).Trim()
+    }
+    $existing = ([string]$json.IssueReporting.ApiKey).Trim()
+
+    if ($ReporterApiKey) {
+        if ($ReporterApiKey -ceq $agentKey) { throw '-ReporterApiKey must differ from the AI agent API key.' }
+        $json.IssueReporting.ApiKey = $ReporterApiKey
+        Write-Host '    Reporter key set from -ReporterApiKey.'
+    }
+    elseif ($existing.Length -ge $MinimumApiKeyLength -and $existing -cne $agentKey) {
+        Write-Host '    Keeping the existing reporter key.'
+        return
+    }
+    else {
+        $json.IssueReporting.ApiKey = New-RandomApiKey
+        Write-Host '    Generated a reporter key for in-app "Report an issue" (give it to the programs under test;' -ForegroundColor Yellow
+        Write-Host '    it can only file reports and upload screenshots):' -ForegroundColor Yellow
+        Write-Host "    X-Reporter-Key: $($json.IssueReporting.ApiKey)" -ForegroundColor Yellow
+    }
+    $json | ConvertTo-Json -Depth 10 | Set-Content -Path $path -Encoding UTF8
+}
+
 function Grant-AppDataPermissions([string]$SiteRoot) {
     <# Spec 6.2: Read & Execute, Write and Modify for the App Pool identity and IUSR on App_Data. #>
     $identities = @("IIS AppPool\$AppPoolName", 'IUSR')
@@ -870,6 +930,12 @@ function Invoke-Install {
     if ($ApiKey -and $ApiKey.Length -lt $MinimumApiKeyLength) {
         throw "-ApiKey must be at least $MinimumApiKeyLength characters."
     }
+    if ($ReporterApiKey -and $ReporterApiKey.Length -lt $MinimumApiKeyLength) {
+        throw "-ReporterApiKey must be at least $MinimumApiKeyLength characters."
+    }
+    if ($ReporterApiKey -and $ApiKey -and ($ReporterApiKey -ceq $ApiKey)) {
+        throw '-ReporterApiKey must differ from -ApiKey.'
+    }
     $source = (Resolve-Path $SourcePath).Path
     if (-not (Test-Path (Join-Path $source 'KanbanBoard.Api.dll'))) {
         throw "SourcePath '$source' does not contain KanbanBoard.Api.dll. Run Install from the extracted package folder."
@@ -934,6 +1000,9 @@ function Invoke-Install {
 
         Write-Step 'Configuring the AI agent API key'
         Set-AgentApiKey $target
+
+        Write-Step 'Configuring the reporter key (in-app "Report an issue")'
+        Set-ReporterApiKey $target
 
         Write-Step 'Configuring the shared board password'
         Update-SharedPassword $target

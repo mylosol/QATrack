@@ -46,6 +46,14 @@ public sealed class AccessControlTests : IClassFixture<PasswordProtectedFactory>
         client.PostAsJsonAsync("/api/auth/login", new { password });
 
     [Fact]
+    public async Task InAppReports_WorkWithoutABoardSession()
+    {
+        // Programs under test authenticate with the reporter key, not the board password.
+        var response = await _factory.CreateReporterClient().PostAsJsonAsync("/api/report/issues", new { title = "From the app" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Status_ReportsPasswordRequired_AndNotSignedIn()
     {
         var status = await _factory.CreateBrowser().GetFromJsonAsync<StatusDto>("/api/auth/status");

@@ -14,7 +14,7 @@ import { pbkdf2Sync, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { E2E_API_KEY, E2E_PASSWORD } from './tests/e2e/helpers';
+import { E2E_API_KEY, E2E_PASSWORD, E2E_REPORTER_KEY } from './tests/e2e/helpers';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.E2E_PORT ?? 5199);
@@ -93,6 +93,7 @@ export default defineConfig({
       ASPNETCORE_URLS: baseURL.replace(/\/$/, ''),
       ConnectionStrings__Kanban: `Data Source=${dbPath};Cache=Shared;Mode=ReadWriteCreate;`,
       AiAgentApi__ApiKey: E2E_API_KEY,
+      IssueReporting__ApiKey: E2E_REPORTER_KEY,
       Database__SeedSampleData: 'false',
       AccessControl__SharedPasswordHash: process.env.QATRACK_E2E_PASSWORD_HASH,
       AccessControl__LoginAttemptsPerMinute: '100',

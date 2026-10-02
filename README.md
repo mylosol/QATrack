@@ -161,6 +161,15 @@ If your agent tooling only shows the model response bodies (not headers), add on
 
 **For developers:** any change to the `/api/v1` surface, including XML doc comments, changes the fingerprint. The test `ApiChangeLog_NewestEntry_MatchesTheLiveContract` then fails with the new value. Add an entry to `Services/ApiChangeLog.cs` describing the change for agents, with that value.
 
+## In-app issue reporting (programs under test)
+
+Programs under test can offer a **"Report an issue"** feature that files straight onto the board with a separate, limited **reporter key** (`X-Reporter-Key`):
+
+- **How reports appear:** they are recorded as **human** reports (never AI). They land in New, tagged `in-app-report`, authored by the name the person typed.
+- **What the key can do:** it can only file reports and upload screenshots, and it is rate-limited per IP. It is built into the programs, so assume it can be extracted.
+- **Getting the key:** Install generates it and prints it once. It is stored in `appsettings.Production.json` under `IssueReporting:ApiKey`.
+- **Integration guide:** [docs/in-app-reporting.md](docs/in-app-reporting.md). Machine-readable spec: `/api/openapi-report.json`.
+
 ## Deploying to IIS
 
 **Server prerequisites:** IIS with Management Tools, and the **.NET 8 Hosting Bundle** (it installs ASP.NET Core Module V2). Run `iisreset` after installing the bundle.

@@ -41,6 +41,23 @@ public sealed class ActorContext : IActorContext
         DisplayName = TextSanitizer.SingleLine(displayName, 64) ?? DefaultHumanName;
     }
 
+    /// <summary>Author used for in-app reports that don't name a person.</summary>
+    public const string DefaultReporterName = "In-app report";
+
+    /// <summary>
+    /// Marks the request as a human issue report from a program under test
+    /// (1.12.0): never an AI action. The author is "Jane Doe (in-app report)",
+    /// or "In-app report" when no name was given.
+    /// </summary>
+    /// <param name="reporter">Optional name/email the person typed into the program; sanitized.</param>
+    public void SetReporter(string? reporter)
+    {
+        IsAi = false;
+        AgentIdentity = null;
+        var name = TextSanitizer.SingleLine(reporter, 64);
+        DisplayName = name is null ? DefaultReporterName : $"{name} (in-app report)";
+    }
+
     /// <summary>Marks the request as an authenticated AI agent action.</summary>
     /// <param name="agentIdentity">Already validated X-Agent-Identity value.</param>
     public void SetAiAgent(string agentIdentity)

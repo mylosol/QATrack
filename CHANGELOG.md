@@ -3,6 +3,23 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-10-02
+
+### Added
+- **In-app "Report an issue"**: the programs under test can file issues straight onto the board with a second, separate **reporter key** (`X-Reporter-Key`).
+  - Reports are recorded as **human** reports, never as AI: no AI badge, and they are authored by the person's name, e.g. "Jane Doe (in-app report)", or "In-app report" when no name is given.
+  - They land in **New**, tagged `in-app-report`, with the program, program version and severity the program sends. Optional machine details (OS, build, log lines) are added to the description as a code block.
+  - Screenshots: upload with `POST /api/report/attachments`, then put the returned markdown into the description.
+  - The reporter key ships inside the programs, so it is deliberately limited. It can only file reports (Bug or Feature) and upload screenshots, and it cannot read or change the board.
+  - Requests are rate-limited to 20 per minute per IP address (HTTP 429 with `Retry-After`).
+  - Requests carrying AI agent headers are refused, so agents can't file work as "human".
+  - It must differ from the AI agent key. The server refuses to accept reports until it does.
+  - Separate API documentation: `/api/openapi-report.json`, also listed in `/api/docs`. Integration guide: `docs/in-app-reporting.md`.
+- `deploy-iis.ps1`: Install generates a reporter key if there is none and prints it once (`X-Reporter-Key: ...`). Later installs keep it. `-ReporterApiKey` sets one explicitly, and `-Action Diagnose` shows whether one is set.
+
+### Changed
+- No change to the AI agent API (`/api/v1`): its documentation and `X-API-Schema-Version` are unchanged.
+
 ## [1.11.0] - 2026-10-02
 
 ### Removed
