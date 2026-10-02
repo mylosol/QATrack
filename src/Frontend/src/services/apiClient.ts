@@ -127,6 +127,12 @@ export class ApiClient {
     return this.request<WorkItemHistoryEntry>('POST', `workitems/${encodeURIComponent(String(id))}/comments`, { text });
   }
 
+  /** Replaces the text of a comment you wrote (1.13.0). */
+  editComment(id: number, commentId: number, text: string): Promise<WorkItemHistoryEntry> {
+    return this.request<WorkItemHistoryEntry>(
+      'PUT', `workitems/${encodeURIComponent(String(id))}/comments/${encodeURIComponent(String(commentId))}`, { text });
+  }
+
   /** Records that the card was opened, clearing an unread AI reply (not an edit). */
   async markRead(id: number): Promise<void> {
     await this.request<void>('POST', `workitems/${encodeURIComponent(String(id))}/read`);

@@ -19,6 +19,19 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.13.0",
+            Date = "2026-10-02",
+            SchemaVersion = "664b159c634f",
+            Breaking = false,
+            Summary = new[]
+            {
+                "Humans can now edit the comments they wrote. History entries have a new 'editedAt' (UTC, null when never edited); the entry keeps its id, author and changeDate, and 'comment' holds the new text.",
+                "An edit counts as a new human comment: the card's 'lastHumanCommentAt' and 'updatedAt' move to the edit time, so the card shows discussionStatus 'AwaitingAgent' again and appears in updatedSince polls. Re-read the edited entry (newest editedAt) and reply as usual.",
+                "Cards filed from the programs under test ('Report an issue') are tagged 'in-app-report' and authored \"Name (in-app report)\"; they are human reports - triage them like any other New bug.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.9.0",
             Date = "2026-09-30",
             SchemaVersion = "968fcbd24974",

@@ -51,8 +51,17 @@ public sealed class ReportIssueRequest
 /// </summary>
 public sealed class ReportReceiptDto
 {
-    /// <summary>Work item id on the board (e.g. to show "Thanks - reference #123").</summary>
+    /// <summary>Work item id on the board (e.g. to show "Sent to the QA board as #123").</summary>
     public int Id { get; init; }
+
+    /// <summary>Link that opens this card on the board (1.13.0), e.g. "http://host/?item=123".</summary>
+    public string Url { get; init; } = string.Empty;
+
+    /// <summary>
+    /// True when this answers a resend: the Idempotency-Key was already used, so no new
+    /// card was filed and this is the card from the first send (HTTP 200 instead of 201).
+    /// </summary>
+    public bool Replayed { get; init; }
 
     public string Title { get; init; } = string.Empty;
 
@@ -68,4 +77,29 @@ public sealed class ReportReceiptDto
     public string ReportedBy { get; init; } = string.Empty;
 
     public DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Answer to <c>GET /api/report/ping</c> (1.13.0): the board is up and accepts
+/// reports with this key. Files nothing.
+/// </summary>
+public sealed class ReportPingDto
+{
+    /// <summary>Always "ok" (any other situation is an error status).</summary>
+    public string Status { get; init; } = "ok";
+
+    /// <summary>Board version, e.g. "1.13.0".</summary>
+    public string Version { get; init; } = string.Empty;
+
+    /// <summary>Requests (reports, uploads and pings) allowed per minute per IP address.</summary>
+    public int RequestsPerMinute { get; init; }
+
+    /// <summary>Echo of the <c>program</c> query parameter, or null when none was sent.</summary>
+    public string? Program { get; init; }
+
+    /// <summary>
+    /// When <c>program</c> was sent: true if the board knows it (reports naming it will be
+    /// accepted), false if a report naming it would be rejected. Null when no program was sent.
+    /// </summary>
+    public bool? ProgramKnown { get; init; }
 }

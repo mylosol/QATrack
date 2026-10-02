@@ -146,6 +146,13 @@ Comments live in each item's history, which only `GET /api/v1/workitems/{id}` re
 
 Fill in **Your name (for history)** on the board so your comments show a name instead of "Web UI User".
 
+### Working in the card dialog (1.13.0)
+
+- **Unsaved work is safe:** a click outside the dialog, Escape, Cancel or ✕ never throws away typed fields or an unsent comment. The dialog asks first ("Keep editing" / "Discard changes"), and reloading the page asks too.
+- **Comment and move in one step:** under the comment box, **Then** picks a state, e.g. "Move to Closed". The button becomes "Comment & move to Closed" and records the comment and the move together.
+- **Editing your comments:** comments posted under your current board name have an **Edit** button (AI comments never do). The entry shows "(edited ...)", the earlier text is kept in the database for the audit trail, and the card goes back to "Waiting for AI" so the agent re-reads it. Agents see `editedAt` on the history entry.
+- **Links to cards:** the address bar shows `?item=31` while a card is open; opening such a link opens the card.
+
 ### Keeping agents current when the API changes
 
 | Signal | Where | Use |
@@ -166,7 +173,8 @@ If your agent tooling only shows the model response bodies (not headers), add on
 Programs under test can offer a **"Report an issue"** feature that files straight onto the board with a separate, limited **reporter key** (`X-Reporter-Key`):
 
 - **How reports appear:** they are recorded as **human** reports (never AI). They land in New, tagged `in-app-report`, authored by the name the person typed.
-- **What the key can do:** it can only file reports and upload screenshots, and it is rate-limited per IP. It is built into the programs, so assume it can be extracted.
+- **What the key can do:** it can only file reports, upload screenshots and ping (`GET /api/report/ping`), and it is rate-limited per IP. It is built into the programs, so assume it can be extracted.
+- **No duplicates:** an `Idempotency-Key` header makes a resend return the card filed the first time. The receipt has the card's `id` and a `url` that opens it on the board.
 - **Getting the key:** Install generates it and prints it once. It is stored in `appsettings.Production.json` under `IssueReporting:ApiKey`.
 - **Integration guide:** [docs/in-app-reporting.md](docs/in-app-reporting.md). Machine-readable spec: `/api/openapi-report.json`.
 

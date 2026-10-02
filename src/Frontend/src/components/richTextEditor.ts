@@ -51,6 +51,8 @@ export interface RichTextEditorOptions {
   onError(message: string): void;
   /** Screen reader status messages. */
   announce(message: string): void;
+  /** Called after every user edit (typing, formatting, images). */
+  onChange?(): void;
 }
 
 /** Normalizes rendered HTML so cosmetic markdown differences compare equal. */
@@ -168,6 +170,7 @@ export class RichTextEditor {
     });
     this.textarea.addEventListener('input', () => {
       this.dirty = true;
+      options.onChange?.();
     });
 
     this.fileInput = h('input', {
@@ -238,7 +241,9 @@ export class RichTextEditor {
         handleDrop: (_view, event, _slice, moved) => !moved && this.takeImageFiles((event as DragEvent).dataTransfer?.files),
       },
       onUpdate: () => {
-        if (!this.settingContent) this.dirty = true;
+        if (this.settingContent) return;
+        this.dirty = true;
+        options.onChange?.();
       },
       onTransaction: () => this.syncToolbar(),
     });

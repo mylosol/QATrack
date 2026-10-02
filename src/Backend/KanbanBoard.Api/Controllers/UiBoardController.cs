@@ -92,4 +92,9 @@ public sealed class UiBoardController : ControllerBase
         var entry = await _items.AddCommentAsync(id, request, ct);
         return CreatedAtAction(nameof(Get), new { id }, entry);
     }
+
+    /// <summary>Edit your own comment (1.13.0). The previous text is kept for the audit trail.</summary>
+    [HttpPut("workitems/{id:int}/comments/{commentId:int}")]
+    public async Task<ActionResult<WorkItemHistoryDto>> EditComment(int id, int commentId, [FromBody] EditCommentRequest request, CancellationToken ct)
+        => Ok(await _items.EditCommentAsync(id, commentId, request, ct));
 }

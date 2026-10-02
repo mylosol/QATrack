@@ -51,6 +51,8 @@ export interface WorkItemHistoryEntry {
   agentName: string | null;
   changedFields: Record<string, FieldChange>;
   comment: string | null;
+  /** When the author last edited the comment (1.13.0); null/absent if never. */
+  editedAt?: string | null;
 }
 
 export interface WorkItem {

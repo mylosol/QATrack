@@ -15,6 +15,25 @@ import { WorkItemDialog } from './workItemDialog';
 /** Background refresh interval so agent changes appear without a reload. */
 export const AUTO_REFRESH_MS = 30_000;
 
+/** Query parameter that opens a card: /?item=31 (the in-app report receipt links here, 1.13.0). */
+export const ITEM_PARAM = 'item';
+
+/** The card id in a board link, or null. */
+export function itemIdFromUrl(href: string): number | null {
+  const raw = new URL(href).searchParams.get(ITEM_PARAM);
+  if (!raw || !/^\d{1,9}$/.test(raw)) return null;
+  const id = Number(raw);
+  return id > 0 ? id : null;
+}
+
+/** The same link with the open card (or none) in it. */
+export function urlWithItem(href: string, id: number | null): string {
+  const url = new URL(href);
+  if (id === null) url.searchParams.delete(ITEM_PARAM);
+  else url.searchParams.set(ITEM_PARAM, String(id));
+  return url.toString();
+}
+
 export class App {
   readonly api: ApiClient;
   readonly announcer: Announcer;
@@ -74,6 +93,12 @@ export class App {
       onProgramAdded: () => void this.refresh({ quiet: true }),
       onRead: () => void this.refresh({ quiet: true }),
       readState: this.readState,
+      displayName: () => this.toolbar.displayName,
+      // Keep the open card in the address bar, so the link can be copied and shared.
+      onOpenChange: (id) => {
+        const next = urlWithItem(window.location.href, id);
+        if (next !== window.location.href) window.history.replaceState(window.history.state, '', next);
+      },
     });
   }
 
@@ -81,11 +106,21 @@ export class App {
   start(): void {
     // Read/unread changes (here or in another tab) only need a re-render.
     this.readState.onChange(() => this.renderBoard());
-    void this.refresh();
+    void this.refresh().then(() => this.openLinkedItem());
     window.setInterval(() => {
       if (document.hidden || this.dialog.isOpen || this.isInteracting()) return;
       void this.refresh({ quiet: true });
     }, AUTO_REFRESH_MS);
+  }
+
+  /** Opens the card named in the address bar (/?item=31), e.g. from a report receipt link. */
+  private openLinkedItem(): void {
+    const id = itemIdFromUrl(window.location.href);
+    if (id === null || this.dialog.isOpen) return;
+    void this.dialog.openExisting(id).catch(() => {
+      // Already announced by the dialog; drop the dead link from the address bar.
+      window.history.replaceState(window.history.state, '', urlWithItem(window.location.href, null));
+    });
   }
 
   /** Drag or keyboard grab in progress - a refresh would yank the card away. */

@@ -3,6 +3,10 @@
  * Program and Tags (1.4.0), state transitions, discussion comments and the
  * revision history stream. Built on the native <dialog> element for focus
  * containment and Escape.
+ *
+ * 1.13.0: unsaved work is never thrown away by a stray click or Escape (the
+ * dialog asks first), people edit their own comments, and a comment can move
+ * the card in the same step ("Comment & move to Closed").
  */
 import { ApiError, type ApiClient } from '../services/apiClient';
 import type { ReadState } from '../services/readState';
@@ -39,6 +43,34 @@ export interface WorkItemDialogHandlers {
   onRead?(id: number): void;
   /** This browser's per-card read tracking (1.10.0). */
   readState?: ReadState;
+  /** The name set on the toolbar: comments posted under it can be edited here (1.13.0). */
+  displayName?(): string | null;
+  /** A card was opened (its id) or the dialog closed (null), e.g. to keep a link in the address bar. */
+  onOpenChange?(id: number | null): void;
+}
+
+/** Author the server records when no name is set on the toolbar (ActorContext.DefaultHumanName). */
+export const DEFAULT_HUMAN_NAME = 'Web UI User';
+
+/** True when this person may edit the comment: a human comment posted under their current name. */
+export function canEditComment(entry: WorkItemHistoryEntry, displayName: string | null | undefined): boolean {
+  if (!entry.comment || entry.isAiAction) return false;
+  const me = displayName?.trim() || DEFAULT_HUMAN_NAME;
+  return entry.author.toLocaleLowerCase() === me.toLocaleLowerCase();
+}
+
+/** Label of the comment button: what pressing it will do. */
+export function commentButtonLabel(hasText: boolean, moveTo: WorkItemState | ''): string {
+  if (!moveTo) return 'Add comment';
+  return hasText ? `Comment & move to ${moveTo}` : `Move to ${moveTo}`;
+}
+
+interface CommentEdit {
+  entryId: number;
+  original: string;
+  editor: RichTextEditor;
+  /** The edit form, re-attached if the history list is re-rendered. */
+  element: HTMLElement;
 }
 
 interface FormControls {
@@ -104,6 +136,12 @@ export class WorkItemDialog {
   /** Comments posted from this dialog: never shown as unread to their author. */
   private readonly ownEntryIds = new Set<number>();
   private errorRegion: HTMLElement | null = null;
+  /** Fields of a new item as first rendered, to tell whether anything was typed. */
+  private initialNewForm: string | null = null;
+  /** The comment being edited in place, if any. */
+  private commentEdit: CommentEdit | null = null;
+  /** "You have unsaved changes" confirmation, shown instead of closing. */
+  private discardBar: HTMLElement | null = null;
 
   constructor(
     private readonly dialog: HTMLDialogElement,
@@ -114,10 +152,68 @@ export class WorkItemDialog {
     this.dialog.classList.add('dialog');
     this.dialog.setAttribute('aria-labelledby', 'dialog-title');
     this.dialog.addEventListener('close', () => this.onClosed());
-    // Clicking the backdrop closes the dialog.
+    // Clicking the backdrop closes the dialog - unless that would lose work.
     this.dialog.addEventListener('click', (e) => {
-      if (e.target === this.dialog) this.dialog.close();
+      if (e.target === this.dialog) this.requestClose('backdrop');
     });
+    // Escape is handled here so a dialog with unsaved work asks first. Chrome
+    // skips a cancelled 'cancel' event on a second Escape, so stop the key
+    // itself. Pickers that use Escape (tags, program) stop its propagation
+    // before here; the rich text editor marks it handled without using it,
+    // so defaultPrevented is deliberately not checked.
+    this.dialog.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      this.requestClose('escape');
+    });
+    this.dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      this.requestClose('escape');
+    });
+    // Reloading or leaving the page with unsaved work: the browser asks too.
+    window.addEventListener('beforeunload', (e) => {
+      if (!this.hasUnsavedChanges) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+  }
+
+  /**
+   * True when closing would lose something: an edited field, a new item with
+   * anything typed in, an unsent comment or an unsaved comment edit.
+   */
+  get hasUnsavedChanges(): boolean {
+    if (!this.dialog.open || !this.controls) return false;
+    if (this.commentEditor && !this.commentEditor.isEmpty) return true;
+    if (this.commentEdit && this.commentEdit.editor.markdown.trim() !== this.commentEdit.original.trim()) return true;
+    if (this.item === null) return JSON.stringify(this.readForm()) !== this.initialNewForm;
+    return Object.keys(diffForUpdate(this.item, this.readForm())).length > 0;
+  }
+
+  /** Closes the dialog, or asks first when that would lose unsaved work. */
+  requestClose(source: 'button' | 'escape' | 'backdrop'): void {
+    if (!this.dialog.open) return;
+    if (!this.hasUnsavedChanges) {
+      this.dialog.close();
+      return;
+    }
+    const bar = this.discardBar;
+    if (!bar) return;
+    if (!bar.hidden && source === 'escape') {
+      // Escape while the question is showing means "keep editing".
+      this.hideDiscardBar(true);
+      return;
+    }
+    bar.hidden = false;
+    this.announcer.announce('You have unsaved changes. Keep editing, or discard them to close.', 'assertive');
+    // A stray click outside shouldn't move the caret; Escape and Cancel go to the safe choice.
+    if (source !== 'backdrop') bar.querySelector<HTMLButtonElement>('[data-testid="keep-editing"]')?.focus();
+  }
+
+  private hideDiscardBar(refocus: boolean): void {
+    if (!this.discardBar || this.discardBar.hidden) return;
+    this.discardBar.hidden = true;
+    if (refocus) this.controls?.title.focus();
   }
 
   get isOpen(): boolean {
@@ -161,9 +257,12 @@ export class WorkItemDialog {
     this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!this.dialog.open) this.dialog.showModal();
     this.controls?.title.focus();
+    this.handlers.onOpenChange?.(this.item?.id ?? null);
   }
 
   private onClosed(): void {
+    if (this.discardBar) this.discardBar.hidden = true;
+    this.handlers.onOpenChange?.(null);
     const target = this.returnFocus;
     this.returnFocus = null;
     if (target && document.contains(target)) target.focus();
@@ -173,6 +272,8 @@ export class WorkItemDialog {
     this.controls?.description.destroy();
     this.commentEditor?.destroy();
     this.commentEditor = null;
+    this.commentEdit?.editor.destroy();
+    this.commentEdit = null;
   }
 
   private editorCallbacks(): Pick<ConstructorParameters<typeof RichTextEditor>[0], 'upload' | 'onError' | 'announce'> {
@@ -301,6 +402,7 @@ export class WorkItemDialog {
         ),
         isNew || !item ? null : this.renderDiscussion(item),
       ),
+      this.renderDiscardBar(),
       h(
         'div',
         { class: 'flex justify-end gap-2 border-t border-line/40 px-5 py-3' },
@@ -314,10 +416,29 @@ export class WorkItemDialog {
       void this.save();
     });
     form.querySelectorAll<HTMLButtonElement>('[data-close]').forEach((b) =>
-      b.addEventListener('click', () => this.dialog.close()),
+      b.addEventListener('click', () => this.requestClose('button')),
     );
 
     this.dialog.appendChild(form);
+    this.initialNewForm = isNew ? JSON.stringify(this.readForm()) : null;
+  }
+
+  private renderDiscardBar(): HTMLElement {
+    const keep = h('button', { type: 'button', class: 'btn btn-primary', 'data-testid': 'keep-editing' }, 'Keep editing');
+    const discard = h('button', { type: 'button', class: 'btn btn-danger', 'data-testid': 'discard-changes' }, 'Discard changes');
+    keep.addEventListener('click', () => this.hideDiscardBar(true));
+    discard.addEventListener('click', () => this.dialog.close());
+    this.discardBar = h(
+      'div',
+      {
+        class: 'discard-bar flex flex-wrap items-center justify-end gap-2 border-t px-5 py-3',
+        role: 'group', 'aria-labelledby': 'discard-message', hidden: true, 'data-testid': 'discard-bar',
+      },
+      h('p', { id: 'discard-message', class: 'mr-auto text-sm font-medium' }, 'You have unsaved changes. Close without saving them?'),
+      keep,
+      discard,
+    );
+    return this.discardBar;
   }
 
   private select(name: string, options: Array<[string, string]>, selected: string): HTMLSelectElement {
@@ -327,8 +448,16 @@ export class WorkItemDialog {
     return select;
   }
 
-  /** Comment editor + revision history stream (newest first). */
+  /**
+   * Comment editor + revision history stream (newest first). The "Then"
+   * select lets one click post the comment and move the card (1.13.0).
+   */
   private renderDiscussion(item: WorkItem): HTMLElement {
+    const addButton = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-add' }, 'Add comment');
+    const moveSelect = h('select', { class: 'field', id: 'comment-move', 'data-testid': 'comment-move' });
+    const syncButton = (): void => {
+      addButton.textContent = commentButtonLabel(!editor.isEmpty, moveSelect.value as WorkItemState | '');
+    };
     this.commentEditor = new RichTextEditor({
       id: 'comment',
       labelledBy: 'comment-label',
@@ -337,11 +466,13 @@ export class WorkItemDialog {
       placeholder: 'Write a comment…',
       testId: 'comment-input',
       minHeightClass: 'min-h-[5rem]',
+      onChange: syncButton,
       ...this.editorCallbacks(),
     });
     const editor = this.commentEditor;
-    const addButton = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-add' }, 'Add comment');
-    addButton.addEventListener('click', () => void this.addComment(editor, addButton));
+    this.fillMoveOptions(moveSelect, item.state);
+    moveSelect.addEventListener('change', syncButton);
+    addButton.addEventListener('click', () => void this.addComment(editor, addButton, moveSelect, syncButton));
 
     this.historyHost = h('div', {}, this.renderHistory(item));
 
@@ -351,15 +482,30 @@ export class WorkItemDialog {
       h('h3', { id: 'discussion-heading', class: 'text-base font-semibold' }, 'Discussion & history'),
       h('span', { id: 'comment-label', class: 'text-sm font-medium' }, 'Add a comment'),
       editor.element,
-      h('div', { class: 'flex justify-end' }, addButton),
+      h(
+        'div',
+        { class: 'flex flex-wrap items-center justify-end gap-2' },
+        h('label', { class: 'flex items-center gap-2 text-sm font-medium', for: 'comment-move' }, 'Then', moveSelect),
+        addButton,
+      ),
       this.historyHost,
     );
   }
 
+  /** "Keep in Active" plus every other state, for the comment box's move select. */
+  private fillMoveOptions(select: HTMLSelectElement, current: WorkItemState): void {
+    select.replaceChildren(
+      h('option', { value: '' }, `Keep in ${current}`),
+      ...WORK_ITEM_STATES.filter((s) => s !== current).map((s) => h('option', { value: s }, `Move to ${s}`)),
+    );
+    select.value = '';
+  }
+
   private isUnreadEntry(item: WorkItem, entry: WorkItemHistoryEntry): boolean {
     const readState = this.handlers.readState;
+    // An edited comment is new again for everyone who read the earlier text.
     return Boolean(entry.comment) && readState !== undefined && !this.ownEntryIds.has(entry.id) &&
-      readState.isEntryUnread(item.id, entry.changeDate, this.readSnapshot);
+      readState.isEntryUnread(item.id, entry.editedAt ?? entry.changeDate, this.readSnapshot);
   }
 
   /** Marks this comment and every newer one unread for this browser (1.10.0). */
@@ -384,6 +530,15 @@ export class WorkItemDialog {
       const comment = h('div', { class: 'markdown mt-1' });
       if (entry.comment) setMarkdown(comment, entry.comment);
       const unread = this.isUnreadEntry(item, entry);
+      const editing = this.commentEdit?.entryId === entry.id ? this.commentEdit : null;
+      let editButton: HTMLButtonElement | null = null;
+      if (!editing && canEditComment(entry, this.handlers.displayName?.())) {
+        editButton = h('button', {
+          type: 'button', class: 'mark-unread-btn', 'data-testid': 'comment-edit',
+          title: 'Edit your comment',
+        }, h('span', { 'aria-hidden': 'true' }, '✎ '), 'Edit');
+        editButton.addEventListener('click', () => this.startCommentEdit(item, entry));
+      }
       let markUnread: HTMLButtonElement | null = null;
       if (entry.comment && this.handlers.readState && !unread) {
         markUnread = h('button', {
@@ -408,16 +563,110 @@ export class WorkItemDialog {
               ? createAiBadge({ id: entry.id, aiAgentIdentity: entry.agentName }, 'history')
               : null,
             h('time', { datetime: entry.changeDate, class: 'text-xs text-muted' }, formatDate(entry.changeDate)),
+            entry.editedAt
+              ? h('span', { class: 'text-xs text-muted', 'data-testid': 'comment-edited' },
+                  '(edited ', h('time', { datetime: entry.editedAt }, formatDate(entry.editedAt)), ')')
+              : null,
             unread ? h('span', { class: 'discussion-pill discussion-unread', 'data-testid': 'comment-unread' }, 'New', h('span', { class: 'sr-only' }, ' unread comment')) : null,
-            markUnread ? h('span', { class: 'flex-1' }) : null,
+            markUnread || editButton ? h('span', { class: 'flex-1' }) : null,
+            editButton,
             markUnread,
           ),
           changes.length > 0 ? h('ul', { class: 'mt-1 list-disc pl-5 text-xs text-muted' }, ...changes.map((c) => h('li', {}, c))) : null,
-          entry.comment ? comment : null,
+          editing ? editing.element : entry.comment ? comment : null,
         ),
       );
     }
     return list;
+  }
+
+  /** Swaps a comment for an editor holding its text (one comment at a time). */
+  private startCommentEdit(item: WorkItem, entry: WorkItemHistoryEntry): void {
+    if (this.commentEdit) {
+      if (this.commentEdit.editor.markdown.trim() !== this.commentEdit.original.trim()) {
+        this.announcer.announce('Save or cancel the comment you are editing first.', 'assertive');
+        this.commentEdit.editor.focus();
+        return;
+      }
+      this.cancelCommentEdit(item);
+    }
+    const original = entry.comment ?? '';
+    const labelId = `comment-edit-label-${entry.id}`;
+    const editor = new RichTextEditor({
+      id: `comment-edit-${entry.id}`,
+      labelledBy: labelId,
+      toolbarLabel: 'Edited comment formatting',
+      initialMarkdown: original,
+      testId: 'comment-edit-input',
+      minHeightClass: 'min-h-[5rem]',
+      ...this.editorCallbacks(),
+    });
+    const save = h('button', { type: 'button', class: 'btn btn-primary', 'data-testid': 'comment-edit-save' }, 'Save comment');
+    const cancel = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-edit-cancel' }, 'Cancel edit');
+    const element = h(
+      'div',
+      { class: 'mt-2 space-y-2', 'data-testid': 'comment-edit-form' },
+      h('span', { id: labelId, class: 'text-sm font-medium' }, 'Edit your comment'),
+      editor.element,
+      h('p', { class: 'text-xs text-muted' }, 'Saving shows the comment as edited and asks the AI agent to read it again.'),
+      h('div', { class: 'flex justify-end gap-2' }, cancel, save),
+    );
+    // Escape inside the edit cancels the edit, not the whole dialog (when nothing changed).
+    element.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || editor.markdown.trim() !== original.trim()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.cancelCommentEdit(item, entry.id);
+    });
+    save.addEventListener('click', () => void this.saveCommentEdit(item, entry, save));
+    cancel.addEventListener('click', () => this.cancelCommentEdit(item, entry.id));
+    this.commentEdit = { entryId: entry.id, original, editor, element };
+    this.historyHost?.replaceChildren(this.renderHistory(item));
+    editor.focus();
+  }
+
+  private cancelCommentEdit(item: WorkItem, focusEntryId?: number): void {
+    this.commentEdit?.editor.destroy();
+    this.commentEdit = null;
+    this.historyHost?.replaceChildren(this.renderHistory(this.item ?? item));
+    if (focusEntryId !== undefined) {
+      this.dialog.querySelector<HTMLElement>(`[data-history-id="${focusEntryId}"] [data-testid="comment-edit"]`)?.focus();
+    }
+  }
+
+  private async saveCommentEdit(item: WorkItem, entry: WorkItemHistoryEntry, button: HTMLButtonElement): Promise<void> {
+    const edit = this.commentEdit;
+    if (!edit) return;
+    await edit.editor.whenIdle();
+    const text = edit.editor.markdown.trim();
+    if (!text) {
+      this.showError('A comment cannot be empty. Cancel the edit to keep the old text.');
+      edit.editor.focus();
+      return;
+    }
+    if (text === edit.original.trim()) {
+      this.cancelCommentEdit(item, entry.id);
+      return;
+    }
+    button.disabled = true;
+    try {
+      await this.api.editComment(item.id, entry.id, text);
+      const refreshed = await this.api.getWorkItem(item.id);
+      this.ownEntryIds.add(entry.id);
+      this.handlers.readState?.markRead(refreshed);
+      edit.editor.destroy();
+      this.commentEdit = null;
+      this.item = { ...(this.item ?? item), history: refreshed.history, updatedAt: refreshed.updatedAt };
+      this.historyHost?.replaceChildren(this.renderHistory(this.item));
+      this.showError(null);
+      this.announcer.announce('Comment updated.');
+      this.handlers.onChanged(refreshed, 'commented');
+      this.dialog.querySelector<HTMLElement>(`[data-history-id="${entry.id}"] [data-testid="comment-edit"]`)?.focus();
+    } catch (err) {
+      this.showError(err instanceof ApiError ? err.message : 'Could not save the comment.');
+    } finally {
+      button.disabled = false;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -496,28 +745,48 @@ export class WorkItemDialog {
     }
   }
 
-  private async addComment(editor: RichTextEditor, button: HTMLButtonElement): Promise<void> {
+  /**
+   * Posts the comment, and/or moves the card when "Then" names a state. Both
+   * go in one request, so the history shows the move and the comment together.
+   */
+  private async addComment(
+    editor: RichTextEditor,
+    button: HTMLButtonElement,
+    moveSelect: HTMLSelectElement,
+    syncButton: () => void,
+  ): Promise<void> {
     if (!this.item) return;
     await editor.whenIdle();
     const text = editor.markdown.trim();
-    if (!text) {
+    const moveTo = moveSelect.value as WorkItemState | '';
+    if (!text && !moveTo) {
       this.showError('Write a comment before adding it.');
       editor.focus();
       return;
     }
     button.disabled = true;
     try {
-      const posted = await this.api.addComment(this.item.id, text);
-      this.ownEntryIds.add(posted.id);
-      const refreshed = await this.api.getWorkItem(this.item.id);
+      let refreshed: WorkItem;
+      if (moveTo) {
+        refreshed = await this.api.updateWorkItem(this.item.id, { state: moveTo, ...(text ? { comment: text } : {}) });
+        const newest = refreshed.history?.[refreshed.history.length - 1];
+        if (newest?.comment) this.ownEntryIds.add(newest.id);
+      } else {
+        const posted = await this.api.addComment(this.item.id, text);
+        this.ownEntryIds.add(posted.id);
+        refreshed = await this.api.getWorkItem(this.item.id);
+      }
       // Your own comment is read by definition.
       this.handlers.readState?.markRead(refreshed);
-      // Keep the fields being edited; only the history and comment box change.
-      this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt };
-      this.historyHost?.replaceChildren(this.renderHistory(refreshed));
+      // Keep the fields being edited; only the history, state and comment box change.
+      this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt, state: refreshed.state };
+      if (moveTo && this.controls) this.controls.state.value = refreshed.state;
+      this.historyHost?.replaceChildren(this.renderHistory(this.item));
       editor.clear();
+      this.fillMoveOptions(moveSelect, refreshed.state);
+      syncButton();
       this.showError(null);
-      this.announcer.announce('Comment added.');
+      this.announcer.announce(moveTo ? `${text ? 'Comment added. ' : ''}Moved to ${refreshed.state}.` : 'Comment added.');
       this.handlers.onChanged(refreshed, 'commented');
       editor.focus();
     } catch (err) {
