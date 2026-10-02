@@ -180,7 +180,7 @@ public sealed class AiAgentApiTests : IClassFixture<KanbanApiFactory>
         var board = await agent.GetFromJsonAsync<BoardDto>("/api/v1/board", KanbanApiFactory.Json);
 
         var active = board!.Columns.Single(c => c.State == WorkItemState.Active);
-        Assert.Equal(5, active.WipLimit);
+        Assert.Null(active.WipLimit);
         Assert.Contains(active.Items, i => i.Title == "on the board" && i.AiModified);
     }
 

@@ -28,12 +28,14 @@ public sealed class UiEndpointTests : IClassFixture<KanbanApiFactory>
     }
 
     [Fact]
-    public async Task GetBoard_ReturnsColumnsWithWipLimits()
+    public async Task GetBoard_ReturnsColumnsWithoutWipLimits()
     {
         var board = await _factory.CreateUiClient().GetFromJsonAsync<BoardDto>("/api/ui/board", KanbanApiFactory.Json);
 
         Assert.NotNull(board);
-        Assert.Equal(new int?[] { null, 5, 5, null }, board!.Columns.Select(c => c.WipLimit));
+        // 1.11.0: no column has a WIP limit by default.
+        Assert.Equal(new int?[] { null, null, null, null }, board!.Columns.Select(c => c.WipLimit));
+        Assert.All(board.Columns, c => Assert.False(c.IsOverWipLimit));
     }
 
     [Fact]

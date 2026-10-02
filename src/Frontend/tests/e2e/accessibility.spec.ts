@@ -4,7 +4,7 @@
  * axe-core WCAG 2.1 AA scans in both themes.
  */
 import { expect, test } from '@playwright/test';
-import { cardLocator, columnList, createViaAgent, createViaUi, expectNoAxeViolations, getItem, openBoard, uniqueTitle } from './helpers';
+import { agentHeaders, cardLocator, columnList, createViaAgent, createViaUi, expectNoAxeViolations, getItem, openBoard, UI_HEADERS, uniqueTitle } from './helpers';
 
 test.describe('Keyboard operability', () => {
   test('Space picks up, arrows move between columns, Enter drops and persists', async ({ page, request }) => {
@@ -71,27 +71,25 @@ test.describe('Keyboard operability', () => {
 });
 
 test.describe('WIP limit alerts', () => {
-  test('exceeding the Active WIP limit shows a high-contrast alert and an assertive announcement', async ({ page, request }) => {
-    // Fill Active to its limit (other tests may already have added some).
+  test('a crowded column shows no WIP warning now that there are no limits (1.11.0)', async ({ page, request }) => {
+    // Push Active well past the old limit of 5 (other tests may already have added some).
     const board = await (await request.get('api/ui/board')).json();
     const active = board.columns.find((c: { state: string }) => c.state === 'Active');
-    for (let i = active.itemCount; i < 5; i++) {
+    for (let i = active.itemCount; i < 7; i++) {
       await createViaUi(request, { title: uniqueTitle('Fill Active'), type: 'Task', state: 'Active' });
     }
-    const mover = await createViaUi(request, { title: uniqueTitle('One too many'), type: 'Bug' });
+    const mover = await createViaUi(request, { title: uniqueTitle('One more'), type: 'Bug' });
     await openBoard(page);
 
     await cardLocator(page, mover.id).focus();
     await page.keyboard.press('Space');
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByTestId('live-assertive')).toContainText('Dropping here exceeds the WIP limit of 5.');
     await page.keyboard.press('Space');
 
-    await expect(page.getByTestId('live-assertive')).toContainText('Active column is over its WIP limit');
-    const alert = page.getByTestId('wip-alert-Active');
-    await expect(alert).toBeVisible();
-    await expect(alert).toContainText('WIP limit exceeded');
-    await expect(page.getByTestId('column-Active')).toHaveClass(/is-over-wip/);
+    await expect(page.getByTestId('live-polite')).toContainText('to Active');
+    await expect(page.getByTestId('live-assertive')).not.toContainText('WIP');
+    await expect(page.getByTestId('wip-alert-Active')).toHaveCount(0);
+    await expect(page.getByTestId('column-Active')).not.toHaveClass(/is-over-wip/);
   });
 });
 
@@ -152,21 +150,27 @@ test.describe('Theme switcher', () => {
 
 test.describe('Automated WCAG 2.1 AA scan (axe-core)', () => {
   test.beforeEach(async ({ request }) => {
-    // Make sure every visual state is on the board: AI badge, every type, and a WIP overage.
-    await createViaAgent(request, { title: uniqueTitle('Axe AI card'), type: 'Feature' }, 'Axe-Scanner');
+    // Make sure every visual state is on the board: AI badge, every type, program,
+    // tags, a bug version, "Unread" and "Waiting for AI".
+    const ai = await createViaAgent(request, { title: uniqueTitle('Axe AI card'), type: 'Feature' }, 'Axe-Scanner');
+    await request.post(`api/v1/workitems/${ai.id}/comments`, { headers: agentHeaders('Axe-Scanner'), data: { text: 'Agent note' } });
     for (const type of ['Bug', 'UserStory', 'Epic', 'Task']) {
-      await createViaUi(request, { title: uniqueTitle(`Axe ${type}`), type, assignedTo: 'Axe Tester' });
+      await createViaUi(request, {
+        title: uniqueTitle(`Axe ${type}`), type, program: 'ProveOut', tags: ['axe', 'contrast'],
+        programVersion: type === 'Bug' ? '2.4.1' : undefined,
+      });
     }
-    for (let i = 0; i < 6; i++) {
-      await createViaUi(request, { title: uniqueTitle('Axe WIP'), type: 'Task', state: 'Resolved' });
-    }
+    const waiting = await createViaUi(request, { title: uniqueTitle('Axe waiting'), type: 'Task', state: 'Resolved' });
+    await request.post(`api/ui/workitems/${waiting.id}/comments`, { headers: UI_HEADERS, data: { text: 'Any update?' } });
   });
 
   for (const theme of ['light', 'dark'] as const) {
     test(`board and dialog have no violations in ${theme} theme`, async ({ page }) => {
       await page.addInitScript((t) => localStorage.setItem('kanban_theme_preference', t), theme);
       await openBoard(page);
-      await expect(page.getByTestId('wip-alert-Resolved')).toBeVisible();
+      await expect(page.getByTestId('unread-pill').first()).toBeVisible();
+      await expect(page.getByTestId('discussion-pill').first()).toBeVisible();
+      await expect(page.getByTestId('card-program-version').first()).toBeVisible();
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*dark).*$/);
 
       await expectNoAxeViolations(page, `${theme} board`);

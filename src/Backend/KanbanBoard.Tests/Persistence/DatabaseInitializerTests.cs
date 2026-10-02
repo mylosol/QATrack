@@ -41,7 +41,7 @@ public class DatabaseInitializerTests
     }
 
     [Fact]
-    public async Task Initialize_SeedsDefaultColumnsWithSpecWipLimits()
+    public async Task Initialize_SeedsDefaultColumns_WithoutWipLimits()
     {
         using var temp = new TempSqliteDatabase();
         await temp.InitializeAsync();
@@ -51,8 +51,8 @@ public class DatabaseInitializerTests
 
         Assert.Collection(columns,
             c => { Assert.Equal("New", c.Name); Assert.Equal(WorkItemState.New, c.State); Assert.Null(c.WipLimit); },
-            c => { Assert.Equal("Active", c.Name); Assert.Equal(WorkItemState.Active, c.State); Assert.Equal(5, c.WipLimit); },
-            c => { Assert.Equal("Resolved", c.Name); Assert.Equal(WorkItemState.Resolved, c.State); Assert.Equal(5, c.WipLimit); },
+            c => { Assert.Equal("Active", c.Name); Assert.Equal(WorkItemState.Active, c.State); Assert.Null(c.WipLimit); },
+            c => { Assert.Equal("Resolved", c.Name); Assert.Equal(WorkItemState.Resolved, c.State); Assert.Null(c.WipLimit); },
             c => { Assert.Equal("Closed", c.Name); Assert.Equal(WorkItemState.Closed, c.State); Assert.Null(c.WipLimit); });
 
         var lane = Assert.Single(await db.Swimlanes.ToListAsync());

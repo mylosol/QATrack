@@ -3,6 +3,19 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-10-02
+
+### Removed
+- **WIP limits.** The Active and Resolved columns no longer have a 5-card limit, so the red "WIP limit exceeded" warning no longer appears. With AI agents working many cards in parallel, the limit was permanently exceeded and the warning stopped meaning anything.
+  - Column headers show a plain card count.
+  - This is a deliberate change from spec 3.3 (which set Active and Resolved to 5).
+  - The warning logic is kept in the code, unused: if a column is ever given a limit again, the warning comes back without any other change.
+
+### Changed
+- Additive database migration `RemoveDefaultWipLimits`: clears the limit on the Active and Resolved columns. No cards or other data are touched.
+- `wipLimit` in API board responses is now `null` for every column (the field is unchanged, so agents are unaffected).
+- The automated accessibility scans now cover the Unread / Waiting for AI labels, program badges, tag chips and bug versions in both themes, instead of the WIP alert.
+
 ## [1.10.0] - 2026-10-01
 
 ### Added

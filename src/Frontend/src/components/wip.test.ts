@@ -27,7 +27,7 @@ describe('WIP rules', () => {
   });
 
   it('describes status for screen readers', () => {
-    expect(wipDescription('New', 1, null)).toBe('New: 1 item, no WIP limit.');
+    expect(wipDescription('New', 1, null)).toBe('New: 1 item.');
     expect(wipDescription('Active', 3, 5)).toBe('Active: 3 of 5 WIP limit.');
     expect(wipDescription('Active', 7, 5)).toBe('Active: 7 of 5 WIP limit. WIP limit exceeded by 2.');
   });

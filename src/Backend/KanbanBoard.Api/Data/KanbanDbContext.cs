@@ -113,10 +113,14 @@ public class KanbanDbContext : DbContext
 
             // Default columns from spec 3.3, seeded through the migration so
             // existing databases receive them without a destructive rebuild.
+            // 1.11.0: no WIP limits by default (spec 3.3 had Active/Resolved = 5).
+            // AI agents work many cards in parallel, so a 5-card limit was
+            // permanently exceeded. The warning logic is kept and applies again
+            // as soon as a column is given a limit.
             e.HasData(
                 new BoardColumn { Id = 1, Name = "New", State = WorkItemState.New, WipLimit = null, SortOrder = 0 },
-                new BoardColumn { Id = 2, Name = "Active", State = WorkItemState.Active, WipLimit = 5, SortOrder = 1 },
-                new BoardColumn { Id = 3, Name = "Resolved", State = WorkItemState.Resolved, WipLimit = 5, SortOrder = 2 },
+                new BoardColumn { Id = 2, Name = "Active", State = WorkItemState.Active, WipLimit = null, SortOrder = 1 },
+                new BoardColumn { Id = 3, Name = "Resolved", State = WorkItemState.Resolved, WipLimit = null, SortOrder = 2 },
                 new BoardColumn { Id = 4, Name = "Closed", State = WorkItemState.Closed, WipLimit = null, SortOrder = 3 });
         });
 
