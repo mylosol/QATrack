@@ -388,6 +388,74 @@ public sealed class DeployScriptTests : IDisposable
         Assert.Contains("No QATrack installation found", output);
     }
 
+    private string ReporterKeyOnSite()
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_site, "appsettings.Production.json")));
+        return doc.RootElement.TryGetProperty("IssueReporting", out var section) && section.TryGetProperty("ApiKey", out var key)
+            ? key.GetString() ?? string.Empty
+            : string.Empty;
+    }
+
+    [Fact]
+    public void Install_GeneratesADistinctReporterKey_AndKeepsItOnRedeploy()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (exitCode, output) = RunInstall();
+        Assert.True(exitCode == 0, output);
+        var reporterKey = ReporterKeyOnSite();
+        Assert.True(reporterKey.Length >= 32, "A strong reporter key should be generated on first install.");
+        Assert.NotEqual(ApiKeyOnSite(), reporterKey);
+        Assert.Contains("X-Reporter-Key: " + reporterKey, output);
+
+        var (again, againOutput) = RunInstall();
+        Assert.True(again == 0, againOutput);
+        Assert.Equal(reporterKey, ReporterKeyOnSite());
+        Assert.Contains("Keeping the existing reporter key", againOutput);
+        Assert.DoesNotContain(reporterKey, againOutput); // only printed when generated
+    }
+
+    [Fact]
+    public void Install_AddsAReporterKey_ToAnExisting15Site_WithoutTouchingTheAgentKey()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.Combine(_site, "App_Data"));
+        File.WriteAllText(Path.Combine(_site, "KanbanBoard.Api.dll"), "old build");
+        File.WriteAllText(Path.Combine(_site, "appsettings.Production.json"),
+            """{ "AiAgentApi": { "ApiKey": "existing-production-key-1234567890" } }""");
+
+        var (exitCode, output) = RunInstall();
+
+        Assert.True(exitCode == 0, output);
+        Assert.Equal("existing-production-key-1234567890", ApiKeyOnSite());
+        Assert.True(ReporterKeyOnSite().Length >= 32);
+    }
+
+    [Fact]
+    public void ReporterKey_EqualToTheAgentKey_IsRejected_WithoutTouchingData()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.Combine(_site, "App_Data"));
+        File.WriteAllText(Path.Combine(_site, "KanbanBoard.Api.dll"), "old build");
+
+        var (exitCode, output) = RunInstall("-ApiKey", "same-key-0123456789abc", "-ReporterApiKey", "same-key-0123456789abc");
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("must differ", output);
+        Assert.Equal("old build", File.ReadAllText(Path.Combine(_site, "KanbanBoard.Api.dll")));
+    }
+
     private string ApiKeyOnSite()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_site, "appsettings.Production.json")));

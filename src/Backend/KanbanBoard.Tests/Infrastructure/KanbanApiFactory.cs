@@ -17,6 +17,9 @@ public class KanbanApiFactory : WebApplicationFactory<Program>
     /// <summary>API key configured for the test host.</summary>
     public const string TestApiKey = "test-api-key-0123456789abcdef";
 
+    /// <summary>Reporter key configured for the test host (in-app issue reports).</summary>
+    public const string TestReporterKey = "test-reporter-key-0123456789abcdef";
+
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), "qatrack-tests", "api-" + Guid.NewGuid().ToString("N"));
 
@@ -41,6 +44,7 @@ public class KanbanApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Kanban", $"Data Source={DatabasePath};Cache=Shared;Mode=ReadWriteCreate;");
         builder.UseSetting("Database:SeedSampleData", "false");
         builder.UseSetting("AiAgentApi:ApiKey", TestApiKey);
+        builder.UseSetting("IssueReporting:ApiKey", TestReporterKey);
         // Keep cookie-encryption keys out of the repo's App_Data.
         builder.UseSetting("AccessControl:KeyDirectory", Path.Combine(_directory, "keys"));
     }
@@ -65,6 +69,14 @@ public class KanbanApiFactory : WebApplicationFactory<Program>
         client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
         client.DefaultRequestHeaders.Add("X-Agent-Identity", identity);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return client;
+    }
+
+    /// <summary>Client configured like a program under test reporting an issue.</summary>
+    public HttpClient CreateReporterClient(string reporterKey = TestReporterKey)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Reporter-Key", reporterKey);
         return client;
     }
 

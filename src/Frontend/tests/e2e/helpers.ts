@@ -9,6 +9,9 @@ import type { WorkItem, WorkItemState } from '../../src/services/types';
 /** API key the E2E backend is started with (see playwright.config.ts). */
 export const E2E_API_KEY = 'e2e-api-key-0123456789abcdef';
 
+/** Reporter key for in-app issue reports (see playwright.config.ts). */
+export const E2E_REPORTER_KEY = 'e2e-reporter-key-0123456789abcdef';
+
 /** Shared access password the E2E backend is protected with (see playwright.config.ts). */
 export const E2E_PASSWORD = 'e2e-shared-password';
 

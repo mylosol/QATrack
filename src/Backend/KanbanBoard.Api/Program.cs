@@ -41,9 +41,15 @@ builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<ProgramService>();
 builder.Services.AddScoped<AttachmentService>();
 builder.Services.AddSingleton<ApiContract>();
+builder.Services.AddScoped<IssueReportService>();
 
 // AI agent API settings (X-API-Key pre-shared secret, identity rules).
 builder.Services.Configure<AiAgentApiOptions>(builder.Configuration.GetSection(AiAgentApiOptions.SectionName));
+
+// In-app "Report an issue" from the programs under test (X-Reporter-Key, 1.12.0).
+builder.Services.Configure<IssueReportingOptions>(builder.Configuration.GetSection(IssueReportingOptions.SectionName));
+var reportingOptions = builder.Configuration.GetSection(IssueReportingOptions.SectionName).Get<IssueReportingOptions>()
+                       ?? new IssueReportingOptions();
 
 builder.Services
     .AddControllers()
@@ -106,8 +112,23 @@ builder.Services.AddRateLimiter(o =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
-    o.OnRejected = (ctx, _) => new ValueTask(ApiKeyAuthenticationMiddleware.WriteProblemAsync(ctx.HttpContext,
-        StatusCodes.Status429TooManyRequests, "Too many sign-in attempts", "Wait a minute and try again."));
+    o.AddPolicy(IssueReportingOptions.RateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
+        "report:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = Math.Max(1, reportingOptions.RequestsPerMinute),
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+    o.OnRejected = (ctx, _) =>
+    {
+        var isReport = ctx.HttpContext.Request.Path.StartsWithSegments(IssueReportingOptions.PathPrefix);
+        ctx.HttpContext.Response.Headers.RetryAfter = "60";
+        return new ValueTask(ApiKeyAuthenticationMiddleware.WriteProblemAsync(ctx.HttpContext,
+            StatusCodes.Status429TooManyRequests,
+            isReport ? "Too many reports" : "Too many sign-in attempts",
+            "Wait a minute and try again."));
+    };
 });
 
 var app = builder.Build();
@@ -134,6 +155,15 @@ if (aiApiOptions is null || !aiApiOptions.IsConfigured)
 {
     // Fail closed but keep the board usable: /api/v1 answers 503 until a key is set.
     app.Logger.LogWarning("AiAgentApi:ApiKey is not configured; the AI agent API (/api/v1) is disabled.");
+}
+
+if (!reportingOptions.IsConfigured)
+{
+    app.Logger.LogWarning("IssueReporting:ApiKey is not configured; in-app issue reporting (/api/report) is disabled.");
+}
+else if (aiApiOptions is not null && string.Equals(aiApiOptions.ApiKey.Trim(), reportingOptions.ApiKey.Trim(), StringComparison.Ordinal))
+{
+    app.Logger.LogError("IssueReporting:ApiKey must differ from AiAgentApi:ApiKey; in-app issue reporting is disabled until it does.");
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +200,8 @@ app.UseMiddleware<ApiContractHeadersMiddleware>();
 // ...then authenticate the key, then capture the identity.
 app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseMiddleware<AgentIdentityMiddleware>();
+// /api/report (in-app issue reports from the programs under test): reporter key, human actor.
+app.UseMiddleware<ReporterKeyMiddleware>();
 // /api/ui (browser): signed-in session when a shared password is configured...
 app.UseMiddleware<AccessControlMiddleware>();
 // ...plus anti-forgery header + human actor for /api/ui and /api/auth.
