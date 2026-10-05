@@ -45,6 +45,15 @@ public sealed class WorkItemForbiddenException : Exception
     }
 }
 
+/// <summary>A file id that is not attached to the work item (or was removed). Mapped to HTTP 404.</summary>
+public sealed class FileNotFoundOnItemException : Exception
+{
+    public FileNotFoundOnItemException(int workItemId, int fileId)
+        : base($"File {fileId} is not attached to work item {workItemId}.")
+    {
+    }
+}
+
 /// <summary>A comment (history entry) id that does not exist on the work item. Mapped to HTTP 404.</summary>
 public sealed class CommentNotFoundException : Exception
 {

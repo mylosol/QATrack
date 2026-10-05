@@ -18,6 +18,7 @@ import type {
   ProgramInfo,
   UpdateWorkItemRequest,
   WorkItem,
+  WorkItemFile,
   WorkItemHistoryEntry,
 } from './types';
 
@@ -148,6 +149,23 @@ export class ApiClient {
     const form = new FormData();
     form.append('file', file, file.name);
     return this.request<AttachmentInfo>('POST', 'attachments', form);
+  }
+
+  /** Attaches a log or other file to a card (1.14.0). */
+  attachFile(id: number, file: File): Promise<WorkItemFile> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.request<WorkItemFile>('POST', `workitems/${encodeURIComponent(String(id))}/files`, form);
+  }
+
+  /** Removes a file from a card (the server keeps it for the audit trail). */
+  async removeFile(id: number, fileId: number): Promise<void> {
+    await this.request<void>('DELETE', `workitems/${encodeURIComponent(String(id))}/files/${encodeURIComponent(String(fileId))}`);
+  }
+
+  /** Link that shows a text file in the browser, or downloads it with download=true. */
+  fileUrl(id: number, fileId: number, download = false): string {
+    return `${this.baseUrl}workitems/${encodeURIComponent(String(id))}/files/${encodeURIComponent(String(fileId))}${download ? '?download=true' : ''}`;
   }
 
   /** Whether a shared password is configured and whether this browser is signed in. */

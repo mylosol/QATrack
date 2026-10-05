@@ -38,24 +38,34 @@ public sealed class AttachmentService
     /// <exception cref="WorkItemValidationException">Empty, too large or not a supported image.</exception>
     public async Task<AttachmentDto> UploadAsync(Stream content, string? fileName, CancellationToken ct = default)
     {
-        var bytes = await ReadLimitedAsync(content, WorkItemDefaults.AttachmentMaxBytes, ct);
+        var bytes = await ReadLimitedAsync(content, WorkItemDefaults.AttachmentMaxBytes, "Images", ct);
         var contentType = DetectImageType(bytes)
                           ?? throw new WorkItemValidationException("file", "Only PNG, JPEG, GIF or WebP images can be uploaded.");
 
+        var (id, storedType) = await StoreAsync(bytes, CleanFileName(fileName, contentType), contentType, ct);
+        return ToDto(id, CleanFileName(fileName, storedType), storedType, bytes.Length);
+    }
+
+    /// <summary>
+    /// Stores bytes once per content (SHA-256 + length) and returns the id and the
+    /// content type they are stored under. Shared by images and attached files.
+    /// </summary>
+    internal async Task<(Guid Id, string ContentType)> StoreAsync(byte[] bytes, string fileName, string contentType, CancellationToken ct)
+    {
         var sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
         var existing = await _db.Attachments.AsNoTracking()
             .Where(a => a.Sha256 == sha && a.Length == bytes.Length)
-            .Select(a => new { a.Id, a.ContentType, a.Length })
+            .Select(a => new { a.Id, a.ContentType })
             .FirstOrDefaultAsync(ct);
         if (existing is not null)
         {
-            return ToDto(existing.Id, CleanFileName(fileName, existing.ContentType), existing.ContentType, existing.Length);
+            return (existing.Id, existing.ContentType);
         }
 
         var attachment = new Attachment
         {
             Id = Guid.NewGuid(),
-            FileName = CleanFileName(fileName, contentType),
+            FileName = fileName,
             ContentType = contentType,
             Length = bytes.Length,
             Content = bytes,
@@ -65,7 +75,7 @@ public sealed class AttachmentService
         };
         _db.Attachments.Add(attachment);
         await _db.SaveChangesAsync(ct);
-        return ToDto(attachment.Id, attachment.FileName, attachment.ContentType, attachment.Length);
+        return (attachment.Id, contentType);
     }
 
     /// <summary>Returns the stored image, or null when the id is unknown.</summary>
@@ -126,7 +136,7 @@ public sealed class AttachmentService
         };
     }
 
-    private static async Task<byte[]> ReadLimitedAsync(Stream content, int maxBytes, CancellationToken ct)
+    internal static async Task<byte[]> ReadLimitedAsync(Stream content, int maxBytes, string what, CancellationToken ct)
     {
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
@@ -136,7 +146,7 @@ public sealed class AttachmentService
             if (buffer.Length + read > maxBytes)
             {
                 throw new WorkItemValidationException("file",
-                    $"Images must be {maxBytes / (1024 * 1024)} MB or smaller.");
+                    $"{what} must be {maxBytes / (1024 * 1024)} MB or smaller.");
             }
 
             buffer.Write(chunk, 0, read);

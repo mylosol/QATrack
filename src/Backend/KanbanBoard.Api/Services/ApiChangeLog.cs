@@ -19,6 +19,20 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.14.0",
+            Date = "2026-10-05",
+            SchemaVersion = "12fa4d42b4a5",
+            Breaking = false,
+            Summary = new[]
+            {
+                "Work items can have files attached: logs, test output and other text, or .zip/.gz/.7z archives (max 20 MB each). Every work item has 'fileCount'; GET /api/v1/workitems/{id} also returns 'files' (id, fileName, contentType, length, addedBy, isAiAction, addedAt, url).",
+                "Read a file with GET /api/v1/workitems/{id}/files/{fileId} (the 'url' field; send your API key). Text comes back as text/plain with its charset. When a person reports a problem, check the card's files: they often hold the log you need.",
+                "Attach your own output (test logs, stack traces) with POST /api/v1/workitems/{id}/files as multipart/form-data, part 'file'. GET /api/v1/workitems/{id}/files lists them.",
+                "History entries record attaching and removing files as a change to the field 'Files' (old null = attached, new null = removed). Attaching a file moves updatedAt, so it shows up in updatedSince polls.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.13.0",
             Date = "2026-10-02",
             SchemaVersion = "664b159c634f",

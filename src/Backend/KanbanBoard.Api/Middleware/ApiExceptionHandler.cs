@@ -33,6 +33,15 @@ public sealed class ApiExceptionHandler : IExceptionHandler
                 };
                 break;
 
+            case FileNotFoundOnItemException missingFile:
+                problem = new ProblemDetails
+                {
+                    Status = StatusCodes.Status404NotFound,
+                    Title = "File not found",
+                    Detail = missingFile.Message,
+                };
+                break;
+
             case CommentNotFoundException missingComment:
                 problem = new ProblemDetails
                 {

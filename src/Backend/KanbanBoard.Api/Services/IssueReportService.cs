@@ -19,13 +19,23 @@ public sealed class IssueReportService
     private readonly ActorContext _actor;
     private readonly IOptionsMonitor<IssueReportingOptions> _options;
     private readonly KanbanDbContext _db;
+    private readonly FileService _files;
 
-    public IssueReportService(WorkItemService items, ActorContext actor, IOptionsMonitor<IssueReportingOptions> options, KanbanDbContext db)
+    public IssueReportService(WorkItemService items, ActorContext actor, IOptionsMonitor<IssueReportingOptions> options, KanbanDbContext db, FileService files)
     {
         _items = items;
         _actor = actor;
         _options = options;
         _db = db;
+        _files = files;
+    }
+
+    /// <summary>Stores a log file for a report that is about to be filed (1.14.0).</summary>
+    /// <exception cref="WorkItemValidationException">Empty, too large, or not a log/text file or archive.</exception>
+    public async Task<ReportFileDto> UploadFileAsync(Stream content, string? fileName, CancellationToken ct = default)
+    {
+        var stored = await _files.StoreAsync(content, fileName, ct);
+        return new ReportFileDto { Id = stored.AttachmentId, FileName = stored.FileName, ContentType = stored.ContentType, Length = stored.Length };
     }
 
     /// <summary>
@@ -57,6 +67,19 @@ public sealed class IssueReportService
             throw new WorkItemValidationException(nameof(request.Tags), $"A report can carry at most {MaxExtraTags} extra tags.");
         }
 
+        var fileIds = (request.Files ?? new List<Guid>()).Distinct().ToList();
+        if (fileIds.Count > WorkItemDefaults.MaxFilesPerReport)
+        {
+            throw new WorkItemValidationException(nameof(request.Files), $"A report can attach at most {WorkItemDefaults.MaxFilesPerReport} files.");
+        }
+
+        var missing = fileIds.Count == 0 ? Array.Empty<Guid>() : await _files.FindMissingAsync(fileIds, ct);
+        if (missing.Count > 0)
+        {
+            throw new WorkItemValidationException(nameof(request.Files),
+                $"Unknown file id(s): {string.Join(", ", missing)}. Upload each file with POST /api/report/files first and use the returned id.");
+        }
+
         _actor.SetReporter(request.Reporter);
 
         var tags = new List<string> { _options.CurrentValue.Tag };
@@ -84,6 +107,12 @@ public sealed class IssueReportService
             // Two sends with the same key raced; the other one won. Answer with its card.
             _db.ChangeTracker.Clear();
             return await FindByKeyAsync(key, cardUrl, ct) ?? throw new InvalidOperationException("Report key conflict without a matching card.");
+        }
+
+        if (fileIds.Count > 0)
+        {
+            await _files.LinkStoredAsync(created.Id, fileIds, ct);
+            created = await _items.GetAsync(created.Id, ct);
         }
 
         return Receipt(created, cardUrl, replayed: false);
@@ -126,6 +155,7 @@ public sealed class IssueReportService
         Program = card.Program,
         ProgramVersion = card.ProgramVersion,
         Tags = card.Tags,
+        Files = card.Files?.Select(f => f.FileName).ToList() ?? new List<string>(),
         // The creation entry's author: later edits on the board don't change who reported it.
         ReportedBy = card.History?.FirstOrDefault()?.Author ?? card.LastModifiedBy,
         CreatedAt = card.CreatedAt,

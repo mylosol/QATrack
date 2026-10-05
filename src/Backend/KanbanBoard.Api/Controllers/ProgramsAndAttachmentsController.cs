@@ -76,6 +76,96 @@ public sealed class AttachmentsController : ControllerBase
         => AttachmentEndpoints.GetAsync(this, _attachments, id, ct);
 }
 
+/// <summary>Log files and other text output attached to work items, for AI agents (1.14.0).</summary>
+[ApiController]
+[Route("api/v1/workitems/{id:int}/files")]
+[Produces("application/json")]
+[Tags("Work item files")]
+public sealed class WorkItemFilesController : ControllerBase
+{
+    private readonly FileService _files;
+
+    public WorkItemFilesController(FileService files)
+    {
+        _files = files;
+    }
+
+    /// <summary>List the files attached to a work item (logs, text output, archives).</summary>
+    /// <remarks>GET /api/v1/workitems/{id} includes the same list as 'files'; 'fileCount' is on every work item.</remarks>
+    /// <param name="id">Work item id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet(Name = "listWorkItemFiles")]
+    [ProducesResponseType(typeof(IReadOnlyList<WorkItemFileDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<WorkItemFileDto>>> List(int id, CancellationToken ct)
+        => Ok(await _files.ListAsync(id, ct));
+
+    /// <summary>Download an attached file.</summary>
+    /// <remarks>
+    /// Text files (logs) come back as text/plain with their charset; archives as
+    /// application/zip, application/gzip or application/x-7z-compressed.
+    /// </remarks>
+    /// <param name="id">Work item id.</param>
+    /// <param name="fileId">File id from the work item's 'files'.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet("{fileId:int}", Name = "getWorkItemFile")]
+    [Produces("text/plain", "application/zip", "application/gzip", "application/x-7z-compressed", "application/json")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> Download(int id, int fileId, CancellationToken ct)
+        => FileEndpoints.DownloadAsync(this, _files, id, fileId, download: true, ct);
+
+    /// <summary>Attach a file to a work item, e.g. a test log (text up to 20 MB, or a .zip/.gz/.7z archive).</summary>
+    /// <remarks>
+    /// Send multipart/form-data with the file in a part named 'file'. The type is detected from the
+    /// content: text of any encoding, or a zip/gzip/7z archive; anything else is refused with 400.
+    /// Recorded in the history as a change to 'Files' and marks the card AI-modified.
+    /// </remarks>
+    /// <param name="id">Work item id.</param>
+    /// <param name="file">The file.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPost(Name = "attachWorkItemFile")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(FileEndpoints.RequestLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = FileEndpoints.RequestLimit)]
+    [ProducesResponseType(typeof(WorkItemFileDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public Task<ActionResult<WorkItemFileDto>> Attach(int id, IFormFile file, CancellationToken ct)
+        => FileEndpoints.AttachAsync(this, _files, id, file, "getWorkItemFile", ct);
+}
+
+/// <summary>Upload/download logic for work item files, shared by the AI and browser controllers.</summary>
+internal static class FileEndpoints
+{
+    /// <summary>Largest request for a file upload: the file plus room for the multipart wrapping.</summary>
+    public const int RequestLimit = WorkItemDefaults.FileMaxBytes + 1024 * 1024;
+
+    public static async Task<ActionResult<WorkItemFileDto>> AttachAsync(
+        ControllerBase controller, FileService files, int id, IFormFile file, string getRouteName, CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        var dto = await files.AttachAsync(id, stream, file.FileName, ct);
+        return controller.CreatedAtRoute(getRouteName, new { id, fileId = dto.Id }, dto);
+    }
+
+    public static async Task<IActionResult> DownloadAsync(
+        ControllerBase controller, FileService files, int id, int fileId, bool download, CancellationToken ct)
+    {
+        var (file, content) = await files.OpenAsync(id, fileId, ct);
+        var isText = file.ContentType == FileService.Text;
+        var contentType = isText ? $"{FileService.Text}; charset={FileService.TextCharset(content)}" : file.ContentType;
+        var disposition = new Microsoft.Net.Http.Headers.ContentDispositionHeaderValue(download || !isText ? "attachment" : "inline");
+        disposition.SetHttpFileName(file.FileName);
+        controller.Response.Headers.ContentDisposition = disposition.ToString();
+        // A file can be removed, so don't let a cache keep serving it. Text is
+        // served as text/plain with nosniff and the strict CSP (SecurityHeadersMiddleware),
+        // so a browser shows it and never runs it.
+        controller.Response.Headers.CacheControl = "private, no-cache";
+        return controller.File(content, contentType);
+    }
+}
+
 /// <summary>Upload/download logic shared by the AI and browser controllers.</summary>
 internal static class AttachmentEndpoints
 {

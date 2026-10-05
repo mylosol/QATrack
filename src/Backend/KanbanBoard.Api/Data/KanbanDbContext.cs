@@ -22,6 +22,8 @@ public class KanbanDbContext : DbContext
 
     public DbSet<CommentRevision> CommentRevisions => Set<CommentRevision>();
 
+    public DbSet<WorkItemFile> WorkItemFiles => Set<WorkItemFile>();
+
     public DbSet<BoardColumn> BoardColumns => Set<BoardColumn>();
 
     public DbSet<Swimlane> Swimlanes => Set<Swimlane>();
@@ -70,6 +72,7 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.LastAgentCommentAt).HasConversion(NullableUtcConverter);
             e.Property(x => x.LastAgentCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.CommentCount).IsRequired().HasDefaultValue(0);
+            e.Property(x => x.FileCount).IsRequired().HasDefaultValue(0);
             e.Property(x => x.HumanReadAt).HasConversion(NullableUtcConverter);
             e.Property(x => x.ReportKey).HasMaxLength(WorkItemDefaults.ReportKeyMaxLength);
             // SQLite allows many NULLs in a unique index: only reports carry a key.
@@ -111,6 +114,23 @@ public class KanbanDbContext : DbContext
                 .WithOne(r => r.History!)
                 .HasForeignKey(r => r.HistoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WorkItemFile>(e =>
+        {
+            e.ToTable("WorkItemFile");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.FileName).IsRequired().HasMaxLength(WorkItemDefaults.FileNameMaxLength);
+            e.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+            e.Property(x => x.AddedAt).HasConversion(UtcConverter);
+            e.Property(x => x.AddedBy).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
+            e.Property(x => x.RemovedAt).HasConversion(NullableUtcConverter);
+            e.Property(x => x.RemovedBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
+            e.HasIndex(x => x.WorkItemId);
+            // Files are part of the audit trail: never cascaded away.
+            e.HasOne(x => x.WorkItem).WithMany(w => w.Files).HasForeignKey(x => x.WorkItemId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Attachment).WithMany().HasForeignKey(x => x.AttachmentId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CommentRevision>(e =>

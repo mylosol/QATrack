@@ -35,6 +35,24 @@ public static class WorkItemMapper
         History = includeHistory
             ? item.History.OrderBy(h => h.ChangeDate).ThenBy(h => h.Id).Select(ToDto).ToList()
             : null,
+        FileCount = item.FileCount,
+        Files = includeHistory
+            ? item.Files.Where(f => f.RemovedAt == null).OrderBy(f => f.AddedAt).ThenBy(f => f.Id).Select(ToDto).ToList()
+            : null,
+    };
+
+    /// <summary>Maps an attached file. The URL is the AI agent API download link.</summary>
+    public static WorkItemFileDto ToDto(WorkItemFile file) => new()
+    {
+        Id = file.Id,
+        WorkItemId = file.WorkItemId,
+        FileName = file.FileName,
+        ContentType = file.ContentType,
+        Length = file.Length,
+        AddedBy = file.AddedBy,
+        IsAiAction = file.IsAiAction,
+        AddedAt = file.AddedAt,
+        Url = $"api/v1/workitems/{file.WorkItemId}/files/{file.Id}",
     };
 
     /// <summary>Maps a single audit entry, parsing its JSON diff payload.</summary>
