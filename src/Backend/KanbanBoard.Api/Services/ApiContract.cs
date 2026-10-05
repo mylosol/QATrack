@@ -56,12 +56,15 @@ public sealed class ApiContract
 
     /// <summary>
     /// Hashes an OpenAPI document, ignoring <c>info.version</c> and <c>servers</c>.
-    /// Mutates <paramref name="document"/>; pass a freshly generated one.
+    /// Replaces <paramref name="document"/>'s info and servers; pass a freshly generated one.
     /// </summary>
     public static string Fingerprint(OpenApiDocument document)
     {
-        document.Info.Version = string.Empty;
-        document.Servers?.Clear();
+        // Copy, never edit: Swashbuckle hands every generated document the same
+        // OpenApiInfo instance, so blanking its version here used to blank
+        // info.version in every /api/openapi.json served afterwards.
+        document.Info = new OpenApiInfo(document.Info) { Version = string.Empty };
+        document.Servers = new List<OpenApiServer>();
         return Hash(Serialize(document))[..FingerprintLength];
     }
 

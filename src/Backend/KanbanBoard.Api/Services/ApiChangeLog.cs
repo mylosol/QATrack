@@ -21,7 +21,7 @@ public static class ApiChangeLog
         {
             Version = "1.14.0",
             Date = "2026-10-05",
-            SchemaVersion = "12fa4d42b4a5",
+            SchemaVersion = "017b09e3930d",
             Breaking = false,
             Summary = new[]
             {
