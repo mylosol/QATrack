@@ -104,6 +104,25 @@ public sealed class ApiContractTests : IClassFixture<KanbanApiFactory>
     }
 
     [Fact]
+    public async Task OpenApiDocument_ListsPathsInAFixedOrder_SoEveryHostComputesTheSameFingerprint()
+    {
+        // 1.14.0: controller discovery order differs between the test host and IIS;
+        // the fingerprint hashes the document text, so the order must be fixed.
+        using var doc = JsonDocument.Parse(await _factory.CreateClient().GetStringAsync("/api/openapi.json"));
+        var paths = doc.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ToList();
+        Assert.Equal(paths.OrderBy(p => p, StringComparer.Ordinal).ToList(), paths);
+    }
+
+    [Fact]
+    public async Task ComputingTheFingerprint_DoesNotBlankTheServedVersion()
+    {
+        _ = LiveFingerprint();
+        using var doc = JsonDocument.Parse(await _factory.CreateClient().GetStringAsync("/api/openapi.json"));
+        Assert.Equal(AppVersion.Current.Version, doc.RootElement.GetProperty("info").GetProperty("version").GetString());
+        Assert.Equal(LiveFingerprint(), ApiContract.Fingerprint(FreshDocument()));
+    }
+
+    [Fact]
     public void ApiChangeLog_IsNewestFirst_AndNotAheadOfTheApp()
     {
         var versions = ApiChangeLog.Entries.Select(e => e.Version).ToList();

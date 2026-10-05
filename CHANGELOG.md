@@ -20,6 +20,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Database: additive migration `AddWorkItemFiles` (new table `WorkItemFile`, new column `WorkItem.FileCount` defaulting to 0). File contents are stored in the existing `Attachment` table (each distinct file once), so they are part of `kanban.db` and its backups. Existing data is untouched.
 - File uploads accept requests up to 21 MB; every other request keeps the 8 MB limit.
 
+### Fixed
+- `X-API-Schema-Version` is now the same on every host. The API document listed endpoints in the order the host happened to discover them, which could differ between the test host and IIS and so give a different fingerprint. Endpoints are now always listed alphabetically by path.
+- `/api/openapi.json` showed an empty `info.version` once the schema version had been computed (since 1.5.0). It shows the board version again.
+
 ## [1.13.1] - 2026-10-05
 
 ### Changed

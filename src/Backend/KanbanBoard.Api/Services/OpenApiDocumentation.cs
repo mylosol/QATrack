@@ -99,6 +99,11 @@ public static class OpenApiDocumentation
             });
             options.DocumentFilter<ReportDocumentSecurityFilter>();
 
+            // A fixed operation order (path, then method): the order controllers
+            // are discovered in differs between hosts (e.g. the test host and
+            // IIS), and the X-API-Schema-Version fingerprint must not (1.14.0).
+            options.OrderActionsBy(api => $"{api.RelativePath} {api.HttpMethod}");
+
             var xml = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
             if (File.Exists(xml))
             {
