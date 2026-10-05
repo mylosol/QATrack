@@ -3,6 +3,12 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.1] - 2026-10-05
+
+### Changed
+- **"Comment & move to X" now saves and closes the card**, like **Save changes**. One click saves every field you edited, posts the comment, moves the card and closes the dialog. Field edits, comment and move are recorded as one history entry. "Move to X" (no comment) does the same. A blank title is refused before anything is saved, as with Save changes.
+- **Add comment** (with "Then" left at "Keep in ...") is unchanged: it posts the comment and keeps the dialog open.
+
 ## [1.13.0] - 2026-10-02
 
 ### Added
