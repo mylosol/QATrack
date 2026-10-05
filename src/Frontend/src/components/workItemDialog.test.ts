@@ -98,3 +98,15 @@ describe('commentButtonLabel (1.13.0)', () => {
     expect(commentButtonLabel(false, 'Resolved')).toBe('Move to Resolved');
   });
 });
+
+describe('describeChanges for files (1.14.0)', () => {
+  const entry = (old: string | null, nw: string | null) => ({
+    id: 1, workItemId: 1, changeDate: '2026-10-05T10:00:00Z', author: 'R', isAiAction: false, agentName: null,
+    changedFields: { Files: { old, new: nw } }, comment: null,
+  });
+
+  it('says attached or removed', () => {
+    expect(describeChanges(entry(null, 'app.log'))).toEqual(['Attached file "app.log"']);
+    expect(describeChanges(entry('app.log', null))).toEqual(['Removed file "app.log"']);
+  });
+});

@@ -51,6 +51,7 @@ public sealed class WorkItemService
     {
         var item = await _db.WorkItems.AsNoTracking()
                        .Include(w => w.History)
+                       .Include(w => w.Files)
                        .Include(w => w.Program)
                        .Include(w => w.Tags)
                        .AsSplitQuery()
@@ -116,6 +117,7 @@ public sealed class WorkItemService
     {
         var item = await _db.WorkItems
                        .Include(w => w.History)
+                       .Include(w => w.Files)
                        .Include(w => w.Program)
                        .Include(w => w.Tags)
                        .AsSplitQuery()
@@ -464,7 +466,7 @@ public sealed class WorkItemService
     /// The one place audit rules are enforced (spec 4.1). Stamps modification
     /// metadata on <paramref name="item"/> and appends a history row.
     /// </summary>
-    private WorkItemHistory StampAndRecord(
+    internal WorkItemHistory StampAndRecord(
         WorkItem item,
         IReadOnlyDictionary<string, FieldChange> changes,
         string? comment,

@@ -163,7 +163,7 @@ public sealed class ReportApiTests : IClassFixture<ReportApiTests.Factory>
         var client = _factory.CreateClient();
         using var report = JsonDocument.Parse(await client.GetStringAsync("/api/openapi-report.json"));
         var paths = report.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ToList();
-        Assert.Equal(new[] { "/api/report/attachments", "/api/report/issues", "/api/report/ping" }, paths.Order().ToArray());
+        Assert.Equal(new[] { "/api/report/attachments", "/api/report/files", "/api/report/issues", "/api/report/ping" }, paths.Order().ToArray());
         var schemes = report.RootElement.GetProperty("components").GetProperty("securitySchemes").EnumerateObject().Select(s => s.Name);
         Assert.Equal(new[] { "ReporterKey" }, schemes);
 

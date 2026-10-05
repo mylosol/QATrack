@@ -3,6 +3,23 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-10-05
+
+### Added
+- **Attach log files to a case.** Each card has a **Files** section: **Attach files…** or drop files onto it.
+  - Accepts log files and other text in any encoding, and `.zip`, `.gz` or `.7z` archives, up to 20 MB each. The type is checked from the file's content, not its name; programs and images are refused with a message.
+  - On a new item the files are attached when you click **Create**.
+  - **View** opens a text file in a new tab (served as plain text, so nothing in it can run); **Download** saves it. Archives are downloads only.
+  - **Remove** asks first. Removed files are hidden, not deleted: they stay in the database and the removal is recorded in history ("Removed file ...").
+  - Attaching is recorded in history ("Attached file ..."), and cards with files show 📎 and the count on the board.
+  - Unsaved-changes protection covers files waiting to be attached and uploads in progress.
+- **AI agent API:** work items have `fileCount`, and `GET /api/v1/workitems/{id}` returns `files`. New endpoints: `GET /api/v1/workitems/{id}/files` (list), `GET /api/v1/workitems/{id}/files/{fileId}` (download), `POST /api/v1/workitems/{id}/files` (agents attach their own test output). History records attach/remove as a change to `Files`. New `X-API-Schema-Version`; agents are told what changed through `GET /api/v1/meta`.
+- **In-app reporting:** `POST /api/report/files` uploads a log file, and a report's new `files` field (up to 5 ids) attaches them to the card. The receipt lists the attached file names.
+
+### Changed
+- Database: additive migration `AddWorkItemFiles` (new table `WorkItemFile`, new column `WorkItem.FileCount` defaulting to 0). File contents are stored in the existing `Attachment` table (each distinct file once), so they are part of `kanban.db` and its backups. Existing data is untouched.
+- File uploads accept requests up to 21 MB; every other request keeps the 8 MB limit.
+
 ## [1.13.1] - 2026-10-05
 
 ### Changed

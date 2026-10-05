@@ -11,6 +11,7 @@ Reports are recorded as **human** reports, never as AI. They land in **New**, ar
 | Key header | `X-Reporter-Key: <key>` (not the AI agent key `X-API-Key`) |
 | File a report | `POST /api/report/issues` (JSON) |
 | Upload a screenshot | `POST /api/report/attachments` (multipart, part named `file`) |
+| Upload a log file | `POST /api/report/files` (multipart, part named `file`; 1.14.0) |
 | No duplicates on resend | `Idempotency-Key: <uuid>` header on `POST /api/report/issues` (1.13.0) |
 | Check connection | `GET /api/report/ping` (files nothing, 1.13.0) |
 | Machine-readable spec | `GET /api/openapi-report.json`, also in `/api/docs` ("QATrack in-app issue reporting") |
@@ -21,7 +22,7 @@ All paths are relative to the board, e.g. `http://12.218.155.150:16802/api/repor
 
 - The server administrator gets the reporter key from the QATrack install output (`X-Reporter-Key: ...`), or from `appsettings.Production.json` → `IssueReporting:ApiKey`.
 - The key ships inside your program, so treat it as semi-public. It can only **file reports**, **upload screenshots** and **ping**. It cannot read, change or comment on the board.
-- **Rate limit:** 20 requests per minute per IP address. Reports, uploads and pings all count. A report with two screenshots is three requests.
+- **Rate limit:** 20 requests per minute per IP address. Reports, uploads and pings all count. A report with two screenshots and a log file is four requests.
 
 ## File a report
 
@@ -55,6 +56,7 @@ Content-Type: application/json
 | `reporter` | no | Name or email the person typed, max 64 characters. Shown as the author "Jane Doe (in-app report)". When omitted, the author is "In-app report". |
 | `environment` | no | OS, build, settings, recent log lines. Appended to the description as a code block. Max 20,000 characters. |
 | `tags` | no | Up to 10 extra tags. `in-app-report` is always added. |
+| `files` | no | Up to 5 log files: the `id`s returned by `POST /api/report/files`. They appear in the card's Files list. An unknown id is rejected with HTTP 400 and nothing is filed. |
 
 **Priority** is not accepted: the board sets it during triage (default 2 - High).
 
@@ -72,6 +74,7 @@ HTTP **201 Created**:
   "program": "ProveOut",
   "programVersion": "2.4.1",
   "tags": ["export", "in-app-report"],
+  "files": ["app.log"],
   "reportedBy": "Jane Doe (in-app report)",
   "createdAt": "2026-10-02T15:04:05.1234567Z"
 }
@@ -115,6 +118,25 @@ Send an `Idempotency-Key` header with every report:
    ```
 3. Put the `markdown` text into the report's `description`.
 
+## Include log files
+
+1. Upload each file:
+   ```http
+   POST /api/report/files
+   X-Reporter-Key: <key>
+   Content-Type: multipart/form-data
+   ```
+   - Send the file in a part named `file`.
+   - Accepted: log files and any other text (UTF-8, UTF-16, Windows code pages...), or `.zip`, `.gz` or `.7z` archives, up to **20 MB**. The type is checked from the content, so the name doesn't matter, but programs and images are refused (send screenshots through `/api/report/attachments`).
+   - Zip large or many logs into one archive.
+2. The response is HTTP 201:
+   ```json
+   { "id": "9b1f0c4e-...", "fileName": "app.log", "contentType": "text/plain", "length": 48213 }
+   ```
+3. Put the ids in the report: `"files": ["9b1f0c4e-..."]` (up to 5).
+
+On a retry with the same `Idempotency-Key`, re-uploading the same file is harmless: identical content is stored once, and the resend returns the card filed the first time.
+
 ## Check connection: ping
 
 For a "Check connection" button. Files nothing.
@@ -139,7 +161,7 @@ Every error body is JSON (`application/problem+json`) with `title` and `detail`,
 
 | Status | Meaning | Suggested message to the person |
 |---|---|---|
-| 400 | Invalid report: missing title, unknown program, a type other than Bug or Feature, too many tags, bad `Idempotency-Key`. The body lists the problems per field. | Fix and resend (a programming error, usually). |
+| 400 | Invalid report: missing title, unknown program, a type other than Bug or Feature, too many tags or files, an unknown file id, bad `Idempotency-Key`. For uploads: an empty file, over 20 MB, or not a log/text file or archive. The body lists the problems per field. | Fix and resend (a programming error, usually). |
 | 401 | Missing or wrong `X-Reporter-Key`. | "The QA board rejected this app's key. Please tell the development team." |
 | 429 | Too many requests from this IP. Has a `Retry-After` header (seconds, currently 60). | "The QA board is busy. Your report is saved and will be sent in a minute." |
 | 503 with JSON | Reporting is switched off on the server (no reporter key configured). | "Reporting is not available right now." |

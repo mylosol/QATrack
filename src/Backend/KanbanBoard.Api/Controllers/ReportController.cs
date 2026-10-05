@@ -64,6 +64,28 @@ public sealed class ReportController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, receipt);
     }
 
+    /// <summary>Upload a log file for a report (text up to 20 MB, or a .zip/.gz/.7z archive).</summary>
+    /// <remarks>
+    /// Send <c>multipart/form-data</c> with the file in a part named <c>file</c>, then list the
+    /// returned <c>id</c> in the report's <c>files</c> (max 5 per report). The type is detected from
+    /// the content: text in any encoding, or a zip/gzip/7z archive. Screenshots go through
+    /// <c>POST /api/report/attachments</c> instead.
+    /// </remarks>
+    /// <param name="file">The log file or archive.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPost("files", Name = "reportFile")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(FileEndpoints.RequestLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = FileEndpoints.RequestLimit)]
+    [ProducesResponseType(typeof(ReportFileDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<ReportFileDto>> UploadFile(IFormFile file, CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        return StatusCode(StatusCodes.Status201Created, await _reports.UploadFileAsync(stream, file.FileName, ct));
+    }
+
     /// <summary>Check the board is reachable and the reporter key works. Files nothing.</summary>
     /// <remarks>
     /// For a "Check connection" button. 200 means reports will be accepted; 401 means a wrong

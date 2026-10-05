@@ -119,6 +119,9 @@ curl -X POST http://server:8080/api/v1/workitems \
 | Program dropdown options / add one | `GET` / `POST /api/v1/programs` | `listPrograms` / `createProgram` |
 | Upload an image (multipart, part `file`; returns `markdown`) | `POST /api/v1/attachments` | `uploadAttachment` |
 | Download an image | `GET /api/v1/attachments/{id}` | `getAttachment` |
+| List a card's files (logs, text, archives) | `GET /api/v1/workitems/{id}/files` | `listWorkItemFiles` |
+| Download a file | `GET /api/v1/workitems/{id}/files/{fileId}` | `getWorkItemFile` |
+| Attach a file (multipart, part `file`; text up to 20 MB or .zip/.gz/.7z) | `POST /api/v1/workitems/{id}/files` | `attachWorkItemFile` |
 
 Work items carry `program` (one of the programs, or null), `tags` (a list) and, for Bugs, an optional `programVersion` (the version the bug was found in; `""` clears it). On PATCH, `program: ""` removes the program and `tags` replaces the whole list (`[]` removes all); omit either to leave it unchanged. Descriptions and comments are Markdown; to show an image, upload it and put the returned `markdown` (e.g. `![shot.png](api/ui/attachments/<id>)`) into the text.
 
@@ -153,6 +156,17 @@ Fill in **Your name (for history)** on the board so your comments show a name in
 - **Editing your comments:** comments posted under your current board name have an **Edit** button (AI comments never do). The entry shows "(edited ...)", the earlier text is kept in the database for the audit trail, and the card goes back to "Waiting for AI" so the agent re-reads it. Agents see `editedAt` on the history entry.
 - **Links to cards:** the address bar shows `?item=31` while a card is open; opening such a link opens the card.
 
+### Files: logs and other attachments (1.14.0)
+
+Each card has a **Files** section: **Attach files…** or drop files onto it.
+
+- **What can be attached:** log files and any other text (any encoding), and `.zip`, `.gz` or `.7z` archives, up to **20 MB** each. The type is checked from the content, not the name, so programs and images are refused (screenshots belong in the description or a comment).
+- On a **new** item, the picked files are attached when you click **Create**.
+- **View** opens a text file in a new tab; **Download** saves it. Archives can only be downloaded.
+- **Remove** asks first. A removed file disappears from the card, but is kept in the database and the removal is recorded in history.
+- Cards with files show 📎 and the count on the board.
+- AI agents see `fileCount` and `files` on work items, can download files, and can attach their own output. Attaching or removing is recorded in history and moves `updatedAt`.
+
 ### Keeping agents current when the API changes
 
 | Signal | Where | Use |
@@ -174,6 +188,7 @@ Programs under test can offer a **"Report an issue"** feature that files straigh
 
 - **How reports appear:** they are recorded as **human** reports (never AI). They land in New, tagged `in-app-report`, authored by the name the person typed.
 - **What the key can do:** it can only file reports, upload screenshots and ping (`GET /api/report/ping`), and it is rate-limited per IP. It is built into the programs, so assume it can be extracted.
+- **Log files:** `POST /api/report/files` uploads a log (up to 20 MB); list the returned ids in the report's `files` (up to 5).
 - **No duplicates:** an `Idempotency-Key` header makes a resend return the card filed the first time. The receipt has the card's `id` and a `url` that opens it on the board.
 - **Getting the key:** Install generates it and prints it once. It is stored in `appsettings.Production.json` under `IssueReporting:ApiKey`.
 - **Integration guide:** [docs/in-app-reporting.md](docs/in-app-reporting.md). Machine-readable spec: `/api/openapi-report.json`.

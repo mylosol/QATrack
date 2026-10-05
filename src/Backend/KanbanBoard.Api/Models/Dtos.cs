@@ -118,6 +118,15 @@ public sealed class WorkItemDto
 
     /// <summary>Full audit history (only populated on single-item requests).</summary>
     public IReadOnlyList<WorkItemHistoryDto>? History { get; init; }
+
+    /// <summary>Number of files attached (logs, text output, archives) (1.14.0).</summary>
+    public int FileCount { get; init; }
+
+    /// <summary>
+    /// Attached files, oldest first (only populated on single-item requests, like history) (1.14.0).
+    /// Download one with GET /api/v1/workitems/{id}/files/{fileId}.
+    /// </summary>
+    public IReadOnlyList<WorkItemFileDto>? Files { get; init; }
 }
 
 /// <summary>Payload to create a bug, feature or other work item.</summary>
@@ -232,6 +241,36 @@ public sealed class AddCommentRequest
     [Required(AllowEmptyStrings = false)]
     [MaxLength(WorkItemDefaults.CommentMaxLength)]
     public string Text { get; set; } = string.Empty;
+}
+
+/// <summary>A file attached to a work item (1.14.0).</summary>
+public sealed class WorkItemFileDto
+{
+    /// <summary>File id, unique across the board.</summary>
+    public int Id { get; init; }
+
+    public int WorkItemId { get; init; }
+
+    /// <summary>Name it was attached with, e.g. "app.log".</summary>
+    public string FileName { get; init; } = string.Empty;
+
+    /// <summary>"text/plain" for logs and other text, or "application/zip", "application/gzip", "application/x-7z-compressed".</summary>
+    public string ContentType { get; init; } = string.Empty;
+
+    /// <summary>Size in bytes.</summary>
+    public long Length { get; init; }
+
+    /// <summary>Who attached it: a person's board name, a reporter, or an AI agent identity.</summary>
+    public string AddedBy { get; init; } = string.Empty;
+
+    /// <summary>True when an AI agent attached it.</summary>
+    public bool IsAiAction { get; init; }
+
+    /// <summary>UTC time it was attached.</summary>
+    public DateTime AddedAt { get; init; }
+
+    /// <summary>Download link for AI agents, relative to the site root, e.g. "api/v1/workitems/31/files/7" (send the API key).</summary>
+    public string Url { get; init; } = string.Empty;
 }
 
 /// <summary>New text for a comment, edited by its author on the board (1.13.0).</summary>

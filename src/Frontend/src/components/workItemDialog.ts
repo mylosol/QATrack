@@ -25,6 +25,7 @@ import {
 import type { Announcer } from './announcer';
 import { createAiBadge } from './card';
 import { clear, formatDate, h } from './dom';
+import { FileList } from './fileList';
 import { setMarkdown } from './markdown';
 import { ProgramPicker } from './programPicker';
 import { RichTextEditor } from './richTextEditor';
@@ -119,6 +120,8 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
 /** Human readable rendering of one history entry's field changes. */
 export function describeChanges(entry: WorkItemHistoryEntry): string[] {
   return Object.entries(entry.changedFields).map(([field, change]) => {
+    // Attached / removed files (1.14.0).
+    if (field === 'Files') return change.old === null ? `Attached file "${change.new ?? ''}"` : `Removed file "${change.old}"`;
     if (change.old === null) return `${field} set to "${change.new ?? ''}"`;
     if (change.new === null) return `${field} cleared (was "${change.old}")`;
     return `${field}: "${change.old}" → "${change.new}"`;
@@ -142,6 +145,8 @@ export class WorkItemDialog {
   private commentEdit: CommentEdit | null = null;
   /** "You have unsaved changes" confirmation, shown instead of closing. */
   private discardBar: HTMLElement | null = null;
+  /** Attached files (1.14.0). */
+  private fileList: FileList | null = null;
 
   constructor(
     private readonly dialog: HTMLDialogElement,
@@ -185,6 +190,7 @@ export class WorkItemDialog {
   get hasUnsavedChanges(): boolean {
     if (!this.dialog.open || !this.controls) return false;
     if (this.commentEditor && !this.commentEditor.isEmpty) return true;
+    if (this.fileList && (this.fileList.pending.length > 0 || this.fileList.isBusy)) return true;
     if (this.commentEdit && this.commentEdit.editor.markdown.trim() !== this.commentEdit.original.trim()) return true;
     if (this.item === null) return JSON.stringify(this.readForm()) !== this.initialNewForm;
     return Object.keys(diffForUpdate(this.item, this.readForm())).length > 0;
@@ -343,6 +349,17 @@ export class WorkItemDialog {
       }),
     };
     this.controls = controls;
+    this.fileList = new FileList({
+      itemId: item?.id ?? null,
+      files: item?.files ?? [],
+      api: this.api,
+      announce: (message) => this.announcer.announce(message),
+      onError: (message) => {
+        this.showError(message);
+        this.announcer.announce(message, 'assertive');
+      },
+      onChanged: () => void this.refreshAfterFileChange(),
+    });
 
     // Program version applies to Bugs only: shown and hidden as the Type changes.
     const versionField = h('label', { class: 'field-label', 'data-testid': 'dialog-program-version-field' },
@@ -400,6 +417,7 @@ export class WorkItemDialog {
           h('p', { id: 'description-help', class: 'text-xs text-muted' },
             'Use the toolbar or Markdown shortcuts (**bold**, # heading, - list). Paste, drop or insert images. Ctrl+] / Ctrl+[ indent list items; Tab leaves the editor.'),
         ),
+        this.fileList.element,
         isNew || !item ? null : this.renderDiscussion(item),
       ),
       this.renderDiscardBar(),
@@ -581,6 +599,22 @@ export class WorkItemDialog {
     return list;
   }
 
+  /** A file was attached or removed: show it in the history and update the board. */
+  private async refreshAfterFileChange(): Promise<void> {
+    const item = this.item;
+    if (!item) return;
+    try {
+      const refreshed = await this.api.getWorkItem(item.id);
+      if (this.item?.id !== item.id) return;
+      // Keep the fields being edited; only the history and file count change.
+      this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt, fileCount: refreshed.fileCount, files: refreshed.files };
+      this.historyHost?.replaceChildren(this.renderHistory(this.item));
+      this.handlers.onChanged(refreshed, 'commented');
+    } catch {
+      // The file itself was saved; the history catches up next time the card opens.
+    }
+  }
+
   /** Swaps a comment for an editor holding its text (one comment at a time). */
   private startCommentEdit(item: WorkItem, entry: WorkItemHistoryEntry): void {
     if (this.commentEdit) {
@@ -713,6 +747,10 @@ export class WorkItemDialog {
 
     // An image still uploading would otherwise be missing from the text.
     await controls.description.whenIdle();
+    if (this.fileList?.isBusy) {
+      this.showError('A file is still uploading. Save again when it has finished.');
+      return;
+    }
     const final = this.readForm();
 
     try {
@@ -729,6 +767,14 @@ export class WorkItemDialog {
           program: final.program || undefined,
           tags: final.tags.length > 0 ? final.tags : undefined,
         });
+        const problems = (await this.fileList?.uploadPending(created.id)) ?? [];
+        if (problems.length > 0) {
+          // The item exists: reopen it so the person sees what was attached and what wasn't.
+          this.handlers.onChanged(created, 'created');
+          await this.openExisting(created.id);
+          this.showError(`Created item ${created.id}, but some files were not attached. ${problems.join(' ')}`);
+          return;
+        }
         this.dialog.close();
         this.handlers.onChanged(created, 'created');
       } else {

@@ -43,6 +43,29 @@ public sealed class ReportIssueRequest
     /// <summary>Optional extra tags (max 10). "in-app-report" is always added.</summary>
     [MaxLength(10)]
     public List<string>? Tags { get; set; }
+
+    /// <summary>
+    /// Optional log files to attach (max 5): the ids returned by POST /api/report/files.
+    /// They appear in the card's Files list under the names they were uploaded with.
+    /// </summary>
+    [MaxLength(WorkItemDefaults.MaxFilesPerReport)]
+    public List<Guid>? Files { get; set; }
+}
+
+/// <summary>A log file uploaded for an in-app report (1.14.0). Put its id in the report's 'files'.</summary>
+public sealed class ReportFileDto
+{
+    /// <summary>Id to list in the report's 'files'.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>The name it will be shown under on the card.</summary>
+    public string FileName { get; init; } = string.Empty;
+
+    /// <summary>"text/plain", "application/zip", "application/gzip" or "application/x-7z-compressed".</summary>
+    public string ContentType { get; init; } = string.Empty;
+
+    /// <summary>Size in bytes.</summary>
+    public long Length { get; init; }
 }
 
 /// <summary>
@@ -72,6 +95,9 @@ public sealed class ReportReceiptDto
     public string? ProgramVersion { get; init; }
 
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
+    /// <summary>Names of the files attached to the card (1.14.0).</summary>
+    public IReadOnlyList<string> Files { get; init; } = Array.Empty<string>();
 
     /// <summary>Author recorded on the card, e.g. "Jane Doe (in-app report)".</summary>
     public string ReportedBy { get; init; } = string.Empty;

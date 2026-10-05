@@ -89,6 +89,23 @@ export interface WorkItem {
   createdAt: string;
   updatedAt: string;
   history?: WorkItemHistoryEntry[] | null;
+  /** Files attached (1.14.0). */
+  fileCount?: number;
+  /** Attached files, oldest first (single-item requests only). */
+  files?: WorkItemFile[] | null;
+}
+
+/** A log or other file attached to a work item (1.14.0). */
+export interface WorkItemFile {
+  id: number;
+  workItemId: number;
+  fileName: string;
+  /** text/plain, application/zip, application/gzip or application/x-7z-compressed. */
+  contentType: string;
+  length: number;
+  addedBy: string;
+  isAiAction: boolean;
+  addedAt: string;
 }
 
 export interface BoardColumn {

@@ -93,6 +93,11 @@ export function createCard(item: WorkItem): HTMLLIElement {
             h('span', { 'aria-hidden': 'true' }, `💬 ${item.commentCount}`),
             h('span', { class: 'sr-only' }, `${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}`))
         : null,
+      item.fileCount
+        ? h('span', { class: 'text-muted', 'data-testid': 'card-files', title: `${item.fileCount} file${item.fileCount === 1 ? '' : 's'} attached` },
+            h('span', { 'aria-hidden': 'true' }, `📎 ${item.fileCount}`),
+            h('span', { class: 'sr-only' }, `${item.fileCount} file${item.fileCount === 1 ? '' : 's'} attached`))
+        : null,
       item.program ? h('span', { class: 'card-program', 'data-testid': 'card-program' }, h('span', { class: 'sr-only' }, 'Program '), item.program) : null,
       item.tags?.length
         ? h(

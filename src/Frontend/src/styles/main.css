@@ -64,6 +64,13 @@
   .btn-danger {
     @apply border-alert bg-alert text-alert-fg hover:bg-alert/90;
   }
+  /* Files attached to a card (1.14.0). */
+  .file-row {
+    @apply flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-line/40 px-2 py-1 text-sm;
+  }
+  .file-drop-active {
+    @apply border-primary bg-column;
+  }
   /* "You have unsaved changes" question in the card dialog (1.13.0). */
   .discard-bar {
     @apply border-t-2 border-alert bg-column;

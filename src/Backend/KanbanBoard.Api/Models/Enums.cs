@@ -75,6 +75,15 @@ public static class WorkItemDefaults
     /// <summary>Max length of a bug's program version (1.7.0).</summary>
     public const int ProgramVersionMaxLength = 64;
 
+    /// <summary>Largest file (log, text, archive) that can be attached to a work item (1.14.0).</summary>
+    public const int FileMaxBytes = 20 * 1024 * 1024;
+
+    /// <summary>Max length of an attached file's display name.</summary>
+    public const int FileNameMaxLength = 100;
+
+    /// <summary>Most files an in-app report can attach (1.14.0).</summary>
+    public const int MaxFilesPerReport = 5;
+
     /// <summary>Max length of an in-app report's Idempotency-Key (1.13.0).</summary>
     public const int ReportKeyMaxLength = 128;
 

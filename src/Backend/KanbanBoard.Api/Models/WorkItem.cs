@@ -73,6 +73,9 @@ public class WorkItem
     /// <summary>Number of history entries carrying a comment (1.9.0).</summary>
     public int CommentCount { get; set; }
 
+    /// <summary>Number of files currently attached (removed ones excluded) (1.14.0).</summary>
+    public int FileCount { get; set; }
+
     /// <summary>When a human last opened the card while it had an unread agent reply (1.9.0).</summary>
     public DateTime? HumanReadAt { get; set; }
 
@@ -87,4 +90,7 @@ public class WorkItem
 
     /// <summary>Audit trail, newest entries appended last.</summary>
     public List<WorkItemHistory> History { get; set; } = new();
+
+    /// <summary>Attached files, including removed ones (1.14.0).</summary>
+    public List<WorkItemFile> Files { get; set; } = new();
 }
