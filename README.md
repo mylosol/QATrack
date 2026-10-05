@@ -149,7 +149,7 @@ Fill in **Your name (for history)** on the board so your comments show a name in
 ### Working in the card dialog (1.13.0)
 
 - **Unsaved work is safe:** a click outside the dialog, Escape, Cancel or ✕ never throws away typed fields or an unsent comment. The dialog asks first ("Keep editing" / "Discard changes"), and reloading the page asks too.
-- **Comment and move in one step:** under the comment box, **Then** picks a state, e.g. "Move to Closed". The button becomes "Comment & move to Closed" and records the comment and the move together.
+- **Comment and move in one step:** under the comment box, **Then** picks a state, e.g. "Move to Closed". The button becomes "Comment & move to Closed": like **Save changes**, it saves any fields you edited, posts the comment, moves the card and closes the dialog (one history entry).
 - **Editing your comments:** comments posted under your current board name have an **Edit** button (AI comments never do). The entry shows "(edited ...)", the earlier text is kept in the database for the audit trail, and the card goes back to "Waiting for AI" so the agent re-reads it. Agents see `editedAt` on the history entry.
 - **Links to cards:** the address bar shows `?item=31` while a card is open; opening such a link opens the card.
 

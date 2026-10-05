@@ -6,7 +6,7 @@
  *
  * 1.13.0: unsaved work is never thrown away by a stray click or Escape (the
  * dialog asks first), people edit their own comments, and a comment can move
- * the card in the same step ("Comment & move to Closed").
+ * the card in the same step ("Comment & move to Closed" saves and closes).
  */
 import { ApiError, type ApiClient } from '../services/apiClient';
 import type { ReadState } from '../services/readState';
@@ -450,7 +450,8 @@ export class WorkItemDialog {
 
   /**
    * Comment editor + revision history stream (newest first). The "Then"
-   * select lets one click post the comment and move the card (1.13.0).
+   * select turns the button into "Comment & move to X": save everything,
+   * post the comment, move the card and close (1.13.0, closes since 1.13.1).
    */
   private renderDiscussion(item: WorkItem): HTMLElement {
     const addButton = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-add' }, 'Add comment');
@@ -472,7 +473,7 @@ export class WorkItemDialog {
     const editor = this.commentEditor;
     this.fillMoveOptions(moveSelect, item.state);
     moveSelect.addEventListener('change', syncButton);
-    addButton.addEventListener('click', () => void this.addComment(editor, addButton, moveSelect, syncButton));
+    addButton.addEventListener('click', () => void this.addComment(editor, addButton, moveSelect));
 
     this.historyHost = h('div', {}, this.renderHistory(item));
 
@@ -746,51 +747,86 @@ export class WorkItemDialog {
   }
 
   /**
-   * Posts the comment, and/or moves the card when "Then" names a state. Both
-   * go in one request, so the history shows the move and the comment together.
+   * "Add comment" posts the comment and keeps the dialog open. With "Then"
+   * set to a state, the button saves the card instead (see saveAndMove).
    */
   private async addComment(
     editor: RichTextEditor,
     button: HTMLButtonElement,
     moveSelect: HTMLSelectElement,
-    syncButton: () => void,
   ): Promise<void> {
     if (!this.item) return;
     await editor.whenIdle();
     const text = editor.markdown.trim();
     const moveTo = moveSelect.value as WorkItemState | '';
-    if (!text && !moveTo) {
+    if (moveTo) {
+      await this.saveAndMove(moveTo, text, button);
+      return;
+    }
+    if (!text) {
       this.showError('Write a comment before adding it.');
       editor.focus();
       return;
     }
     button.disabled = true;
     try {
-      let refreshed: WorkItem;
-      if (moveTo) {
-        refreshed = await this.api.updateWorkItem(this.item.id, { state: moveTo, ...(text ? { comment: text } : {}) });
-        const newest = refreshed.history?.[refreshed.history.length - 1];
-        if (newest?.comment) this.ownEntryIds.add(newest.id);
-      } else {
-        const posted = await this.api.addComment(this.item.id, text);
-        this.ownEntryIds.add(posted.id);
-        refreshed = await this.api.getWorkItem(this.item.id);
-      }
+      const posted = await this.api.addComment(this.item.id, text);
+      this.ownEntryIds.add(posted.id);
+      const refreshed = await this.api.getWorkItem(this.item.id);
       // Your own comment is read by definition.
       this.handlers.readState?.markRead(refreshed);
-      // Keep the fields being edited; only the history, state and comment box change.
-      this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt, state: refreshed.state };
-      if (moveTo && this.controls) this.controls.state.value = refreshed.state;
+      // Keep the fields being edited; only the history and comment box change.
+      this.item = { ...this.item, history: refreshed.history, updatedAt: refreshed.updatedAt };
       this.historyHost?.replaceChildren(this.renderHistory(this.item));
       editor.clear();
-      this.fillMoveOptions(moveSelect, refreshed.state);
-      syncButton();
       this.showError(null);
-      this.announcer.announce(moveTo ? `${text ? 'Comment added. ' : ''}Moved to ${refreshed.state}.` : 'Comment added.');
+      this.announcer.announce('Comment added.');
       this.handlers.onChanged(refreshed, 'commented');
       editor.focus();
     } catch (err) {
       this.showError(err instanceof ApiError ? err.message : 'Could not add the comment.');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  /**
+   * "Comment & move to X" (1.13.1): does what "Save changes" does - every
+   * edited field - plus the comment and the move, in one request (one history
+   * entry), then closes the dialog.
+   */
+  private async saveAndMove(moveTo: WorkItemState, text: string, button: HTMLButtonElement): Promise<void> {
+    const controls = this.controls;
+    const item = this.item;
+    if (!controls || !item) return;
+    if (this.commentEdit && this.commentEdit.editor.markdown.trim() !== this.commentEdit.original.trim()) {
+      this.showError('Save or cancel the comment you are editing first.');
+      this.commentEdit.editor.focus();
+      return;
+    }
+    // An image still uploading would otherwise be missing from the text.
+    await controls.description.whenIdle();
+    const form = this.readForm();
+    if (!form.title.trim()) {
+      this.showError('Title is required.');
+      controls.title.setAttribute('aria-invalid', 'true');
+      controls.title.focus();
+      return;
+    }
+    controls.title.removeAttribute('aria-invalid');
+    const patch: UpdateWorkItemRequest = { ...diffForUpdate(item, form), state: moveTo };
+    if (text) patch.comment = text;
+
+    button.disabled = true;
+    try {
+      const updated = await this.api.updateWorkItem(item.id, patch);
+      // Your own comment is read by definition.
+      this.handlers.readState?.markRead(updated);
+      this.dialog.close();
+      this.handlers.onChanged(updated, 'updated');
+      this.announcer.announce(`${text ? 'Comment added. ' : ''}Moved to ${updated.state}.`);
+    } catch (err) {
+      this.showError(err instanceof ApiError ? err.message : 'Saving failed. Please try again.');
     } finally {
       button.disabled = false;
     }

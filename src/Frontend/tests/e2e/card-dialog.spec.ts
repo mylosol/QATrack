@@ -69,11 +69,14 @@ test.describe('Card dialog', () => {
     await expect(dialog.getByTestId('comment-input')).toContainText('Half a thought');
   });
 
-  test('"Comment & move to Closed" posts the comment and moves the card in one step', async ({ page, request }) => {
+  test('"Comment & move to Closed" saves the edited fields, posts the comment, moves the card and closes', async ({ page, request }) => {
     const item = await createViaUi(request, { title: uniqueTitle('Fixed now'), type: 'Bug', state: 'Active' });
     await openBoard(page);
     await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
     const dialog = page.getByRole('dialog');
+
+    // An edited field that hasn't been saved yet.
+    await dialog.getByTestId('dialog-program-version').fill('2.4.2');
 
     const move = dialog.getByTestId('comment-move');
     await expect(move.locator('option:checked')).toHaveText('Keep in Active');
@@ -86,21 +89,56 @@ test.describe('Card dialog', () => {
     await expectNoAxeViolations(page, 'comment box with a move');
     await button.click();
 
-    await expect(dialog.getByTestId('history-list')).toContainText('Verified fixed in 2.4.2.');
-    await expect(dialog.getByTestId('dialog-state')).toHaveValue('Closed');
-    await expect(move.locator('option:checked')).toHaveText('Keep in Closed');
-    await expect(button).toHaveText('Add comment');
+    // Closes like "Save changes", without asking about unsaved changes.
+    await expect(dialog).toBeHidden();
+    await expect(columnList(page, 'Closed').locator(`article[data-card-id="${item.id}"]`)).toBeVisible();
 
     const saved = await getItem(request, item.id);
     expect(saved.state).toBe('Closed');
+    expect(saved.programVersion).toBe('2.4.2');
+    // One history entry: the move, the field edit and the comment together.
     const last = saved.history!.at(-1)!;
+    expect(saved.history).toHaveLength(item.history!.length + 1);
     expect(last.comment).toBe('Verified fixed in 2.4.2.');
     expect(last.changedFields.State).toEqual({ old: 'Active', new: 'Closed' });
+    expect(last.changedFields.ProgramVersion).toEqual({ old: null, new: '2.4.2' });
+  });
 
-    // Nothing left unsaved: the dialog closes without asking, and the card is in Closed.
-    await page.keyboard.press('Escape');
+  test('"Move to Resolved" with no comment also saves and closes; "Add comment" alone keeps the dialog open', async ({ page, request }) => {
+    const item = await createViaUi(request, { title: uniqueTitle('Just move'), type: 'Bug', state: 'Active' });
+    await openBoard(page);
+    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+    const dialog = page.getByRole('dialog');
+
+    await dialog.getByTestId('comment-input').click();
+    await page.keyboard.type('Still looking.');
+    await dialog.getByTestId('comment-add').click();
+    await expect(dialog.getByTestId('history-list')).toContainText('Still looking.');
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByTestId('comment-move').selectOption('Resolved');
+    await dialog.getByTestId('comment-add').click();
     await expect(dialog).toBeHidden();
-    await expect(columnList(page, 'Closed').locator(`article[data-card-id="${item.id}"]`)).toBeVisible();
+    const saved = await getItem(request, item.id);
+    expect(saved.state).toBe('Resolved');
+    expect(saved.history!.at(-1)!.comment).toBeNull();
+  });
+
+  test('"Comment & move" with a blank title refuses and keeps everything', async ({ page, request }) => {
+    const item = await createViaUi(request, { title: uniqueTitle('Blank title'), type: 'Bug', state: 'Active' });
+    await openBoard(page);
+    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByTestId('dialog-title-input').fill('');
+    await dialog.getByTestId('comment-move').selectOption('Closed');
+    await dialog.getByTestId('comment-input').click();
+    await page.keyboard.type('Done.');
+    await dialog.getByTestId('comment-add').click();
+
+    await expect(dialog.getByTestId('dialog-error')).toHaveText('Title is required.');
+    await expect(dialog.getByTestId('dialog-title-input')).toBeFocused();
+    await expect(dialog.getByTestId('comment-input')).toContainText('Done.');
+    expect((await getItem(request, item.id)).state).toBe('Active');
   });
 
   test('people edit their own comments; agent comments have no Edit button', async ({ page, request }) => {
