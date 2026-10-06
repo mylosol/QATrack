@@ -131,7 +131,9 @@ jobs:
           PACKAGE: ${{ needs.verify.outputs.package }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_HOST" || { echo "Set the DEPLOY_HOST variable on the production environment." >&2; exit 1; }
+          test -n "$DEPLOY_HOST" || { echo "::error::Set the DEPLOY_HOST variable on the production environment." >&2; exit 1; }
+          test -n "$DEPLOY_SSH_KEY" || { echo "::error::Set the DEPLOY_SSH_KEY secret on the production environment (see docs/deploy-digitalocean.md)." >&2; exit 1; }
+          test -n "$DEPLOY_KNOWN_HOSTS" || { echo "::error::Set the DEPLOY_KNOWN_HOSTS secret on the production environment (see docs/deploy-digitalocean.md)." >&2; exit 1; }
           install -d -m 700 ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key

@@ -3,7 +3,9 @@
 Lightweight Azure DevOps Boards clone for QA work. It runs on Linux (Ubuntu + Caddy, deployed by GitHub Actions; see [docs/deploy-digitalocean.md](docs/deploy-digitalocean.md)) or in-process under IIS on Windows Server.
 Humans use a web board (optionally behind a shared password); AI agents use a secured REST API, and every change they make is tagged and audited.
 
-[![CI/CD](../../actions/workflows/ci-cd.yml/badge.svg)](../../actions/workflows/ci-cd.yml)
+[![CI/CD](https://github.com/mylosol/QATrack/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/mylosol/QATrack/actions/workflows/ci-cd.yml)
+
+Live board: https://qatrack.xmlbridge.work · License: [MIT](LICENSE)
 
 Full specification: [docs/QATrack-Spec.md](docs/QATrack-Spec.md)
 
