@@ -24,8 +24,8 @@
 
 	reverse_proxy 127.0.0.1:{{APP_PORT}} {
 		# One value: the resolved client IP (the app trusts only loopback to set it).
+		# X-Forwarded-Proto is sent by default.
 		header_up X-Forwarded-For {client_ip}
-		header_up X-Forwarded-Proto {scheme}
 	}
 
 	log {

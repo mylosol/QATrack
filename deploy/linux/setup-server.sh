@@ -162,14 +162,17 @@ cf_ranges="$( { curl -fsS --max-time 10 https://www.cloudflare.com/ips-v4; echo;
 if [[ -z "${cf_ranges// /}" ]]; then
   cf_ranges="173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32"
 fi
-email_line=""
-[[ -n "$EMAIL" ]] && email_line="email $EMAIL"
-sed -e "s|{{DOMAIN}}|$DOMAIN|g" -e "s|{{EMAIL_LINE}}|$email_line|" \
+email_sed='/{{EMAIL_LINE}}/d'
+[[ -n "$EMAIL" ]] && email_sed="s|{{EMAIL_LINE}}|email $EMAIL|"
+sed -e "s|{{DOMAIN}}|$DOMAIN|g" -e "$email_sed" \
     -e "s|{{CLOUDFLARE_RANGES}}|$cf_ranges|" -e "s|{{APP_PORT}}|$APP_PORT|" \
     "$SCRIPT_DIR/Caddyfile.template" > /etc/caddy/Caddyfile.new
 caddy validate --config /etc/caddy/Caddyfile.new --adapter caddyfile >/dev/null 2>&1 \
   || { caddy validate --config /etc/caddy/Caddyfile.new --adapter caddyfile; die "Caddyfile is invalid."; }
 mv /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile
+# 'caddy validate' runs as root and opens (creates) the access log; Caddy itself runs as 'caddy'.
+install -d -o caddy -g caddy -m 0755 /var/log/caddy
+chown -R caddy:caddy /var/log/caddy
 systemctl enable caddy >/dev/null
 systemctl reload-or-restart caddy
 
