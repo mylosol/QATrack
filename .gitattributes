@@ -1,0 +1,4 @@
+# Shell scripts and server config run on Linux: always LF.
+*.sh text eol=lf
+deploy/linux/* text eol=lf
+.github/workflows/*.yml text eol=lf

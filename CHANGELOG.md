@@ -3,6 +3,22 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-10-06
+
+### Added
+- **Linux hosting on DigitalOcean with CI/CD.** Guide: `docs/deploy-digitalocean.md`.
+  - `deploy/linux/setup-server.sh` sets up an Ubuntu 24.04 droplet: ASP.NET Core 8 runtime, Caddy with automatic HTTPS (behind Cloudflare), a hardened systemd service, firewall, swap, automatic security updates and a daily database backup. It creates new API and reporter keys once and never touches existing data or settings.
+  - `.github/workflows/ci-cd.yml`: every push and pull request runs the full verify gate on Linux (Playwright in Chromium). A passing push to `main` is packaged and deployed.
+  - `qatrack-deploy` (run by CI): refuses packages containing a database, backs up the live database, switches releases atomically, waits for the new build to answer and switches back to the previous release if it doesn't.
+  - `qatrack-admin`: status, logs, keys, set the board password, replace keys, import the keys/password and the database from the IIS server, backups.
+- `dotnet KanbanBoard.Api.dll --hash-password` prints a board password hash from standard input (used by `qatrack-admin set-password`).
+- `QATRACK_SETTINGS_FILE`: settings and secrets can live outside the app folder (`/etc/qatrack/appsettings.Production.json` on Linux), so deploys replace the app without touching them.
+- `ReverseProxy:Enabled`: behind a reverse proxy on the same machine, the client IP and HTTPS scheme come from `X-Forwarded-For` / `X-Forwarded-Proto` (trusted from loopback only). Rate limits (sign-in, in-app reports) then apply per visitor instead of to everyone at once, and the sign-in cookie is marked Secure.
+
+### Changed
+- The IIS deployment script tests run on Windows only (they are skipped on the Linux CI runners). IIS hosting keeps working as before.
+- `docs/in-app-reporting.md` examples use `https://qatrack.xmlbridge.work`.
+
 ## [1.14.0] - 2026-10-05
 
 ### Added

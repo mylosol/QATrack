@@ -16,7 +16,7 @@ Reports are recorded as **human** reports, never as AI. They land in **New**, ar
 | Check connection | `GET /api/report/ping` (files nothing, 1.13.0) |
 | Machine-readable spec | `GET /api/openapi-report.json`, also in `/api/docs` ("QATrack in-app issue reporting") |
 
-All paths are relative to the board, e.g. `http://12.218.155.150:16802/api/report/issues`.
+All paths are relative to the board, e.g. `https://qatrack.xmlbridge.work/api/report/issues`.
 
 ## Key and limits
 
@@ -67,7 +67,7 @@ HTTP **201 Created**:
 ```json
 {
   "id": 31,
-  "url": "http://12.218.155.150:16802/?item=31",
+  "url": "https://qatrack.xmlbridge.work/?item=31",
   "replayed": false,
   "title": "Export button does nothing",
   "type": "Bug",

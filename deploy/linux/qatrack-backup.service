@@ -1,0 +1,7 @@
+# Daily consistent copy of the QATrack database (see qatrack-backup.timer).
+[Unit]
+Description=QATrack daily database backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/qatrack-admin backup --daily

@@ -1,7 +1,9 @@
 # QATrack – DevOps Kanban Board for QA Tools
 
-On-premises, lightweight Azure DevOps Boards clone that runs in-process under IIS on Windows Server.
-Humans use a zero-login web board; AI agents use a secured REST API, and every change they make is tagged and audited.
+Lightweight Azure DevOps Boards clone for QA work. It runs on Linux (Ubuntu + Caddy, deployed by GitHub Actions; see [docs/deploy-digitalocean.md](docs/deploy-digitalocean.md)) or in-process under IIS on Windows Server.
+Humans use a web board (optionally behind a shared password); AI agents use a secured REST API, and every change they make is tagged and audited.
+
+[![CI/CD](../../actions/workflows/ci-cd.yml/badge.svg)](../../actions/workflows/ci-cd.yml)
 
 Full specification: [docs/QATrack-Spec.md](docs/QATrack-Spec.md)
 
@@ -192,6 +194,15 @@ Programs under test can offer a **"Report an issue"** feature that files straigh
 - **No duplicates:** an `Idempotency-Key` header makes a resend return the card filed the first time. The receipt has the card's `id` and a `url` that opens it on the board.
 - **Getting the key:** Install generates it and prints it once. It is stored in `appsettings.Production.json` under `IssueReporting:ApiKey`.
 - **Integration guide:** [docs/in-app-reporting.md](docs/in-app-reporting.md). Machine-readable spec: `/api/openapi-report.json`.
+
+## Deploying to Linux (DigitalOcean) with CI/CD
+
+The production board runs on an Ubuntu 24.04 droplet behind Cloudflare and Caddy. Full guide: [docs/deploy-digitalocean.md](docs/deploy-digitalocean.md).
+
+- **Pipeline** (`.github/workflows/ci-cd.yml`): every push and pull request runs the whole verify gate on Linux (typecheck, unit, backend, build, Playwright E2E in Chromium). A passing push to `main` is packaged and deployed to the droplet automatically.
+- **Safe deploys:** the database is backed up before every deploy, never shipped or replaced, and a release that doesn't come up is switched back to the previous one.
+- **Server tools:** `deploy/linux/setup-server.sh` (one-time setup), `sudo qatrack-admin` (status, keys, password, import from IIS, backups).
+- **Secrets** live only on the server, in `/etc/qatrack/appsettings.Production.json`. Nothing secret is in this repository.
 
 ## Deploying to IIS
 

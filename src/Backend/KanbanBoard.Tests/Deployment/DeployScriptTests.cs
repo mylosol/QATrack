@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using KanbanBoard.Tests.Infrastructure;
 
 namespace KanbanBoard.Tests.Deployment;
 
@@ -120,7 +121,7 @@ public sealed class DeployScriptTests : IDisposable
         return (process.ExitCode, stdout.Result + stderr.Result);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_WithoutSourcePath_DefaultsToTheScriptFolder()
     {
         // Regression: -SourcePath defaulted to $PSScriptRoot in the param block,
@@ -164,7 +165,7 @@ public sealed class DeployScriptTests : IDisposable
         return (process.ExitCode, stdout.Result + stderr.Result);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Diagnose_FindsAncmV2_WhereTheHostingBundleInstallsIt()
     {
         // Regression: the prerequisite check looked for aspnetcorev2.dll in
@@ -187,7 +188,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.Matches(@"\[ OK \] ASP\.NET Core Module V2: .*Asp\.Net Core Module\\V2\\aspnetcorev2\.dll", output);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Diagnose_ReportsWhichProcessHoldsTheRequestedPort()
     {
         // Regression: Install created the site, then Start-Website failed with
@@ -217,7 +218,7 @@ public sealed class DeployScriptTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Diagnose_ReportsAFreePortAsOk()
     {
         if (!OperatingSystem.IsWindows())
@@ -235,7 +236,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.Contains($"[ OK ] Port {port}", output);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Diagnose_IsReadOnly_AndReportsThePackageVersion()
     {
         if (!OperatingSystem.IsWindows())
@@ -251,7 +252,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.False(Directory.Exists(_site), "Diagnose must never create or change the site folder.");
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_WhenNoProductionSettingsExist_CreatesThemWithAKey()
     {
         // Regression: '.PSObject.Properties.Name' threw PropertyNotFoundStrict
@@ -298,7 +299,7 @@ public sealed class DeployScriptTests : IDisposable
             : string.Empty;
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_WithSharedPassword_StoresAHashTheAppAccepts()
     {
         // Cross-implementation check: PowerShell/.NET Framework PBKDF2 -> app verifier.
@@ -317,7 +318,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.False(KanbanBoard.Api.Services.SharedPasswordHasher.Verify("proveout-2026!", hash));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_WithoutPassword_WarnsThatTheBoardIsOpen()
     {
         if (!OperatingSystem.IsWindows())
@@ -332,7 +333,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.Equal(string.Empty, PasswordHashOnSite());
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_WithTooShortPassword_FailsBeforeTouchingTheSite()
     {
         if (!OperatingSystem.IsWindows())
@@ -347,7 +348,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.False(Directory.Exists(_site));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void SetPassword_ChangesAndRemoves_WithoutRedeploying_AndKeepsOtherSettings()
     {
         if (!OperatingSystem.IsWindows())
@@ -375,7 +376,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.Equal("LIVE", File.ReadAllText(Path.Combine(_site, "App_Data", "kanban.db")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void SetPassword_OnAFolderWithoutQATrack_FailsClearly()
     {
         if (!OperatingSystem.IsWindows())
@@ -396,7 +397,7 @@ public sealed class DeployScriptTests : IDisposable
             : string.Empty;
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_GeneratesADistinctReporterKey_AndKeepsItOnRedeploy()
     {
         if (!OperatingSystem.IsWindows())
@@ -418,7 +419,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.DoesNotContain(reporterKey, againOutput); // only printed when generated
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_AddsAReporterKey_ToAnExisting15Site_WithoutTouchingTheAgentKey()
     {
         if (!OperatingSystem.IsWindows())
@@ -438,7 +439,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.True(ReporterKeyOnSite().Length >= 32);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void ReporterKey_EqualToTheAgentKey_IsRejected_WithoutTouchingData()
     {
         if (!OperatingSystem.IsWindows())
@@ -462,7 +463,7 @@ public sealed class DeployScriptTests : IDisposable
         return doc.RootElement.GetProperty("AiAgentApi").GetProperty("ApiKey").GetString() ?? string.Empty;
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void FreshInstall_CopiesBuild_GeneratesKey_AndNeverCopiesAPackagedDatabase()
     {
         if (!OperatingSystem.IsWindows())
@@ -482,7 +483,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.True(ApiKeyOnSite().Length >= 32, "A strong API key should be generated on first install.");
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Redeploy_PreservesLiveDatabase_AndConfig_AndTakesABackup()
     {
         if (!OperatingSystem.IsWindows())
@@ -515,7 +516,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.Equal("LIVE WAL", File.ReadAllText(Path.Combine(backup, "kanban.db-wal")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void ExplicitApiKey_TooShort_IsRejected_WithoutTouchingData()
     {
         if (!OperatingSystem.IsWindows())
@@ -535,7 +536,7 @@ public sealed class DeployScriptTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_site, "app_offline.htm")), "Invalid input must not take the app offline.");
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Install_FromWrongFolder_FailsFast()
     {
         if (!OperatingSystem.IsWindows())
