@@ -1,0 +1,157 @@
+# QATrack CI/CD
+#
+# Every push and pull request runs the full verify gate on Linux: typecheck,
+# unit tests, backend tests, the production build and the Playwright E2E suite
+# (Chromium). A push to main that passes is packaged and deployed to the
+# DigitalOcean droplet, then checked through the public URL.
+#
+# One-time setup (see docs/deploy-digitalocean.md):
+#   Settings > Environments > production
+#     variable DEPLOY_HOST          droplet IP or SSH host name
+#     secret   DEPLOY_SSH_KEY       private key of the qatrack-deploy user
+#     secret   DEPLOY_KNOWN_HOSTS   the droplet's SSH host key line(s)
+#   (optional) variable PUBLIC_URL  e.g. https://qatrack.xmlbridge.work
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  verify:
+    name: Verify (tests + build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/Frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm --prefix src/Frontend ci
+          dotnet restore KanbanBoard.sln
+
+      - name: Check the server scripts
+        run: |
+          for f in deploy/linux/*.sh; do bash -n "$f"; done
+          shellcheck --severity=warning deploy/linux/*.sh
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Frontend unit tests
+        run: npm run test:frontend
+
+      - name: Backend tests
+        run: npm run test:backend
+
+      - name: Build the board UI
+        run: npm run build:frontend
+
+      - name: Install Chromium for Playwright
+        working-directory: src/Frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+        env:
+          PW_CHANNEL: chromium
+
+      - name: Keep the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: src/Frontend/playwright-report
+          retention-days: 14
+
+      - name: Package the release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: package
+        run: |
+          path="$(deploy/linux/package-release.sh | tail -n 1)"
+          echo "file=$(basename "$path")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the release package
+        if: steps.package.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: artifacts/${{ steps.package.outputs.file }}
+          retention-days: 30
+          if-no-files-found: error
+
+    outputs:
+      package: ${{ steps.package.outputs.file }}
+
+  deploy:
+    name: Deploy to DigitalOcean
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL || 'https://qatrack.xmlbridge.work' }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+
+      - name: Upload and install on the droplet
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          PACKAGE: ${{ needs.verify.outputs.package }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST" || { echo "Set the DEPLOY_HOST variable on the production environment." >&2; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh_opts=(-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes)
+          scp "${ssh_opts[@]}" "$PACKAGE" "qatrack-deploy@$DEPLOY_HOST:incoming/$PACKAGE"
+          ssh "${ssh_opts[@]}" "qatrack-deploy@$DEPLOY_HOST" "sudo /usr/local/sbin/qatrack-deploy /home/qatrack-deploy/incoming/$PACKAGE"
+
+      - name: Check the public site
+        env:
+          PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://qatrack.xmlbridge.work' }}
+        run: |
+          set -euo pipefail
+          expected="${GITHUB_SHA::7}"
+          for i in $(seq 1 12); do
+            if body="$(curl -fsS --max-time 10 "$PUBLIC_URL/api/version")" && [[ "$(jq -r .commit <<<"$body")" == "$expected" ]]; then
+              echo "Live: $body"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The public site does not report commit $expected (last answer: ${body:-none})." >&2
+          exit 1

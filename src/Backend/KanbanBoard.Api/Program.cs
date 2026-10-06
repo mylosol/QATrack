@@ -5,9 +5,34 @@ using KanbanBoard.Api.Services;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
+// Operator command: print a board password hash and exit (no web host).
+if (args.Contains(HashPasswordTool.Switch))
+{
+    return HashPasswordTool.Run(Console.In, Console.Out, Console.Error);
+}
+
 var builder = WebApplication.CreateBuilder(args);
+
+// ---------------------------------------------------------------------------
+// Linux hosting (1.15.0): settings and secrets live outside the app folder, in
+// the file named by QATRACK_SETTINGS_FILE (/etc/qatrack/appsettings.Production.json),
+// so a deploy replaces the app without ever touching them.
+// ---------------------------------------------------------------------------
+var externalSettings = Environment.GetEnvironmentVariable("QATRACK_SETTINGS_FILE");
+if (!string.IsNullOrWhiteSpace(externalSettings))
+{
+    builder.Configuration.AddJsonFile(externalSettings, optional: false, reloadOnChange: true);
+}
+
+// Behind a reverse proxy on the same machine (Caddy on Linux): the client's IP
+// and https scheme arrive in X-Forwarded-For / X-Forwarded-Proto. Only loopback
+// is trusted to set them, so rate limits and logs see the real client.
+var behindReverseProxy = builder.Configuration.GetValue<bool>("ReverseProxy:Enabled");
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
 
 // ---------------------------------------------------------------------------
 // Request limits. Descriptions are capped at 1 MB of text and uploaded images
@@ -170,6 +195,11 @@ else if (aiApiOptions is not null && string.Equals(aiApiOptions.ApiKey.Trim(), r
 // ---------------------------------------------------------------------------
 // HTTP pipeline
 // ---------------------------------------------------------------------------
+if (behindReverseProxy)
+{
+    app.UseForwardedHeaders();
+}
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseMiddleware<SecurityHeadersMiddleware>();
@@ -237,6 +267,7 @@ app.MapFallback("/api/{**rest}", () => Results.Problem(statusCode: StatusCodes.S
 app.MapFallbackToFile("index.html");
 
 app.Run();
+return 0;
 
 /// <summary>Exposed for WebApplicationFactory-based integration tests.</summary>
 public partial class Program;
