@@ -80,6 +80,15 @@ ssh-keyscan -t ed25519 <droplet-ip> | gh secret set DEPLOY_KNOWN_HOSTS --env pro
 gh variable set DEPLOY_HOST --env production --body "<droplet-ip>"
 ```
 
+**On Windows (PowerShell):**
+
+- PowerShell has no `<` redirect. Hand the key file to `cmd` instead:
+  ```powershell
+  cmd /c "gh secret set DEPLOY_SSH_KEY --env production < %USERPROFILE%\.ssh\qatrack_deploy"
+  ```
+- Windows' own `ssh-keyscan` may fail against Ubuntu 24.04 (`choose_kex: unsupported KEX method`) and print nothing, which stores an **empty** `DEPLOY_KNOWN_HOSTS`. Run the `ssh-keyscan` line in Git Bash instead, and check the secret isn't empty: the deploy job stops with "Set the DEPLOY_KNOWN_HOSTS secret" if it is.
+- To confirm the scanned key is the droplet's own, compare `ssh-keyscan -t ed25519 <droplet-ip> | ssh-keygen -lf -` with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the droplet.
+
 **What the pipeline does** (`.github/workflows/ci-cd.yml`):
 
 - **Every push and pull request:** typecheck, frontend unit tests, backend tests, production build, the Playwright end-to-end suite (Chromium) and a lint of the server scripts.
