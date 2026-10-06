@@ -205,6 +205,7 @@ The production board runs on an Ubuntu 24.04 droplet behind Cloudflare and Caddy
 - **Safe deploys:** the database is backed up before every deploy, never shipped or replaced, and a release that doesn't come up is switched back to the previous one.
 - **Server tools:** `deploy/linux/setup-server.sh` (one-time setup), `sudo qatrack-admin` (status, keys, password, import from IIS, backups).
 - **Secrets** live only on the server, in `/etc/qatrack/appsettings.Production.json`. Nothing secret is in this repository.
+- **`main` is protected:** changes arrive only through pull requests whose tests passed; merging deploys.
 
 ## Deploying to IIS
 
