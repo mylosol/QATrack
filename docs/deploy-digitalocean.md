@@ -64,7 +64,19 @@ The setup installs the ASP.NET Core 8 runtime, Caddy, sqlite3, a 1 GB swap file,
    - variable `PUBLIC_URL` = `https://qatrack.xmlbridge.work`
    - secret `DEPLOY_SSH_KEY` = the contents of `~/.ssh/qatrack_deploy` (the private key)
    - secret `DEPLOY_KNOWN_HOSTS` = the output of `ssh-keyscan -t ed25519 <droplet-ip>`
-4. **Settings → Branches:** protect `main` and require the **Verify (tests + build)** check, so nothing untested reaches it.
+4. **Settings → Branches:** protect `main` and require the **Verify (tests + build)** check, so nothing untested reaches it. On `mylosol/QATrack` this is on (since 2026-10-06):
+   - changes reach `main` only through a pull request whose **Verify** check passed on the latest `main` (no direct pushes, also for admins);
+   - no approval is required (GitHub doesn't let you approve your own pull request), but open review conversations must be resolved;
+   - force pushes and deleting `main` are blocked; merged branches are deleted automatically.
+
+   **Day-to-day:** work on a branch, push it, open a pull request, and let it merge itself when the tests pass:
+   ```bash
+   git push -u origin HEAD
+   ```
+   ```bash
+   gh pr create --fill && gh pr merge --auto --merge
+   ```
+   The merge to `main` then deploys as usual.
 
 With the GitHub CLI, steps 2–3 are:
 
