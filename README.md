@@ -127,6 +127,8 @@ curl -X POST http://server:8080/api/v1/workitems \
 | Download a file | `GET /api/v1/workitems/{id}/files/{fileId}` | `getWorkItemFile` |
 | Attach a file (multipart, part `file`; text up to 20 MB or .zip/.gz/.7z) | `POST /api/v1/workitems/{id}/files` | `attachWorkItemFile` |
 
+Pictures in descriptions and comments are Markdown links to `api/ui/attachments/<id>`: agents open them by requesting that path with their `X-API-Key` (or via `GET /api/v1/attachments/<id>`). Log files are in each work item's `files`.
+
 Work items carry `program` (one of the programs, or null), `tags` (a list) and, for Bugs, an optional `programVersion` (the version the bug was found in; `""` clears it). On PATCH, `program: ""` removes the program and `tags` replaces the whole list (`[]` removes all); omit either to leave it unchanged. Descriptions and comments are Markdown; to show an image, upload it and put the returned `markdown` (e.g. `![shot.png](api/ui/attachments/<id>)`) into the text.
 
 Point tool-calling agents at `/api/openapi.json`. It declares both headers as security schemes.

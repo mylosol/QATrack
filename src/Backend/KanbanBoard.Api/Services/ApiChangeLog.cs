@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.16.1",
+            Date = "2026-10-09",
+            SchemaVersion = "ca9fd4015b6b",
+            Breaking = false,
+            Summary = new[]
+            {
+                "You can now open pictures pasted into descriptions and comments (screenshots, including those sent with in-app reports). They appear as Markdown images like ![screen.png](api/ui/attachments/{id}): request that path on this server with your X-API-Key header, or use GET /api/v1/attachments/{id}. Before, that link needed a board sign-in.",
+                "Look at a card's pictures and its 'files' (logs) before asking people for more detail or deciding a report can't be reproduced.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.16.0",
             Date = "2026-10-09",
             SchemaVersion = "763269a2e503",
