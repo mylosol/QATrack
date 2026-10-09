@@ -53,7 +53,7 @@ Content-Type: application/json
 | `severity` | no | `"1 - Critical"`, `"2 - High"`, `"3 - Medium"` (default), `"4 - Low"`; `"High"` or `"2"` also work. Leave it out to let triage decide (it shows as Medium). |
 | `program` | no | Must match a program on the board (case-insensitive), e.g. `ProveOut`, `CallOut`. An unknown name is rejected with HTTP 400. `GET /api/report/ping?program=...` checks it. |
 | `programVersion` | no | The program's own version, max 64 characters. |
-| `reporter` | no | Name or email the person typed, max 64 characters. Shown as the author "Jane Doe (in-app report)". When omitted, the author is "In-app report". |
+| `reporter` | no | Name or email the person typed, max 64 characters. The card shows "📣 Reported by Jane Doe" (an email address becomes a mail link in the card's dialog), and the history author is "Jane Doe (in-app report)". When omitted, the card says "Reported in-app (no name given)". |
 | `environment` | no | OS, build, settings, recent log lines. Appended to the description as a code block. Max 20,000 characters. |
 | `tags` | no | Up to 10 extra tags. `in-app-report` is always added. |
 | `files` | no | Up to 5 log files: the `id`s returned by `POST /api/report/files`. They appear in the card's Files list. An unknown id is rejected with HTTP 400 and nothing is filed. |

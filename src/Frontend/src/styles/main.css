@@ -250,6 +250,14 @@
 .card-type-Epic { --card-accent: var(--type-epic); }
 .card-type-Task { --card-accent: var(--type-task); }
 
+/* ---------- Who reported an in-app report (1.16.0) ---------- */
+.card-reporter {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  color: rgb(var(--color-fg));
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Programs & tags (1.4.0) ---------- */
 .card-program {
   border: 1px solid rgb(var(--color-primary));

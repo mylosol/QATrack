@@ -23,7 +23,7 @@ import {
   type WorkItemType,
 } from '../services/types';
 import type { Announcer } from './announcer';
-import { createAiBadge } from './card';
+import { createAiBadge, inAppReporter } from './card';
 import { clear, formatDate, h } from './dom';
 import { FileList } from './fileList';
 import { setMarkdown } from './markdown';
@@ -49,6 +49,9 @@ export interface WorkItemDialogHandlers {
   /** A card was opened (its id) or the dialog closed (null), e.g. to keep a link in the address bar. */
   onOpenChange?(id: number | null): void;
 }
+
+/** A plain email address (the reporter's name may be one). */
+const EMAIL = /^[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]+$/;
 
 /** Author the server records when no name is set on the toolbar (ActorContext.DefaultHumanName). */
 export const DEFAULT_HUMAN_NAME = 'Web UI User';
@@ -392,6 +395,7 @@ export class WorkItemDialog {
         'div',
         { class: 'flex-1 space-y-4 overflow-y-auto px-5 py-4' },
         this.errorRegion,
+        item ? this.renderOrigin(item) : null,
         item?.aiModified
           ? h('p', { class: 'flex items-center gap-2 text-sm text-muted' }, createAiBadge(item, 'dialog'),
               `Last AI agent: ${item.aiAgentIdentity ?? 'unknown'}`)
@@ -457,6 +461,26 @@ export class WorkItemDialog {
       discard,
     );
     return this.discardBar;
+  }
+
+  /**
+   * Who created the card and when (1.16.0). In-app reports name the person who
+   * reported it (a mail link when they gave an email address).
+   */
+  private renderOrigin(item: WorkItem): HTMLElement {
+    const when = h('time', { datetime: item.createdAt }, formatDate(item.createdAt));
+    const reporter = inAppReporter(item);
+    if (reporter === undefined) {
+      return h('p', { class: 'text-sm text-muted', 'data-testid': 'dialog-origin' },
+        `Created by ${item.createdBy || item.lastModifiedBy} · `, when);
+    }
+    const who = reporter === null
+      ? h('span', {}, 'no name given')
+      : EMAIL.test(reporter)
+        ? h('a', { href: `mailto:${reporter}`, class: 'underline' }, reporter)
+        : h('strong', {}, reporter);
+    return h('p', { class: 'card-reporter text-sm', 'data-testid': 'dialog-origin' },
+      h('span', { 'aria-hidden': 'true' }, '📣 '), 'Reported in-app by ', who, ' · ', when);
   }
 
   private select(name: string, options: Array<[string, string]>, selected: string): HTMLSelectElement {

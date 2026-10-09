@@ -5,6 +5,28 @@
 import { PRIORITY_LABELS, TYPE_LABELS, type WorkItem } from '../services/types';
 import { h } from './dom';
 
+/** Author the server records for in-app reports (ActorContext.SetReporter). */
+const IN_APP_SUFFIX = ' (in-app report)';
+const IN_APP_ANONYMOUS = 'In-app report';
+
+/**
+ * For cards filed from a program under test (1.12.0): who reported it, or
+ * null for a report without a name. Returns undefined for any other card.
+ */
+export function inAppReporter(item: Pick<WorkItem, 'createdBy'>): string | null | undefined {
+  const by = item.createdBy;
+  if (!by) return undefined;
+  if (by === IN_APP_ANONYMOUS) return null;
+  return by.endsWith(IN_APP_SUFFIX) ? by.slice(0, -IN_APP_SUFFIX.length) : undefined;
+}
+
+/** "Reported by Jane Doe" / "Reported in-app (no name given)"; undefined for other cards. */
+export function reporterLabel(item: Pick<WorkItem, 'createdBy'>): string | undefined {
+  const reporter = inAppReporter(item);
+  if (reporter === undefined) return undefined;
+  return reporter === null ? 'Reported in-app (no name given)' : `Reported by ${reporter}`;
+}
+
 /** Tooltip text mandated by spec 4.1. */
 export function aiTooltipText(agentIdentity: string | null): string {
   return `Updated by AI Agent: ${agentIdentity ?? 'Unknown agent'}`;
@@ -53,6 +75,7 @@ export function createCard(item: WorkItem): HTMLLIElement {
   const titleId = `card-title-${item.id}`;
   const metaId = `card-meta-${item.id}`;
   const priorityLabel = PRIORITY_LABELS[item.priority] ?? String(item.priority);
+  const reported = reporterLabel(item);
 
   const article = h(
     'article',
@@ -75,6 +98,10 @@ export function createCard(item: WorkItem): HTMLLIElement {
       item.aiModified ? createAiBadge(item) : null,
     ),
     h('button', { type: 'button', class: 'card-title', id: titleId, 'data-action': 'open' }, item.title),
+    reported
+      ? h('p', { class: 'card-reporter', 'data-testid': 'card-reporter', title: 'Filed from inside the program ("Report an issue")' },
+          h('span', { 'aria-hidden': 'true' }, '📣 '), reported)
+      : null,
     h(
       'div',
       { class: 'card-meta', id: metaId },

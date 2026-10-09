@@ -150,6 +150,34 @@ public class DatabaseInitializerTests
         Assert.Equal(KanbanBoard.Api.Models.DiscussionStatus.UnreadReply, KanbanBoard.Api.Services.Discussion.StatusOf(commented));
         Assert.Equal(0, silent.CommentCount);
         Assert.Null(KanbanBoard.Api.Services.Discussion.StatusOf(silent));
+
+        // 1.16.0 backfill: the creator is the author of the first history entry.
+        Assert.Equal("Dana", commented.CreatedBy);
+        Assert.Equal("Dana", silent.CreatedBy);
+    }
+
+    [Fact]
+    public async Task Upgrade_To1160_FillsCreatedBy_ForInAppReports()
+    {
+        using var temp = new TempSqliteDatabase();
+        await using (var old = temp.CreateContext())
+        {
+            await old.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20261005205701_AddWorkItemFiles");
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItem (Id, Title, Type, State, Priority, Severity, AreaPath, IterationPath, AiModified, LastModifiedBy, CreatedAt, UpdatedAt) VALUES " +
+                "(7, 'Export broken', 'Bug', 'Active', 2, '2 - High', 'x', 'Current', 1, 'Fixer-Bot', '2026-10-05 10:00:00', '2026-10-06 10:00:00')");
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItemHistory (WorkItemId, ChangeDate, Author, IsAiAction, AgentName, ChangedFieldsJson, Comment) VALUES " +
+                "(7, '2026-10-06 10:00:00', 'Fixer-Bot', 1, 'Fixer-Bot', '{{}}', 'Looking into it'), " +
+                "(7, '2026-10-05 10:00:00', 'Jane Doe (in-app report)', 0, NULL, '{{}}', NULL)");
+        }
+
+        await temp.InitializeAsync();
+
+        await using var db = temp.CreateContext();
+        // Earliest entry wins, whatever order the rows were written in; later editors don't count.
+        Assert.Equal("Jane Doe (in-app report)", (await db.WorkItems.SingleAsync(w => w.Id == 7)).CreatedBy);
     }
 
     [Fact]

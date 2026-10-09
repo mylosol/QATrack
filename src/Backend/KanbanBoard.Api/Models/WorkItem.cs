@@ -70,6 +70,13 @@ public class WorkItem
     /// <summary>Which agent wrote that comment.</summary>
     public string? LastAgentCommentBy { get; set; }
 
+    /// <summary>
+    /// Who created the card (1.16.0): a person's board name, an AI agent identity,
+    /// or for in-app reports "Name (in-app report)" / "In-app report". Never
+    /// changes afterwards; cards from before 1.16.0 were filled from their history.
+    /// </summary>
+    public string? CreatedBy { get; set; }
+
     /// <summary>Number of history entries carrying a comment (1.9.0).</summary>
     public int CommentCount { get; set; }
 

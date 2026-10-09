@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.16.0",
+            Date = "2026-10-09",
+            SchemaVersion = "763269a2e503",
+            Breaking = false,
+            Summary = new[]
+            {
+                "Work items have 'createdBy': who created them, which never changes afterwards (unlike 'lastModifiedBy'). It is a person's board name, an AI agent identity, or for issues reported from inside a program under test \"Name (in-app report)\" (\"In-app report\" when no name was given).",
+                "Existing items were filled in from their first history entry.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.14.0",
             Date = "2026-10-05",
             SchemaVersion = "017b09e3930d",

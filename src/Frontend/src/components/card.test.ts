@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeItem } from '../test/fixtures';
-import { aiTooltipText, createCard } from './card';
+import { aiTooltipText, createCard, inAppReporter, reporterLabel } from './card';
 
 describe('createCard', () => {
   it('renders title, id and priority as text (no HTML injection)', () => {
@@ -108,5 +108,27 @@ describe('createCard', () => {
 
   it('falls back when the agent identity is missing', () => {
     expect(aiTooltipText(null)).toBe('Updated by AI Agent: Unknown agent');
+  });
+});
+
+describe('in-app reporter (1.16.0)', () => {
+  it('finds the person behind an in-app report', () => {
+    expect(inAppReporter({ createdBy: 'Jane Doe (in-app report)' })).toBe('Jane Doe');
+    expect(inAppReporter({ createdBy: 'In-app report' })).toBeNull();
+    expect(inAppReporter({ createdBy: 'Robert' })).toBeUndefined();
+    expect(inAppReporter({ createdBy: undefined })).toBeUndefined();
+  });
+
+  it('labels the card', () => {
+    expect(reporterLabel({ createdBy: 'sam@example.com (in-app report)' })).toBe('Reported by sam@example.com');
+    expect(reporterLabel({ createdBy: 'In-app report' })).toBe('Reported in-app (no name given)');
+    expect(reporterLabel({ createdBy: 'Claude-Code-Agent-v1' })).toBeUndefined();
+  });
+
+  it('shows the reporter on in-app report cards only', () => {
+    const report = createCard(makeItem({ id: 41, createdBy: 'Jane Doe (in-app report)' }));
+    expect(report.querySelector('[data-testid="card-reporter"]')!.textContent).toContain('Reported by Jane Doe');
+    const normal = createCard(makeItem({ id: 42, createdBy: 'Robert' }));
+    expect(normal.querySelector('[data-testid="card-reporter"]')).toBeNull();
   });
 });

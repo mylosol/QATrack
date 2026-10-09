@@ -112,6 +112,13 @@ public sealed class WorkItemDto
 
     public string LastModifiedBy { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Who created the item (1.16.0): a person's board name, an AI agent identity, or, for issues
+    /// reported from inside a program under test, "Name (in-app report)" ("In-app report" when
+    /// the person gave no name). Never changes after creation.
+    /// </summary>
+    public string CreatedBy { get; init; } = string.Empty;
+
     public DateTime CreatedAt { get; init; }
 
     public DateTime UpdatedAt { get; init; }
