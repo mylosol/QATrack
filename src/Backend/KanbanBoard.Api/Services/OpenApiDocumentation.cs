@@ -37,6 +37,17 @@ public static class OpenApiDocumentation
         "Your comment clears AwaitingAgent; the card stays on that list until you reply.";
 
     /// <summary>
+    /// How agents read the pictures and files people attach (1.16.1). Part of
+    /// the document description and of GET /api/v1/meta.
+    /// </summary>
+    public const string AgentAttachmentRule =
+        "Pictures pasted into descriptions and comments (screenshots, also those sent with in-app reports) are " +
+        "Markdown images such as ![screen.png](api/ui/attachments/{id}). Open them by requesting that path on this " +
+        "server with your X-API-Key header (e.g. GET /api/ui/attachments/{id}), or with GET /api/v1/attachments/{id}; " +
+        "look at them before deciding a report can't be reproduced. Log files and other attachments are listed in " +
+        "the work item's 'files'; download each from its 'url'.";
+
+    /// <summary>
     /// How agents keep their knowledge of the API current (1.5.0). Part of the
     /// document description and of GET /api/v1/meta.
     /// </summary>
@@ -65,7 +76,8 @@ public static class OpenApiDocumentation
                     "header naming the agent (e.g. `Claude-Code-Agent-v1`). All mutations are recorded in the " +
                     "work item's audit history as AI actions and flag the card as AI-modified.\n\n" +
                     "**Staying current:** " + AgentContractRule + "\n\n" +
-                    "**Answering humans:** " + AgentDiscussionRule,
+                    "**Answering humans:** " + AgentDiscussionRule + "\n\n" +
+                    "**Screenshots and files:** " + AgentAttachmentRule,
             });
 
             options.SwaggerDoc(ReportDocumentName, new OpenApiInfo

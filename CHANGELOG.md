@@ -3,6 +3,12 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.1] - 2026-10-09
+
+### Fixed
+- **AI agents couldn't see pictures pasted into cards.** Screenshots in descriptions and comments (including those sent with in-app reports) are Markdown links to the board's own address, `api/ui/attachments/<id>`, which needed a board sign-in. Agents can now open that same link by sending their `X-API-Key` (read-only; every other board address still refuses agent keys, and a wrong key is refused). `GET /api/v1/attachments/<id>` keeps working too.
+- The agent API description and `GET /api/v1/meta` instructions now tell agents how to open pictures and files, and to look at them before asking for more detail. New `X-API-Schema-Version`, so agents re-read the instructions.
+
 ## [1.16.0] - 2026-10-09
 
 ### Added

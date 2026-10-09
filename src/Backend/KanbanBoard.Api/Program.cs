@@ -233,6 +233,8 @@ app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
 app.UseMiddleware<AgentIdentityMiddleware>();
 // /api/report (in-app issue reports from the programs under test): reporter key, human actor.
 app.UseMiddleware<ReporterKeyMiddleware>();
+// Agents may open pictures pasted into cards (api/ui/attachments/{id}) with their key; read-only.
+app.UseMiddleware<AgentAttachmentReadMiddleware>();
 // /api/ui (browser): signed-in session when a shared password is configured...
 app.UseMiddleware<AccessControlMiddleware>();
 // ...plus anti-forgery header + human actor for /api/ui and /api/auth.

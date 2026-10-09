@@ -44,7 +44,8 @@ public sealed class ApiMetaController : ControllerBase
             SchemaVersion = _contract.SchemaVersion,
             OpenApiUrl = $"{pathBase}{OpenApiDocumentation.SchemaPath}",
             DocsUrl = $"{pathBase}/{OpenApiDocumentation.UiRoutePrefix}",
-            Instructions = OpenApiDocumentation.AgentContractRule + " " + OpenApiDocumentation.AgentDiscussionRule,
+            Instructions = OpenApiDocumentation.AgentContractRule + " " + OpenApiDocumentation.AgentDiscussionRule + " " +
+                           OpenApiDocumentation.AgentAttachmentRule,
             AwaitingAgentCount = await _items.CountOnBoardAsync(new WorkItemQuery { Discussion = DiscussionStatus.AwaitingAgent }, ct),
             Changes = ApiChangeLog.Since(since),
         });
