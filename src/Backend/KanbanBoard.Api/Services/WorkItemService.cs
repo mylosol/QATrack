@@ -91,6 +91,7 @@ public sealed class WorkItemService
                             ?? WorkItemDefaults.IterationPath,
             ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength),
             ReportKey = reportKey,
+            CreatedBy = _actor.DisplayName,
             CreatedAt = now,
         };
 

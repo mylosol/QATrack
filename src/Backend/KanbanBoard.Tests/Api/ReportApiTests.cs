@@ -66,6 +66,7 @@ public sealed class ReportApiTests : IClassFixture<ReportApiTests.Factory>
         Assert.Null(entry.AgentName);
         Assert.Equal("Jane Doe (in-app report)", entry.Author);
         Assert.Null(card.DiscussionStatus); // a report is not a comment awaiting an agent
+        Assert.Equal("Jane Doe (in-app report)", card.CreatedBy);
     }
 
     [Fact]
@@ -77,6 +78,25 @@ public sealed class ReportApiTests : IClassFixture<ReportApiTests.Factory>
 
         Assert.Equal(WorkItemType.Feature, receipt.Type);
         Assert.Equal("In-app report", receipt.ReportedBy);
+        Assert.Equal("In-app report", (await GetCard(receipt.Id)).CreatedBy);
+    }
+
+    [Fact]
+    public async Task TheReporter_StaysOnTheCard_AfterPeopleAndAgentsWorkOnIt()
+    {
+        var response = await _factory.CreateReporterClient().PostAsJsonAsync("/api/report/issues",
+            new { title = "Crash on save", reporter = "sam@example.com" });
+        var receipt = (await response.Content.ReadFromJsonAsync<ReportReceiptDto>(KanbanApiFactory.Json))!;
+
+        await _factory.CreateUiClient("Robert").PatchAsJsonAsync($"/api/ui/workitems/{receipt.Id}", new { state = "Active" });
+        await _factory.CreateAgentClient("Fixer-Bot").PostAsJsonAsync($"/api/v1/workitems/{receipt.Id}/comments", new { text = "Fixed." });
+
+        var card = await GetCard(receipt.Id);
+        Assert.Equal("sam@example.com (in-app report)", card.CreatedBy);
+        Assert.Equal("Fixer-Bot", card.LastModifiedBy);
+        // The list (board) carries it too, not just the single-card view.
+        var listed = await _factory.CreateAgentClient().GetFromJsonAsync<List<WorkItemDto>>("/api/v1/workitems?tag=in-app-report", KanbanApiFactory.Json);
+        Assert.Equal("sam@example.com (in-app report)", listed!.Single(w => w.Id == receipt.Id).CreatedBy);
     }
 
     [Fact]

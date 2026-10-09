@@ -190,7 +190,7 @@ If your agent tooling only shows the model response bodies (not headers), add on
 
 Programs under test can offer a **"Report an issue"** feature that files straight onto the board with a separate, limited **reporter key** (`X-Reporter-Key`):
 
-- **How reports appear:** they are recorded as **human** reports (never AI). They land in New, tagged `in-app-report`, authored by the name the person typed.
+- **How reports appear:** they are recorded as **human** reports (never AI). They land in New, tagged `in-app-report`, authored by the name the person typed. The card shows "📣 Reported by <name>", and agents see it in `createdBy`.
 - **What the key can do:** it can only file reports, upload screenshots and ping (`GET /api/report/ping`), and it is rate-limited per IP. It is built into the programs, so assume it can be extracted.
 - **Log files:** `POST /api/report/files` uploads a log (up to 20 MB); list the returned ids in the report's `files` (up to 5).
 - **No duplicates:** an `Idempotency-Key` header makes a resend return the card filed the first time. The receipt has the card's `id` and a `url` that opens it on the board.

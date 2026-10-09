@@ -3,6 +3,15 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-10-09
+
+### Added
+- **See who reported an in-app report.** Cards filed from inside a program under test show "📣 Reported by Jane Doe" on the board ("Reported in-app (no name given)" when the person left the name empty). The card dialog shows "Reported in-app by Jane Doe · date", with a mail link when the reporter gave an email address. Other cards show "Created by … · date" at the top of the dialog.
+- **AI agent API:** work items have `createdBy`: who created them, which never changes afterwards (unlike `lastModifiedBy`). New `X-API-Schema-Version`; agents are told through `GET /api/v1/meta`.
+
+### Changed
+- Database: additive migration `AddCreatedBy` (new column `WorkItem.CreatedBy`), filled in for existing cards from their first history entry. The in-app report receipt's `reportedBy` now comes from it.
+
 ## [1.15.0] - 2026-10-06
 
 ### Added

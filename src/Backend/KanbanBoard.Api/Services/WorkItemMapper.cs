@@ -30,6 +30,7 @@ public static class WorkItemMapper
         CommentCount = item.CommentCount,
         DiscussionStatus = Discussion.StatusOf(item),
         LastModifiedBy = item.LastModifiedBy,
+        CreatedBy = item.CreatedBy ?? item.LastModifiedBy,
         CreatedAt = item.CreatedAt,
         UpdatedAt = item.UpdatedAt,
         History = includeHistory

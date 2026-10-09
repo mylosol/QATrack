@@ -71,6 +71,7 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.LastHumanCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.LastAgentCommentAt).HasConversion(NullableUtcConverter);
             e.Property(x => x.LastAgentCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
+            e.Property(x => x.CreatedBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.CommentCount).IsRequired().HasDefaultValue(0);
             e.Property(x => x.FileCount).IsRequired().HasDefaultValue(0);
             e.Property(x => x.HumanReadAt).HasConversion(NullableUtcConverter);

@@ -86,6 +86,8 @@ export interface WorkItem {
   /** Client-only (1.10.0): this browser has not read the newest comment. */
   unread?: boolean;
   lastModifiedBy: string;
+  /** Who created it (1.16.0); "Name (in-app report)" / "In-app report" for in-app reports. */
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
   history?: WorkItemHistoryEntry[] | null;

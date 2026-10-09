@@ -156,8 +156,8 @@ public sealed class IssueReportService
         ProgramVersion = card.ProgramVersion,
         Tags = card.Tags,
         Files = card.Files?.Select(f => f.FileName).ToList() ?? new List<string>(),
-        // The creation entry's author: later edits on the board don't change who reported it.
-        ReportedBy = card.History?.FirstOrDefault()?.Author ?? card.LastModifiedBy,
+        // Later edits on the board don't change who reported it.
+        ReportedBy = card.CreatedBy,
         CreatedAt = card.CreatedAt,
     };
 
