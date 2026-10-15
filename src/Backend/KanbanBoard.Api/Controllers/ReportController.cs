@@ -101,6 +101,35 @@ public sealed class ReportController : ControllerBase
     public async Task<ActionResult<ReportPingDto>> Ping([FromQuery] string? program, CancellationToken ct)
         => Ok(await _reports.PingAsync(program, ct));
 
+    /// <summary>What changed in the reporting API, and its current fingerprint.</summary>
+    /// <remarks>
+    /// Call this when a response's <c>X-API-Schema-Version</c> (or ping's <c>schemaVersion</c>) differs from
+    /// the value your integration was built against. Pass <c>since</c> (the board version you built against)
+    /// to list only the changes made after it. Counts toward the per-minute limit.
+    /// </remarks>
+    /// <param name="since">Only list changes newer than this Semantic Version, e.g. 1.13.0.</param>
+    /// <param name="contract">The API fingerprints.</param>
+    [HttpGet("meta", Name = "reportMeta")]
+    [ProducesResponseType(typeof(ReportMetaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public ActionResult<ReportMetaDto> Meta([FromQuery] string? since, [FromServices] ApiContract contract)
+    {
+        if (since is not null && !AppVersion.IsValidSemVer(since))
+        {
+            throw new WorkItemValidationException(nameof(since), "since must be a Semantic Version such as 1.13.0.");
+        }
+
+        return Ok(new ReportMetaDto
+        {
+            Version = AppVersion.Current.Version,
+            SchemaVersion = contract.ReportSchemaVersion,
+            OpenApiUrl = $"{Request.PathBase}{OpenApiDocumentation.ReportSchemaPath}",
+            Instructions = OpenApiDocumentation.ReportContractRule,
+            Changes = ReportApiChangeLog.Since(since),
+        });
+    }
+
     /// <summary>Board link that opens the card, as the people who reported it would use it.</summary>
     private string CardUrl(int id) => $"{Request.Scheme}://{Request.Host}{Request.PathBase}/?item={id}";
 

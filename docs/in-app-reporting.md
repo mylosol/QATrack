@@ -14,9 +14,35 @@ Reports are recorded as **human** reports, never as AI. They land in **New**, ar
 | Upload a log file | `POST /api/report/files` (multipart, part named `file`; 1.14.0) |
 | No duplicates on resend | `Idempotency-Key: <uuid>` header on `POST /api/report/issues` (1.13.0) |
 | Check connection | `GET /api/report/ping` (files nothing, 1.13.0) |
+| Notice API changes | `X-API-Schema-Version` header on every response; `GET /api/report/meta?since=<version>` lists what changed (1.18.0) |
 | Machine-readable spec | `GET /api/openapi-report.json`, also in `/api/docs` ("QATrack in-app issue reporting") |
 
 All paths are relative to the board, e.g. `https://qatrack.xmlbridge.work/api/report/issues`.
+
+## Staying current (1.18.0)
+
+The board keeps gaining reporting features (log files arrived in 1.14.0, for example). So that your program notices instead of working from an old copy of this guide:
+
+1. Every `/api/report` response carries an **`X-API-Schema-Version`** header: a short fingerprint of the reporting API (`/api/openapi-report.json`), plus a `Link` header pointing at that document. `GET /api/report/ping` also returns it as `schemaVersion`.
+2. Store the value your integration was built against.
+3. When a response carries a different value, call:
+   ```http
+   GET /api/report/meta?since=1.14.0
+   X-Reporter-Key: <key>
+   ```
+   with the board version you built against. It answers with the current `schemaVersion`, `openApiUrl` and a plain-language list of what changed:
+   ```json
+   {
+     "version": "1.18.0",
+     "schemaVersion": "73d2801e810b",
+     "openApiUrl": "/api/openapi-report.json",
+     "instructions": "Every /api/report response carries an X-API-Schema-Version header ...",
+     "changes": [ { "version": "1.18.0", "date": "2026-10-15", "summary": [ "..." ] } ]
+   }
+   ```
+4. Re-read `/api/openapi-report.json` and adopt what is useful. Changes are additive: your existing calls keep working.
+
+A good place to check is your "Check connection" button, or once at program start.
 
 ## Key and limits
 

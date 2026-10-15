@@ -30,29 +30,37 @@ public sealed class ApiContract
     public const int FingerprintLength = 12;
 
     private readonly Lazy<string> _schemaVersion;
+    private readonly Lazy<string> _reportSchemaVersion;
 
     public ApiContract(IServiceScopeFactory scopes, ILogger<ApiContract> logger)
     {
-        _schemaVersion = new Lazy<string>(() =>
-        {
-            try
-            {
-                using var scope = scopes.CreateScope();
-                var document = scope.ServiceProvider.GetRequiredService<ISwaggerProvider>()
-                    .GetSwagger(OpenApiDocumentation.DocumentName);
-                return Fingerprint(document);
-            }
-            catch (Exception ex)
-            {
-                // Never fail API calls over the fingerprint; agents simply see "unknown".
-                logger.LogError(ex, "Could not compute the API schema version.");
-                return "unknown";
-            }
-        }, LazyThreadSafetyMode.ExecutionAndPublication);
+        _schemaVersion = new Lazy<string>(() => Compute(scopes, logger, OpenApiDocumentation.DocumentName),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        _reportSchemaVersion = new Lazy<string>(() => Compute(scopes, logger, OpenApiDocumentation.ReportDocumentName),
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     /// <summary>Fingerprint of the current /api/v1 contract, e.g. <c>3f9c1a7e2b04</c>.</summary>
     public string SchemaVersion => _schemaVersion.Value;
+
+    /// <summary>Fingerprint of the in-app reporting API (/api/openapi-report.json) (1.18.0).</summary>
+    public string ReportSchemaVersion => _reportSchemaVersion.Value;
+
+    private static string Compute(IServiceScopeFactory scopes, ILogger logger, string documentName)
+    {
+        try
+        {
+            using var scope = scopes.CreateScope();
+            var document = scope.ServiceProvider.GetRequiredService<ISwaggerProvider>().GetSwagger(documentName);
+            return Fingerprint(document);
+        }
+        catch (Exception ex)
+        {
+            // Never fail API calls over the fingerprint; clients simply see "unknown".
+            logger.LogError(ex, "Could not compute the schema version of the {Document} API document.", documentName);
+            return "unknown";
+        }
+    }
 
     /// <summary>
     /// Hashes an OpenAPI document, ignoring <c>info.version</c> and <c>servers</c>.
@@ -83,4 +91,8 @@ public sealed class ApiContract
     /// <summary>The <c>Link</c> header value pointing at the OpenAPI document.</summary>
     public static string LinkHeader(PathString pathBase) =>
         $"<{pathBase}{OpenApiDocumentation.SchemaPath}>; rel=\"{ServiceDescRelation}\"";
+
+    /// <summary>The <c>Link</c> header value pointing at the reporting API document (1.18.0).</summary>
+    public static string ReportLinkHeader(PathString pathBase) =>
+        $"<{pathBase}{OpenApiDocumentation.ReportSchemaPath}>; rel=\"{ServiceDescRelation}\"";
 }

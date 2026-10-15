@@ -48,6 +48,17 @@ public static class OpenApiDocumentation
         "the work item's 'files'; download each from its 'url'.";
 
     /// <summary>
+    /// How the programs under test keep their knowledge of the reporting API
+    /// current (1.18.0). Part of the report document and of GET /api/report/meta.
+    /// </summary>
+    public const string ReportContractRule =
+        "Every /api/report response carries an `X-API-Schema-Version` header: a fingerprint of this document " +
+        "(/api/openapi-report.json) that changes only when the reporting API changes. Store the value your integration " +
+        "was built against. When a response (or GET /api/report/ping's 'schemaVersion') shows a different value, call " +
+        "GET /api/report/meta?since=<board version you built against> to read what is new, and re-read this document. " +
+        "Changes are additive: your existing calls keep working.";
+
+    /// <summary>
     /// How agents keep their knowledge of the API current (1.5.0). Part of the
     /// document description and of GET /api/v1/meta.
     /// </summary>
@@ -97,7 +108,8 @@ public static class OpenApiDocumentation
                     "The receipt's `id` and `url` identify the new card. GET /api/report/ping checks the key and connection " +
                     "without filing anything.\n\n" +
                     "HTTP 503 with a problem+json body means reporting is switched off on the server; 503 with an HTML body " +
-                    "means the server is being updated: retry shortly.",
+                    "means the server is being updated: retry shortly.\n\n" +
+                    "**Staying current:** " + ReportContractRule,
             });
 
             // Each document lists only its own surface: the AI agent API (/api/v1)
@@ -200,14 +212,27 @@ public static class OpenApiDocumentation
             })
             .ExcludeFromDescription();
 
-        app.MapGet(ReportSchemaPath, (HttpRequest request, ISwaggerProvider provider) =>
+        app.MapGet(ReportSchemaPath, (HttpRequest request, ISwaggerProvider provider, ApiContract contract) =>
             {
                 var document = provider.GetSwagger(
                     ReportDocumentName,
                     host: $"{request.Scheme}://{request.Host}",
                     basePath: request.PathBase.HasValue ? request.PathBase.Value : null);
-                request.HttpContext.Response.Headers.CacheControl = "no-cache";
-                return Results.Text(ApiContract.Serialize(document), "application/json");
+
+                var json = ApiContract.Serialize(document);
+                var etag = new EntityTagHeaderValue($"\"{ApiContract.Hash(json)[..16]}\"");
+                var response = request.HttpContext.Response;
+                response.Headers.ETag = etag.ToString();
+                response.Headers.CacheControl = "no-cache";
+                response.Headers[ApiContract.SchemaVersionHeader] = contract.ReportSchemaVersion;
+
+                var ifNoneMatch = request.GetTypedHeaders().IfNoneMatch;
+                if (ifNoneMatch.Any(tag => tag.Equals(EntityTagHeaderValue.Any) || tag.Compare(etag, useStrongComparison: false)))
+                {
+                    return Results.StatusCode(StatusCodes.Status304NotModified);
+                }
+
+                return Results.Text(json, "application/json");
             })
             .ExcludeFromDescription();
 
@@ -223,8 +248,12 @@ internal sealed class ContractHeadersOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
-        // Only the AI agent API carries the contract headers.
-        if (context.ApiDescription.RelativePath?.StartsWith("api/v1/", StringComparison.OrdinalIgnoreCase) != true)
+        // The AI agent API and (since 1.18.0) the reporting API carry the contract headers.
+        var path = context.ApiDescription.RelativePath ?? string.Empty;
+        string? schemaPath = path.StartsWith("api/v1/", StringComparison.OrdinalIgnoreCase) ? OpenApiDocumentation.SchemaPath
+            : path.StartsWith("api/report/", StringComparison.OrdinalIgnoreCase) ? OpenApiDocumentation.ReportSchemaPath
+            : null;
+        if (schemaPath is null)
         {
             return;
         }
@@ -233,12 +262,12 @@ internal sealed class ContractHeadersOperationFilter : IOperationFilter
         {
             response.Headers[ApiContract.SchemaVersionHeader] = new OpenApiHeader
             {
-                Description = "Fingerprint of this OpenAPI document. When it changes, re-read /api/openapi.json.",
+                Description = $"Fingerprint of this OpenAPI document. When it changes, re-read {schemaPath}.",
                 Schema = new OpenApiSchema { Type = "string" },
             };
             response.Headers["Link"] = new OpenApiHeader
             {
-                Description = "</api/openapi.json>; rel=\"service-desc\" - where to re-read this API's description.",
+                Description = $"<{schemaPath}>; rel=\"service-desc\" - where to re-read this API's description.",
                 Schema = new OpenApiSchema { Type = "string" },
             };
         }
