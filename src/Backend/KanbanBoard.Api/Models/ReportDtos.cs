@@ -120,6 +120,12 @@ public sealed class ReportPingDto
     /// <summary>Requests (reports, uploads and pings) allowed per minute per IP address.</summary>
     public int RequestsPerMinute { get; init; }
 
+    /// <summary>
+    /// Fingerprint of the reporting API (same as the X-API-Schema-Version header) (1.18.0). If it differs
+    /// from the one your integration was built against, see GET /api/report/meta for what changed.
+    /// </summary>
+    public string SchemaVersion { get; init; } = string.Empty;
+
     /// <summary>Echo of the <c>program</c> query parameter, or null when none was sent.</summary>
     public string? Program { get; init; }
 
@@ -128,4 +134,26 @@ public sealed class ReportPingDto
     /// accepted), false if a report naming it would be rejected. Null when no program was sent.
     /// </summary>
     public bool? ProgramKnown { get; init; }
+}
+
+/// <summary>
+/// Answer to <c>GET /api/report/meta</c> (1.18.0): the reporting API's current
+/// fingerprint and what changed in it, so a program can tell it is out of date.
+/// </summary>
+public sealed class ReportMetaDto
+{
+    /// <summary>Board version, e.g. "1.18.0".</summary>
+    public string Version { get; init; } = string.Empty;
+
+    /// <summary>Fingerprint of the reporting API; same value as the X-API-Schema-Version header.</summary>
+    public string SchemaVersion { get; init; } = string.Empty;
+
+    /// <summary>The reporting API document to re-read when schemaVersion changes.</summary>
+    public string OpenApiUrl { get; init; } = string.Empty;
+
+    /// <summary>How to stay current with the reporting API.</summary>
+    public string Instructions { get; init; } = string.Empty;
+
+    /// <summary>Reporting API changes, newest first (only those after ?since= when given).</summary>
+    public IReadOnlyList<ApiChangeDto> Changes { get; init; } = Array.Empty<ApiChangeDto>();
 }

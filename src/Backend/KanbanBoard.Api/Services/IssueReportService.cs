@@ -20,14 +20,16 @@ public sealed class IssueReportService
     private readonly IOptionsMonitor<IssueReportingOptions> _options;
     private readonly KanbanDbContext _db;
     private readonly FileService _files;
+    private readonly ApiContract _contract;
 
-    public IssueReportService(WorkItemService items, ActorContext actor, IOptionsMonitor<IssueReportingOptions> options, KanbanDbContext db, FileService files)
+    public IssueReportService(WorkItemService items, ActorContext actor, IOptionsMonitor<IssueReportingOptions> options, KanbanDbContext db, FileService files, ApiContract contract)
     {
         _items = items;
         _actor = actor;
         _options = options;
         _db = db;
         _files = files;
+        _contract = contract;
     }
 
     /// <summary>Stores a log file for a report that is about to be filed (1.14.0).</summary>
@@ -176,6 +178,7 @@ public sealed class IssueReportService
         {
             Version = AppVersion.Current.Version,
             RequestsPerMinute = _options.CurrentValue.RequestsPerMinute,
+            SchemaVersion = _contract.ReportSchemaVersion,
             Program = name,
             ProgramKnown = known,
         };

@@ -3,6 +3,17 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-10-15
+
+### Added
+- **The reporting API now signals its own changes**, like the AI agent API does since 1.5.0, so the programs under test notice new features (a program had kept sending logs as text because it was built before file uploads existed).
+  - Every `/api/report` response carries `X-API-Schema-Version` (a fingerprint of `/api/openapi-report.json`) and `Link: </api/openapi-report.json>; rel="service-desc"`, including errors.
+  - `GET /api/report/meta?since=<version>` lists, in plain language, what changed in the reporting API since a given board version (1.12.0 onwards), with the current fingerprint and the document to re-read.
+  - `GET /api/report/ping` returns `schemaVersion`.
+  - `/api/openapi-report.json` supports `ETag` / `If-None-Match` and carries the header too. Its description has a "Staying current" section.
+  - A test fails the build when the reporting API changes without a new entry in its change log, as for the agent API.
+- `docs/in-app-reporting.md`: new "Staying current" section.
+
 ## [1.17.0] - 2026-10-15
 
 ### Added
