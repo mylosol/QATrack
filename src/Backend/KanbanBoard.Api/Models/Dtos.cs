@@ -80,6 +80,9 @@ public sealed class WorkItemDto
     /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only.</summary>
     public string? ProgramVersion { get; init; }
 
+    /// <summary>Version the bug was fixed in (e.g. "2.4.3"), or null while it isn't fixed (1.17.0). The board shows it for Bugs.</summary>
+    public string? FixedInVersion { get; init; }
+
     /// <summary>Tags, sorted alphabetically.</summary>
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
@@ -183,6 +186,10 @@ public sealed class CreateWorkItemRequest
     [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
     public string? ProgramVersion { get; set; }
 
+    /// <summary>Version the bug was fixed in (e.g. "2.4.3"). Optional; usually set later with PATCH when the fix ships. Max 64 characters.</summary>
+    [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
+    public string? FixedInVersion { get; set; }
+
     /// <summary>Tags (max 20, each max 50 characters). New tags are created on first use.</summary>
     public List<string>? Tags { get; set; }
 
@@ -232,6 +239,13 @@ public sealed class UpdateWorkItemRequest
     /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only. Empty string clears it.</summary>
     [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
     public string? ProgramVersion { get; set; }
+
+    /// <summary>
+    /// Version the bug was fixed in (e.g. "2.4.3"). Set it when you fix a bug, usually in the same PATCH that
+    /// moves the card to Resolved, so the person who reported it knows which version to test. Empty string clears it.
+    /// </summary>
+    [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
+    public string? FixedInVersion { get; set; }
 
     /// <summary>Replaces ALL tags when present; send [] to remove every tag. Omit to leave tags unchanged.</summary>
     public List<string>? Tags { get; set; }

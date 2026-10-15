@@ -90,6 +90,7 @@ public sealed class WorkItemService
             IterationPath = TextSanitizer.SingleLine(request.IterationPath, WorkItemDefaults.ShortTextMaxLength)
                             ?? WorkItemDefaults.IterationPath,
             ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength),
+            FixedInVersion = TextSanitizer.SingleLine(request.FixedInVersion, WorkItemDefaults.ProgramVersionMaxLength),
             ReportKey = reportKey,
             CreatedBy = _actor.DisplayName,
             CreatedAt = now,
@@ -182,6 +183,12 @@ public sealed class WorkItemService
         {
             // Empty string clears it.
             item.ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength);
+        }
+
+        if (request.FixedInVersion is not null)
+        {
+            // Empty string clears it.
+            item.FixedInVersion = TextSanitizer.SingleLine(request.FixedInVersion, WorkItemDefaults.ProgramVersionMaxLength);
         }
 
         if (request.Program is not null)
