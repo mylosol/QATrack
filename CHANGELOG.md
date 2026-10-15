@@ -3,6 +3,15 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-10-15
+
+### Added
+- **"Fixed in version" on Bugs.** An optional text field next to **Program version** in the card dialog: the version that contains the fix (e.g. 2.4.3). The card on the board shows "✅ Fixed in 2.4.3" next to "Version 2.4.1". Changes are recorded in history. Like Program version, it is shown and edited for Bugs only.
+- **AI agent API:** work items have `fixedInVersion`. Agents set it in the same PATCH that moves a fixed bug to Resolved (`""` clears it). New `X-API-Schema-Version`; `GET /api/v1/meta` tells agents to fill it in when they fix a bug.
+
+### Changed
+- Database: additive migration `AddFixedInVersion` (new nullable column `WorkItem.FixedInVersion`).
+
 ## [1.16.1] - 2026-10-09
 
 ### Fixed

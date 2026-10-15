@@ -250,6 +250,12 @@
 .card-type-Epic { --card-accent: var(--type-epic); }
 .card-type-Task { --card-accent: var(--type-task); }
 
+/* ---------- Version a bug was fixed in (1.17.0) ---------- */
+.card-fixed-in {
+  font-weight: 600;
+  color: rgb(var(--color-fg));
+}
+
 /* ---------- Who reported an in-app report (1.16.0) ---------- */
 .card-reporter {
   margin: 0.125rem 0 0;

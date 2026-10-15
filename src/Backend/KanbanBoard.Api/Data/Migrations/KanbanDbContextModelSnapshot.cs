@@ -249,6 +249,10 @@ namespace KanbanBoard.Api.Data.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("FixedInVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("HumanReadAt")
                         .HasColumnType("TEXT");
 

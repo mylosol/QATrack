@@ -132,3 +132,16 @@ describe('in-app reporter (1.16.0)', () => {
     expect(normal.querySelector('[data-testid="card-reporter"]')).toBeNull();
   });
 });
+
+describe('Fixed in on the card (1.17.0)', () => {
+  it('shows the fix version on bugs that have one', () => {
+    const card = createCard(makeItem({ id: 51, type: 'Bug', programVersion: '2.4.1', fixedInVersion: '2.4.3' }));
+    expect(card.querySelector('[data-testid="card-fixed-in"]')!.textContent).toBe('✅ Fixed in 2.4.3');
+    expect(card.querySelector('[data-testid="card-program-version"]')!.textContent).toBe('Version 2.4.1');
+  });
+
+  it('shows nothing when not fixed yet, or for other types', () => {
+    expect(createCard(makeItem({ id: 52, type: 'Bug', fixedInVersion: null })).querySelector('[data-testid="card-fixed-in"]')).toBeNull();
+    expect(createCard(makeItem({ id: 53, type: 'Feature', fixedInVersion: '3.0.0' })).querySelector('[data-testid="card-fixed-in"]')).toBeNull();
+  });
+});

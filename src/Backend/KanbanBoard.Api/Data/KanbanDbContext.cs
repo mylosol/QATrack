@@ -67,6 +67,7 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.IterationPath).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength)
                 .HasDefaultValue(WorkItemDefaults.IterationPath);
             e.Property(x => x.ProgramVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
+            e.Property(x => x.FixedInVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
             e.Property(x => x.LastHumanCommentAt).HasConversion(NullableUtcConverter);
             e.Property(x => x.LastHumanCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.LastAgentCommentAt).HasConversion(NullableUtcConverter);

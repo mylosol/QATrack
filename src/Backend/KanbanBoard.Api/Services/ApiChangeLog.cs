@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.17.0",
+            Date = "2026-10-15",
+            SchemaVersion = "7cda646c5220",
+            Breaking = false,
+            Summary = new[]
+            {
+                "Work items have an optional 'fixedInVersion' (text, max 64 characters): the version a bug was fixed in, e.g. \"2.4.3\". When you fix a bug, set it in the same PATCH that moves the card to Resolved (with a comment saying what changed), so the person who reported it knows which version to test. Send \"\" to clear it.",
+                "The board shows it on the card (\"Fixed in 2.4.3\") next to 'programVersion' (the version the bug was found in). Changes are recorded in history.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.16.1",
             Date = "2026-10-09",
             SchemaVersion = "ca9fd4015b6b",

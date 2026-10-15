@@ -70,6 +70,8 @@ export interface WorkItem {
   program: string | null;
   /** Version of the program a bug was found in (1.7.0), or null. */
   programVersion: string | null;
+  /** Version the bug was fixed in (1.17.0), or null. */
+  fixedInVersion?: string | null;
   /** Tags, sorted (1.4.0). */
   tags: string[];
   aiModified: boolean;
@@ -172,6 +174,7 @@ export interface CreateWorkItemRequest {
   iterationPath?: string;
   program?: string | null;
   programVersion?: string;
+  fixedInVersion?: string;
   tags?: string[];
   comment?: string;
 }
@@ -190,6 +193,7 @@ export type UpdateWorkItemRequest = Partial<{
   program: string;
   /** '' clears it. */
   programVersion: string;
+  fixedInVersion: string;
   /** Replaces all tags. */
   tags: string[];
   comment: string;

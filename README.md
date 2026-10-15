@@ -129,7 +129,7 @@ curl -X POST http://server:8080/api/v1/workitems \
 
 Pictures in descriptions and comments are Markdown links to `api/ui/attachments/<id>`: agents open them by requesting that path with their `X-API-Key` (or via `GET /api/v1/attachments/<id>`). Log files are in each work item's `files`.
 
-Work items carry `program` (one of the programs, or null), `tags` (a list) and, for Bugs, an optional `programVersion` (the version the bug was found in; `""` clears it). On PATCH, `program: ""` removes the program and `tags` replaces the whole list (`[]` removes all); omit either to leave it unchanged. Descriptions and comments are Markdown; to show an image, upload it and put the returned `markdown` (e.g. `![shot.png](api/ui/attachments/<id>)`) into the text.
+Work items carry `program` (one of the programs, or null), `tags` (a list) and, for Bugs, an optional `programVersion` (the version the bug was found in) and `fixedInVersion` (the version that contains the fix; agents set it when they resolve a bug). `""` clears either. On PATCH, `program: ""` removes the program and `tags` replaces the whole list (`[]` removes all); omit either to leave it unchanged. Descriptions and comments are Markdown; to show an image, upload it and put the returned `markdown` (e.g. `![shot.png](api/ui/attachments/<id>)`) into the text.
 
 Point tool-calling agents at `/api/openapi.json`. It declares both headers as security schemes.
 

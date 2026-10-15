@@ -20,7 +20,8 @@ public sealed record WorkItemSnapshot(
     string IterationPath,
     string? Program = null,
     string? Tags = null,
-    string? ProgramVersion = null)
+    string? ProgramVersion = null,
+    string? FixedInVersion = null)
 {
     /// <summary>Captures the tracked fields of <paramref name="item"/>.</summary>
     public static WorkItemSnapshot From(WorkItem item) => new(
@@ -35,7 +36,8 @@ public sealed record WorkItemSnapshot(
         item.IterationPath,
         item.Program?.Name,
         FormatTags(item.Tags.Select(t => t.Name)),
-        item.ProgramVersion);
+        item.ProgramVersion,
+        item.FixedInVersion);
 
     /// <summary>Canonical audit form of a tag set: sorted, "; "-separated, null when empty.</summary>
     public static string? FormatTags(IEnumerable<string> tags)
@@ -103,6 +105,7 @@ public static class WorkItemChangeTracker
         Track(nameof(WorkItem.IterationPath), before.IterationPath, after.IterationPath);
         Track(nameof(WorkItem.Program), before.Program, after.Program);
         Track(nameof(WorkItem.ProgramVersion), before.ProgramVersion, after.ProgramVersion);
+        Track(nameof(WorkItem.FixedInVersion), before.FixedInVersion, after.FixedInVersion);
         Track(nameof(WorkItem.Tags), before.Tags, after.Tags);
 
         return changes;

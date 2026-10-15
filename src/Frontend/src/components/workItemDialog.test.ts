@@ -7,7 +7,7 @@ describe('diffForUpdate', () => {
   const form = {
     title: 'T', description: 'd', type: item.type, state: item.state, priority: 2, severity: item.severity,
     iterationPath: item.iterationPath,
-    program: null as string | null, programVersion: null as string | null, tags: [] as string[],
+    program: null as string | null, programVersion: null as string | null, fixedInVersion: null as string | null, tags: [] as string[],
   };
 
   it('returns an empty patch when nothing changed', () => {
@@ -108,5 +108,24 @@ describe('describeChanges for files (1.14.0)', () => {
   it('says attached or removed', () => {
     expect(describeChanges(entry(null, 'app.log'))).toEqual(['Attached file "app.log"']);
     expect(describeChanges(entry('app.log', null))).toEqual(['Removed file "app.log"']);
+  });
+});
+
+describe('Fixed in version (1.17.0)', () => {
+  const item = makeItem({ id: 9, type: 'Bug', fixedInVersion: null });
+  const form = {
+    title: item.title, description: item.description, type: item.type, state: item.state, priority: item.priority,
+    severity: item.severity, iterationPath: item.iterationPath, program: item.program ?? null,
+    programVersion: item.programVersion ?? null, fixedInVersion: null as string | null, tags: item.tags ?? [],
+  };
+
+  it('sends a newly entered version, trimmed', () => {
+    expect(diffForUpdate(item, { ...form, fixedInVersion: ' 2.4.3 ' })).toEqual({ fixedInVersion: '2.4.3' });
+  });
+
+  it('clears it with an empty string', () => {
+    const fixed = { ...item, fixedInVersion: '2.4.3' };
+    expect(diffForUpdate(fixed, { ...form, fixedInVersion: null })).toEqual({ fixedInVersion: '' });
+    expect(diffForUpdate(fixed, { ...form, fixedInVersion: '2.4.3' })).toEqual({});
   });
 });
