@@ -29,7 +29,7 @@ test.describe('Retest results and the To Do column', () => {
     const dialog = page.getByRole('dialog');
 
     await dialog.getByRole('combobox', { name: 'Result', exact: true }).selectOption('Failed');
-    await expect(dialog.getByTestId('test-result-help')).toContainText('moves the card to To Do');
+    await expect(dialog.getByTestId('test-result-help')).toContainText('moves the card to To Do and clears Fixed in');
     await dialog.getByLabel('Tested in version').fill('2.4.3');
     await expectNoAxeViolations(page, 'dialog with a test result');
     await dialog.getByTestId('dialog-save').click();
@@ -38,10 +38,14 @@ test.describe('Retest results and the To Do column', () => {
     const card = columnList(page, 'New').locator(`article[data-card-id="${item.id}"]`);
     await expect(card).toBeVisible();
     await expect(card.getByTestId('card-test-result')).toHaveText('✖ Failed in 2.4.3');
+    // The fix didn't work, so "Fixed in" is cleared (1.19.2).
+    await expect(card.getByTestId('card-fixed-in')).toHaveCount(0);
     const saved = await getItem(request, item.id);
     expect(saved.state).toBe('New');
     expect(saved.testResult).toBe('Failed');
     expect(saved.testedInVersion).toBe('2.4.3');
+    expect(saved.fixedInVersion).toBeNull();
+    expect(saved.history!.at(-1)!.changedFields.FixedInVersion).toEqual({ old: '2.4.3', new: null });
 
     // History reads as the board names things.
     await card.getByRole('button', { name: item.title }).click();
@@ -60,6 +64,7 @@ test.describe('Retest results and the To Do column', () => {
 
     const card = columnList(page, 'Closed').locator(`article[data-card-id="${item.id}"]`);
     await expect(card.getByTestId('card-test-result')).toHaveText('✔ Passed in 2.4.3');
+    await expect(card.getByTestId('card-fixed-in')).toHaveText('✅ Fixed in 2.4.3');
     expect((await getItem(request, item.id)).state).toBe('Closed');
   });
 

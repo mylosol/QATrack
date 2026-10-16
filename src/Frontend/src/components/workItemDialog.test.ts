@@ -140,8 +140,15 @@ describe('Test result (1.19.0)', () => {
     testResult: null as 'Passed' | 'Failed' | null, testedInVersion: null as string | null, tags: resolved.tags ?? [],
   };
 
-  it('Failed in a version sends the card back to To Do', () => {
+  it('Failed in a version sends the card back to To Do and clears Fixed in (1.19.2)', () => {
     expect(diffForUpdate(resolved, { ...form, testResult: 'Failed', testedInVersion: '2.4.3' }))
+      .toEqual({ testResult: 'Failed', testedInVersion: '2.4.3', state: 'New', fixedInVersion: '' });
+  });
+
+  it('Failed in clears Fixed in even when it was typed in the same save, and leaves it alone when already empty', () => {
+    expect(diffForUpdate(resolved, { ...form, fixedInVersion: '2.4.9', testResult: 'Failed', testedInVersion: '2.4.3' }).fixedInVersion).toBe('');
+    const notFixed = { ...resolved, fixedInVersion: null };
+    expect(diffForUpdate(notFixed, { ...form, fixedInVersion: null, testResult: 'Failed', testedInVersion: '2.4.3' }))
       .toEqual({ testResult: 'Failed', testedInVersion: '2.4.3', state: 'New' });
   });
 
@@ -159,6 +166,6 @@ describe('Test result (1.19.0)', () => {
   it('a new version for the same result moves the card again', () => {
     const failedBefore = { ...resolved, state: 'Resolved' as const, testResult: 'Failed' as const, testedInVersion: '2.4.3' };
     expect(diffForUpdate(failedBefore, { ...form, testResult: 'Failed', testedInVersion: '2.4.4' }))
-      .toEqual({ testedInVersion: '2.4.4', state: 'New' });
+      .toEqual({ testedInVersion: '2.4.4', state: 'New', fixedInVersion: '' });
   });
 });

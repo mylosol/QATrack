@@ -129,6 +129,11 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
     const target = TEST_RESULT_STATE[form.testResult];
     if (target !== item.state) patch.state = target;
     else delete patch.state;
+    // A failed retest means the fix didn't work: "Fixed in" no longer applies (1.19.2).
+    if (form.testResult === 'Failed') {
+      if (item.fixedInVersion) patch.fixedInVersion = '';
+      else delete patch.fixedInVersion;
+    }
   }
   if ((form.program ?? '') !== (item.program ?? '')) patch.program = form.program ?? '';
   if (!sameTags(form.tags, item.tags ?? [])) patch.tags = [...form.tags];
@@ -407,7 +412,8 @@ export class WorkItemDialog {
     const syncTestHelp = (): void => {
       const result = controls.testResult.value as TestResult | '';
       testHelp.textContent = result
-        ? `Type the version you tested. Save changes moves the card to ${stateLabel(TEST_RESULT_STATE[result])}.`
+        ? `Type the version you tested. Save changes moves the card to ${stateLabel(TEST_RESULT_STATE[result])}` +
+          (result === 'Failed' && item?.fixedInVersion ? ' and clears Fixed in.' : '.')
         : 'Record a retest: Passed closes the card, Failed sends it back to To Do.';
     };
     controls.testResult.addEventListener('change', syncTestHelp);
