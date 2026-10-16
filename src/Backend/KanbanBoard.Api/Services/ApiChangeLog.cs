@@ -19,6 +19,19 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.19.0",
+            Date = "2026-10-16",
+            SchemaVersion = "79f8864d46e4",
+            Breaking = false,
+            Summary = new[]
+            {
+                "The board now calls the New column \"To Do\" (GET /api/v1/board returns that column name). The state is still New in the API; nothing else changes for your calls.",
+                "Work items have 'testResult' (\"Passed\" or \"Failed\", or null) and 'testedInVersion': a person's latest retest and the version it was done on. On the board, Passed moves the card to Closed and Failed moves it back to New in the same change.",
+                "A card you resolved that is back in New with testResult \"Failed\" failed the person's retest in testedInVersion. Read their newest comments and pictures before working it again, set fixedInVersion to the new version when you fix it, and say in your reply what you changed.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.17.0",
             Date = "2026-10-15",
             SchemaVersion = "7cda646c5220",

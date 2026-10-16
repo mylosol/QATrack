@@ -50,7 +50,7 @@ public class DatabaseInitializerTests
         var columns = await db.BoardColumns.OrderBy(c => c.SortOrder).ToListAsync();
 
         Assert.Collection(columns,
-            c => { Assert.Equal("New", c.Name); Assert.Equal(WorkItemState.New, c.State); Assert.Null(c.WipLimit); },
+            c => { Assert.Equal("To Do", c.Name); Assert.Equal(WorkItemState.New, c.State); Assert.Null(c.WipLimit); },
             c => { Assert.Equal("Active", c.Name); Assert.Equal(WorkItemState.Active, c.State); Assert.Null(c.WipLimit); },
             c => { Assert.Equal("Resolved", c.Name); Assert.Equal(WorkItemState.Resolved, c.State); Assert.Null(c.WipLimit); },
             c => { Assert.Equal("Closed", c.Name); Assert.Equal(WorkItemState.Closed, c.State); Assert.Null(c.WipLimit); });
@@ -154,6 +154,29 @@ public class DatabaseInitializerTests
         // 1.16.0 backfill: the creator is the author of the first history entry.
         Assert.Equal("Dana", commented.CreatedBy);
         Assert.Equal("Dana", silent.CreatedBy);
+    }
+
+    [Fact]
+    public async Task Upgrade_To1190_RenamesTheNewColumnToDo_AndKeepsItsCards()
+    {
+        using var temp = new TempSqliteDatabase();
+        await using (var old = temp.CreateContext())
+        {
+            await old.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20261015142938_AddFixedInVersion");
+            Assert.Equal("New", await old.Database.SqlQueryRaw<string>("SELECT Name AS Value FROM BoardColumn WHERE Id = 1").SingleAsync());
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItem (Title, Type, State, Priority, Severity, AreaPath, IterationPath, AiModified, LastModifiedBy, CreatedAt, UpdatedAt) " +
+                "VALUES ('Failed retest', 'Bug', 'New', 2, '2 - High', 'x', 'Current', 1, 'Robert', '2026-10-15 10:00:00', '2026-10-15 10:00:00')");
+        }
+
+        await temp.InitializeAsync();
+
+        await using var db = temp.CreateContext();
+        var column = await db.BoardColumns.SingleAsync(c => c.Id == 1);
+        Assert.Equal("To Do", column.Name);
+        Assert.Equal(WorkItemState.New, column.State);
+        Assert.Equal(WorkItemState.New, (await db.WorkItems.SingleAsync(w => w.Title == "Failed retest")).State);
     }
 
     [Fact]

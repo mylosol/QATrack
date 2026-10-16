@@ -9,7 +9,7 @@ test.describe('Board', () => {
   test('renders the four spec columns with plain counts and no WIP limits (1.11.0)', async ({ page }) => {
     await openBoard(page);
 
-    await expect(page.getByRole('heading', { level: 3 })).toHaveText(['New', 'Active', 'Resolved', 'Closed']);
+    await expect(page.getByRole('heading', { level: 3 })).toHaveText(['To Do', 'Active', 'Resolved', 'Closed']);
     for (const state of ['New', 'Active', 'Resolved', 'Closed']) {
       await expect(page.getByTestId(`wip-${state}`)).toHaveText(/^\d+$/);
     }
@@ -73,7 +73,7 @@ test.describe('Board', () => {
     });
 
     await expect(columnList(page, 'Resolved').locator(`article[data-card-id="${item.id}"]`)).toBeVisible();
-    await expect(page.getByTestId('live-polite')).toContainText(`from New to Resolved`);
+    await expect(page.getByTestId('live-polite')).toContainText(`from To Do to Resolved`);
 
     const stored = await getItem(request, item.id);
     expect(stored.state).toBe('Resolved');
@@ -116,7 +116,7 @@ test.describe('Board', () => {
     const history = dialog.getByTestId('history-list');
     await expect(history.locator('li').first()).toContainText('Verified on build 42');
     await expect(history.locator('li').first().locator('strong', { hasText: 'build 42' })).toBeVisible();
-    await expect(history).toContainText('State: "New" → "Active"');
+    await expect(history).toContainText('State: "To Do" → "Active"');
     await expect(dialog.getByTestId('comment-input')).toHaveText('');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();

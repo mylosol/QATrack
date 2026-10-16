@@ -250,6 +250,15 @@
 .card-type-Epic { --card-accent: var(--type-epic); }
 .card-type-Task { --card-accent: var(--type-task); }
 
+/* ---------- Latest retest (1.19.0) ---------- */
+.card-test {
+  font-weight: 600;
+  color: rgb(var(--color-fg));
+}
+.card-test-failed {
+  border-bottom: 2px solid rgb(var(--color-alert));
+}
+
 /* ---------- Version a bug was fixed in (1.17.0) ---------- */
 .card-fixed-in {
   font-weight: 600;

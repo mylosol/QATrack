@@ -6,7 +6,7 @@ describe('diffForUpdate', () => {
   const item = makeItem({ id: 1, title: 'T', description: 'd', assignedTo: 'Ana', priority: 2 });
   const form = {
     title: 'T', description: 'd', type: item.type, state: item.state, priority: 2, severity: item.severity,
-    iterationPath: item.iterationPath,
+    testResult: null as 'Passed' | 'Failed' | null, testedInVersion: null as string | null,
     program: null as string | null, programVersion: null as string | null, fixedInVersion: null as string | null, tags: [] as string[],
   };
 
@@ -61,7 +61,8 @@ describe('describeChanges', () => {
         State: { old: 'New', new: 'Active' },
       },
     });
-    expect(lines).toEqual(['Title set to "New title"', 'AssignedTo cleared (was "Ana")', 'State: "New" → "Active"']);
+    // 1.19.0: states read as the board names them ("To Do" for New).
+    expect(lines).toEqual(['Title set to "New title"', 'AssignedTo cleared (was "Ana")', 'State: "To Do" → "Active"']);
   });
 });
 
@@ -115,7 +116,7 @@ describe('Fixed in version (1.17.0)', () => {
   const item = makeItem({ id: 9, type: 'Bug', fixedInVersion: null });
   const form = {
     title: item.title, description: item.description, type: item.type, state: item.state, priority: item.priority,
-    severity: item.severity, iterationPath: item.iterationPath, program: item.program ?? null,
+    severity: item.severity, testResult: null as 'Passed' | 'Failed' | null, testedInVersion: null as string | null, program: item.program ?? null,
     programVersion: item.programVersion ?? null, fixedInVersion: null as string | null, tags: item.tags ?? [],
   };
 
@@ -127,5 +128,37 @@ describe('Fixed in version (1.17.0)', () => {
     const fixed = { ...item, fixedInVersion: '2.4.3' };
     expect(diffForUpdate(fixed, { ...form, fixedInVersion: null })).toEqual({ fixedInVersion: '' });
     expect(diffForUpdate(fixed, { ...form, fixedInVersion: '2.4.3' })).toEqual({});
+  });
+});
+
+describe('Test result (1.19.0)', () => {
+  const resolved = makeItem({ id: 21, type: 'Bug', state: 'Resolved', fixedInVersion: '2.4.3' });
+  const form = {
+    title: resolved.title, description: resolved.description, type: resolved.type, state: resolved.state,
+    priority: resolved.priority, severity: resolved.severity, program: resolved.program ?? null,
+    programVersion: resolved.programVersion ?? null, fixedInVersion: '2.4.3' as string | null,
+    testResult: null as 'Passed' | 'Failed' | null, testedInVersion: null as string | null, tags: resolved.tags ?? [],
+  };
+
+  it('Failed in a version sends the card back to To Do', () => {
+    expect(diffForUpdate(resolved, { ...form, testResult: 'Failed', testedInVersion: '2.4.3' }))
+      .toEqual({ testResult: 'Failed', testedInVersion: '2.4.3', state: 'New' });
+  });
+
+  it('Passed in a version closes the card', () => {
+    expect(diffForUpdate(resolved, { ...form, testResult: 'Passed', testedInVersion: '2.4.3' }))
+      .toEqual({ testResult: 'Passed', testedInVersion: '2.4.3', state: 'Closed' });
+  });
+
+  it('the result wins over a different State choice, and an unchanged result moves nothing', () => {
+    expect(diffForUpdate(resolved, { ...form, state: 'Active', testResult: 'Passed', testedInVersion: '2.4.3' }).state).toBe('Closed');
+    const failedBefore = { ...resolved, state: 'Active' as const, testResult: 'Failed' as const, testedInVersion: '2.4.3' };
+    expect(diffForUpdate(failedBefore, { ...form, state: 'Active', testResult: 'Failed', testedInVersion: '2.4.3' })).toEqual({});
+  });
+
+  it('a new version for the same result moves the card again', () => {
+    const failedBefore = { ...resolved, state: 'Resolved' as const, testResult: 'Failed' as const, testedInVersion: '2.4.3' };
+    expect(diffForUpdate(failedBefore, { ...form, testResult: 'Failed', testedInVersion: '2.4.4' }))
+      .toEqual({ testedInVersion: '2.4.4', state: 'New' });
   });
 });

@@ -15,7 +15,7 @@ test.describe('Keyboard operability', () => {
     await card.focus();
     await page.keyboard.press('Space');
     await expect(card).toHaveAttribute('data-grabbed', 'true');
-    await expect(page.getByTestId('live-polite')).toContainText(`Picked up "${item.title}" in New`);
+    await expect(page.getByTestId('live-polite')).toContainText(`Picked up "${item.title}" in To Do`);
 
     await page.keyboard.press('ArrowRight');
     await expect(columnList(page, 'Active').locator(`article[data-card-id="${item.id}"]`)).toBeFocused();
@@ -23,7 +23,7 @@ test.describe('Keyboard operability', () => {
     await expect(columnList(page, 'Resolved').locator(`article[data-card-id="${item.id}"]`)).toBeFocused();
 
     await page.keyboard.press('Enter');
-    await expect(page.getByTestId('live-polite')).toContainText(`Moved "${item.title}" from New to Resolved.`);
+    await expect(page.getByTestId('live-polite')).toContainText(`Moved "${item.title}" from To Do to Resolved.`);
     // Focus follows the card after the board re-renders.
     await expect(columnList(page, 'Resolved').locator(`article[data-card-id="${item.id}"]`)).toBeFocused();
     expect((await getItem(request, item.id)).state).toBe('Resolved');

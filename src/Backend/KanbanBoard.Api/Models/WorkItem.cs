@@ -61,6 +61,15 @@ public class WorkItem
     /// <summary>Version the bug was fixed in (e.g. "2.4.3"), set when the fix ships (1.17.0). Optional; the board shows and edits it for Bugs only.</summary>
     public string? FixedInVersion { get; set; }
 
+    /// <summary>
+    /// Latest retest by a person (1.19.0): "Passed" or "Failed", or null when not tested. The board
+    /// moves the card to Closed (Passed) or New (Failed) in the same change.
+    /// </summary>
+    public string? TestResult { get; set; }
+
+    /// <summary>The version that retest was done on (e.g. "2.4.3") (1.19.0).</summary>
+    public string? TestedInVersion { get; set; }
+
     /// <summary>When a human (not an AI agent) last wrote a comment on this item (UTC), or null. If it is newer than the last one you read, GET the item and read its history. Maintained by every mutation (1.8.0).</summary>
     public DateTime? LastHumanCommentAt { get; set; }
 

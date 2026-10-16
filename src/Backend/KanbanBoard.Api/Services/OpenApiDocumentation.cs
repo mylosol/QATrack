@@ -34,7 +34,9 @@ public static class OpenApiDocumentation
         "before picking up new work, call GET /api/v1/workitems?discussion=AwaitingAgent (GET /api/v1/meta also " +
         "reports awaitingAgentCount). For each card, GET it, read the history entries with isAiAction false and a " +
         "comment, act on them, and reply with POST /api/v1/workitems/{id}/comments (or a PATCH with a 'comment'). " +
-        "Your comment clears AwaitingAgent; the card stays on that list until you reply.";
+        "Your comment clears AwaitingAgent; the card stays on that list until you reply. A card you resolved that is " +
+        "back in New (the board calls that column \"To Do\") failed a person's retest: read their newest comments " +
+        "and pictures before working it again, and say in your reply what you changed.";
 
     /// <summary>
     /// How agents read the pictures and files people attach (1.16.1). Part of

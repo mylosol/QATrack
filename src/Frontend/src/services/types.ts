@@ -12,6 +12,31 @@ export type WorkItemState = (typeof WORK_ITEM_STATES)[number];
 /** States that have a board column (Removed items are hidden from the board). */
 export const BOARD_STATES: readonly WorkItemState[] = ['New', 'Active', 'Resolved', 'Closed'];
 
+/**
+ * How each state is named on the board (1.19.0). The API keeps the state names;
+ * "New" is shown as "To Do" because it holds both new reports and cards sent
+ * back after a failed retest.
+ */
+export const STATE_LABELS: Record<WorkItemState, string> = {
+  New: 'To Do',
+  Active: 'Active',
+  Resolved: 'Resolved',
+  Closed: 'Closed',
+  Removed: 'Removed',
+};
+
+/** Retest results a person records on the board (1.19.0). */
+export const TEST_RESULTS = ['Passed', 'Failed'] as const;
+export type TestResult = (typeof TEST_RESULTS)[number];
+
+/** Where a card goes when a retest result is saved: Passed closes it, Failed sends it back to To Do. */
+export const TEST_RESULT_STATE: Record<TestResult, WorkItemState> = { Passed: 'Closed', Failed: 'New' };
+
+/** The board's name for a state; unknown values are shown as they are. */
+export function stateLabel(state: string): string {
+  return (STATE_LABELS as Record<string, string>)[state] ?? state;
+}
+
 export const SEVERITIES = ['1 - Critical', '2 - High', '3 - Medium', '4 - Low'] as const;
 
 export const PRIORITY_LABELS: Readonly<Record<number, string>> = {
@@ -72,6 +97,10 @@ export interface WorkItem {
   programVersion: string | null;
   /** Version the bug was fixed in (1.17.0), or null. */
   fixedInVersion?: string | null;
+  /** A person's latest retest (1.19.0). */
+  testResult?: TestResult | null;
+  /** The version that retest was done on. */
+  testedInVersion?: string | null;
   /** Tags, sorted (1.4.0). */
   tags: string[];
   aiModified: boolean;
@@ -194,6 +223,9 @@ export type UpdateWorkItemRequest = Partial<{
   /** '' clears it. */
   programVersion: string;
   fixedInVersion: string;
+  /** "Passed" | "Failed"; '' clears it. */
+  testResult: string;
+  testedInVersion: string;
   /** Replaces all tags. */
   tags: string[];
   comment: string;

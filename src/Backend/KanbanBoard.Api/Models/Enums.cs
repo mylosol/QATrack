@@ -16,7 +16,8 @@ public enum WorkItemType
 /// <summary>
 /// Lifecycle states. Every state except <see cref="Removed"/> maps to a board column;
 /// removed items are retained for audit purposes but hidden from the board.
-/// Persisted as TEXT (the enum member name) in SQLite.
+/// Persisted as TEXT (the enum member name) in SQLite. <see cref="New"/> is the
+/// board's "To Do" column (1.19.0).
 /// </summary>
 public enum WorkItemState
 {
@@ -77,6 +78,9 @@ public static class WorkItemDefaults
 
     /// <summary>Largest file (log, text, archive) that can be attached to a work item (1.14.0).</summary>
     public const int FileMaxBytes = 20 * 1024 * 1024;
+
+    /// <summary>Retest results a person can record (1.19.0).</summary>
+    public static readonly string[] TestResults = { "Passed", "Failed" };
 
     /// <summary>Max length of an attached file's display name.</summary>
     public const int FileNameMaxLength = 100;

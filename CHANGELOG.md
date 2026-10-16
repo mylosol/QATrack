@@ -3,6 +3,18 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-10-16
+
+### Changed
+- **The New column is now called "To Do".** It holds new reports and cards sent back after a failed retest, which aren't "new". The board says "To Do" everywhere (column, State dropdown and filter, "Then: Move to To Do", history). The state is still `New` in the API, so agents and integrations keep working.
+- **"Test result" replaces the Iteration path box** in the card dialog. Choose **Passed in** or **Failed in** and type the version you tested; **Save changes** then moves the card: Passed → **Closed**, Failed → **To Do**. A result without a version (or a version without a result) is refused with a message. The card shows "✔ Passed in 2.4.4" or "✖ Failed in 2.4.3". Iteration path is still stored and accepted by the API, just no longer shown.
+
+### Added
+- **AI agent API:** work items have `testResult` ("Passed"/"Failed") and `testedInVersion`. The agent instructions say a resolved card back in New with `testResult` "Failed" failed the person's retest: read their newest comments and pictures first, then set `fixedInVersion` when fixing it again. New `X-API-Schema-Version`.
+
+### Database
+- Additive migrations `RenameNewColumnToDo` (board column 1 renamed; cards and states unchanged) and `AddTestResult` (two new nullable columns).
+
 ## [1.18.0] - 2026-10-15
 
 ### Added
