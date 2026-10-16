@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.1] - 2026-10-16
+
+### Fixed
+- The **Test result** box (result + version) could be wider than its column and push past the right edge of the card dialog, adding a sideways scrollbar on narrower windows. The version box now shrinks to fit.
+
 ## [1.19.0] - 2026-10-16
 
 ### Changed

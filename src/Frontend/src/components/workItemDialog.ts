@@ -412,9 +412,13 @@ export class WorkItemDialog {
     };
     controls.testResult.addEventListener('change', syncTestHelp);
     syncTestHelp();
-    const testField = h('div', { class: 'field-label', role: 'group', 'aria-labelledby': 'test-result-label', 'data-testid': 'dialog-test-result-field' },
+    // Two controls share one grid cell: let the row shrink (min-w-0) and the version box take what's
+    // left, or their default widths push past the dialog's edge on narrower windows.
+    controls.testResult.classList.add('shrink-0');
+    controls.testedInVersion.classList.add('w-full', 'min-w-0', 'flex-1');
+    const testField = h('div', { class: 'field-label min-w-0', role: 'group', 'aria-labelledby': 'test-result-label', 'data-testid': 'dialog-test-result-field' },
       h('span', { id: 'test-result-label' }, 'Test result'),
-      h('div', { class: 'flex gap-2' }, controls.testResult, controls.testedInVersion),
+      h('div', { class: 'flex min-w-0 gap-2' }, controls.testResult, controls.testedInVersion),
       testHelp);
     testField.hidden = isNew;
     const syncBugFields = (): void => {

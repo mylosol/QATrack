@@ -76,3 +76,21 @@ test.describe('Retest results and the To Do column', () => {
     expect((await getItem(request, item.id)).state).toBe('Resolved');
   });
 });
+
+test('the Test result box fits the dialog on a narrower window (1.19.1)', async ({ page, request }) => {
+  const item = await resolvedBug(request, 'Narrow window');
+  await page.setViewportSize({ width: 800, height: 900 });
+  await openBoard(page);
+  await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+  const dialog = page.getByRole('dialog');
+  const field = dialog.getByTestId('dialog-test-result-field');
+  await field.scrollIntoViewIfNeeded();
+
+  // Nothing in the dialog scrolls sideways, and the version box ends inside its own column.
+  const overflow = await dialog.evaluate((d) =>
+    [...d.querySelectorAll<HTMLElement>('*:not(.sr-only)')].filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible').map((el) => el.className));
+  expect(overflow).toEqual([]);
+  const fieldBox = (await field.boundingBox())!;
+  const inputBox = (await dialog.getByLabel('Tested in version').boundingBox())!;
+  expect(inputBox.x + inputBox.width).toBeLessThanOrEqual(fieldBox.x + fieldBox.width + 1);
+});
