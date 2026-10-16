@@ -91,6 +91,8 @@ public sealed class WorkItemService
                             ?? WorkItemDefaults.IterationPath,
             ProgramVersion = TextSanitizer.SingleLine(request.ProgramVersion, WorkItemDefaults.ProgramVersionMaxLength),
             FixedInVersion = TextSanitizer.SingleLine(request.FixedInVersion, WorkItemDefaults.ProgramVersionMaxLength),
+            TestResult = NormalizeTestResult(request.TestResult),
+            TestedInVersion = TextSanitizer.SingleLine(request.TestedInVersion, WorkItemDefaults.ProgramVersionMaxLength),
             ReportKey = reportKey,
             CreatedBy = _actor.DisplayName,
             CreatedAt = now,
@@ -189,6 +191,17 @@ public sealed class WorkItemService
         {
             // Empty string clears it.
             item.FixedInVersion = TextSanitizer.SingleLine(request.FixedInVersion, WorkItemDefaults.ProgramVersionMaxLength);
+        }
+
+        if (request.TestResult is not null)
+        {
+            // Empty string clears it.
+            item.TestResult = NormalizeTestResult(request.TestResult);
+        }
+
+        if (request.TestedInVersion is not null)
+        {
+            item.TestedInVersion = TextSanitizer.SingleLine(request.TestedInVersion, WorkItemDefaults.ProgramVersionMaxLength);
         }
 
         if (request.Program is not null)
@@ -523,6 +536,21 @@ public sealed class WorkItemService
         priority is >= 1 and <= 4
             ? priority
             : throw new WorkItemValidationException(nameof(WorkItem.Priority), "Priority must be between 1 (Critical) and 4 (Low).");
+
+    /// <summary>"Passed" or "Failed" (any case); blank means none.</summary>
+    /// <exception cref="WorkItemValidationException">Anything else.</exception>
+    internal static string? NormalizeTestResult(string? input)
+    {
+        var value = TextSanitizer.SingleLine(input, 16);
+        if (value is null)
+        {
+            return null;
+        }
+
+        return WorkItemDefaults.TestResults.FirstOrDefault(r => r.Equals(value, StringComparison.OrdinalIgnoreCase))
+               ?? throw new WorkItemValidationException(nameof(WorkItem.TestResult),
+                   "Test result must be Passed or Failed (or \"\" to clear it).");
+    }
 
     /// <summary>
     /// Maps user input to the canonical severity label. Accepts the exact label

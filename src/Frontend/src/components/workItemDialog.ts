@@ -13,6 +13,9 @@ import type { ReadState } from '../services/readState';
 import {
   PRIORITY_LABELS,
   SEVERITIES,
+  stateLabel,
+  TEST_RESULT_STATE,
+  type TestResult,
   TYPE_LABELS,
   WORK_ITEM_STATES,
   WORK_ITEM_TYPES,
@@ -66,7 +69,7 @@ export function canEditComment(entry: WorkItemHistoryEntry, displayName: string 
 /** Label of the comment button: what pressing it will do. */
 export function commentButtonLabel(hasText: boolean, moveTo: WorkItemState | ''): string {
   if (!moveTo) return 'Add comment';
-  return hasText ? `Comment & move to ${moveTo}` : `Move to ${moveTo}`;
+  return hasText ? `Comment & move to ${stateLabel(moveTo)}` : `Move to ${stateLabel(moveTo)}`;
 }
 
 interface CommentEdit {
@@ -84,7 +87,9 @@ interface FormControls {
   priority: HTMLSelectElement;
   severity: HTMLSelectElement;
   program: ProgramPicker;
-  iterationPath: HTMLInputElement;
+  /** Retest result (1.19.0); replaces the Iteration path box, which is no longer shown. */
+  testResult: HTMLSelectElement;
+  testedInVersion: HTMLInputElement;
   /** Bugs only (1.7.0). */
   programVersion: HTMLInputElement;
   /** Bugs only (1.17.0). */
@@ -100,7 +105,7 @@ interface FormControls {
  */
 export type WorkItemForm = Pick<
   WorkItem,
-  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'iterationPath' | 'program' | 'programVersion' | 'fixedInVersion' | 'tags'
+  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'program' | 'programVersion' | 'fixedInVersion' | 'testResult' | 'testedInVersion' | 'tags'
 >;
 
 /**
@@ -115,9 +120,16 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
   if (form.state !== item.state) patch.state = form.state;
   if (form.priority !== item.priority) patch.priority = form.priority;
   if (form.severity !== item.severity) patch.severity = form.severity;
-  if (form.iterationPath.trim() !== item.iterationPath) patch.iterationPath = form.iterationPath.trim();
   if ((form.programVersion ?? '').trim() !== (item.programVersion ?? '')) patch.programVersion = (form.programVersion ?? '').trim();
   if ((form.fixedInVersion ?? '').trim() !== (item.fixedInVersion ?? '')) patch.fixedInVersion = (form.fixedInVersion ?? '').trim();
+  if ((form.testResult ?? '') !== (item.testResult ?? '')) patch.testResult = form.testResult ?? '';
+  if ((form.testedInVersion ?? '').trim() !== (item.testedInVersion ?? '')) patch.testedInVersion = (form.testedInVersion ?? '').trim();
+  // Recording a retest moves the card (1.19.0): Passed closes it, Failed sends it back to To Do.
+  if ((patch.testResult !== undefined || patch.testedInVersion !== undefined) && form.testResult) {
+    const target = TEST_RESULT_STATE[form.testResult];
+    if (target !== item.state) patch.state = target;
+    else delete patch.state;
+  }
   if ((form.program ?? '') !== (item.program ?? '')) patch.program = form.program ?? '';
   if (!sameTags(form.tags, item.tags ?? [])) patch.tags = [...form.tags];
   return patch;
@@ -125,7 +137,11 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
 
 /** Human readable rendering of one history entry's field changes. */
 export function describeChanges(entry: WorkItemHistoryEntry): string[] {
-  return Object.entries(entry.changedFields).map(([field, change]) => {
+  return Object.entries(entry.changedFields).map(([field, rawChange]) => {
+    // States read as the board names them ("To Do" for New).
+    const change = field === 'State'
+      ? { old: rawChange.old === null ? null : stateLabel(rawChange.old), new: rawChange.new === null ? null : stateLabel(rawChange.new) }
+      : rawChange;
     // Attached / removed files (1.14.0).
     if (field === 'Files') return change.old === null ? `Attached file "${change.new ?? ''}"` : `Removed file "${change.old}"`;
     if (change.old === null) return `${field} set to "${change.new ?? ''}"`;
@@ -317,7 +333,7 @@ export class WorkItemDialog {
       type: this.select('type', WORK_ITEM_TYPES.map((t) => [t, TYPE_LABELS[t]]), item?.type ?? 'Bug'),
       state: this.select(
         'state',
-        (isNew ? WORK_ITEM_STATES.filter((s) => s !== 'Removed') : WORK_ITEM_STATES).map((s) => [s, s]),
+        (isNew ? WORK_ITEM_STATES.filter((s) => s !== 'Removed') : WORK_ITEM_STATES).map((s) => [s, stateLabel(s)]),
         item?.state ?? 'New',
       ),
       priority: this.select('priority', [1, 2, 3, 4].map((p) => [String(p), `${p} - ${PRIORITY_LABELS[p]}`]), String(item?.priority ?? 2)),
@@ -330,7 +346,12 @@ export class WorkItemDialog {
         onError: (message) => this.showError(message),
         onAdded: (name) => this.handlers.onProgramAdded?.(name),
       }),
-      iterationPath: h('input', { class: 'field', name: 'iterationPath', maxlength: 256, value: item?.iterationPath ?? 'Current' }),
+      testResult: this.select('testResult', [['', 'Not tested'], ['Passed', 'Passed in'], ['Failed', 'Failed in']], item?.testResult ?? ''),
+      testedInVersion: h('input', {
+        class: 'field', name: 'testedInVersion', maxlength: 64, value: item?.testedInVersion ?? '',
+        placeholder: 'e.g. 2.4.3', autocomplete: 'off', 'aria-label': 'Tested in version', 'aria-describedby': 'test-result-help',
+        'data-testid': 'dialog-tested-in',
+      }),
       programVersion: h('input', {
         class: 'field', name: 'programVersion', maxlength: 64, value: item?.programVersion ?? '',
         placeholder: 'e.g. 2.4.1', autocomplete: 'off', 'aria-describedby': 'program-version-help',
@@ -379,12 +400,28 @@ export class WorkItemDialog {
     const fixedInField = h('label', { class: 'field-label', 'data-testid': 'dialog-fixed-in-field' },
       'Fixed in version (optional)', controls.fixedInVersion,
       h('span', { id: 'fixed-in-help', class: 'text-xs font-normal text-muted' }, 'The version that contains the fix.'));
-    const iterationField = h('label', { class: 'field-label' }, 'Iteration path', controls.iterationPath);
+    // Retest result (1.19.0), in place of the old Iteration path box. Only for existing cards.
+    controls.testResult.setAttribute('aria-label', 'Result');
+    controls.testResult.setAttribute('aria-describedby', 'test-result-help');
+    const testHelp = h('span', { id: 'test-result-help', class: 'text-xs font-normal text-muted', 'data-testid': 'test-result-help' });
+    const syncTestHelp = (): void => {
+      const result = controls.testResult.value as TestResult | '';
+      testHelp.textContent = result
+        ? `Type the version you tested. Save changes moves the card to ${stateLabel(TEST_RESULT_STATE[result])}.`
+        : 'Record a retest: Passed closes the card, Failed sends it back to To Do.';
+    };
+    controls.testResult.addEventListener('change', syncTestHelp);
+    syncTestHelp();
+    const testField = h('div', { class: 'field-label', role: 'group', 'aria-labelledby': 'test-result-label', 'data-testid': 'dialog-test-result-field' },
+      h('span', { id: 'test-result-label' }, 'Test result'),
+      h('div', { class: 'flex gap-2' }, controls.testResult, controls.testedInVersion),
+      testHelp);
+    testField.hidden = isNew;
     const syncBugFields = (): void => {
       const isBug = controls.type.value === 'Bug';
       versionField.hidden = !isBug;
       fixedInField.hidden = !isBug;
-      iterationField.classList.toggle('sm:col-span-3', !isBug);
+      testField.classList.toggle('sm:col-span-3', !isBug);
     };
     controls.type.addEventListener('change', syncBugFields);
     syncBugFields();
@@ -422,7 +459,7 @@ export class WorkItemDialog {
           h('div', { class: 'sm:col-span-2' }, controls.program.element),
           versionField,
           fixedInField,
-          iterationField,
+          testField,
           h('div', { class: 'sm:col-span-3' }, controls.tags.element),
         ),
         h(
@@ -550,8 +587,8 @@ export class WorkItemDialog {
   /** "Keep in Active" plus every other state, for the comment box's move select. */
   private fillMoveOptions(select: HTMLSelectElement, current: WorkItemState): void {
     select.replaceChildren(
-      h('option', { value: '' }, `Keep in ${current}`),
-      ...WORK_ITEM_STATES.filter((s) => s !== current).map((s) => h('option', { value: s }, `Move to ${s}`)),
+      h('option', { value: '' }, `Keep in ${stateLabel(current)}`),
+      ...WORK_ITEM_STATES.filter((s) => s !== current).map((s) => h('option', { value: s }, `Move to ${stateLabel(s)}`)),
     );
     select.value = '';
   }
@@ -754,13 +791,35 @@ export class WorkItemDialog {
       state: c.state.value as WorkItemState,
       priority: Number(c.priority.value),
       severity: c.severity.value,
-      iterationPath: c.iterationPath.value,
+      testResult: (c.testResult.value || null) as TestResult | null,
+      testedInVersion: c.testedInVersion.value.trim() || null,
       // Hidden for other types: never changed from a non-Bug form.
       programVersion: c.type.value === 'Bug' ? c.programVersion.value.trim() || null : (this.item?.programVersion ?? null),
       fixedInVersion: c.type.value === 'Bug' ? c.fixedInVersion.value.trim() || null : (this.item?.fixedInVersion ?? null),
       program: c.program.value || null,
       tags: c.tags.value,
     };
+  }
+
+  /** A retest needs both a result and a version (1.19.0). Shows the problem and returns false. */
+  private checkTestResult(form: WorkItemForm): boolean {
+    const controls = this.controls;
+    if (!controls) return true;
+    controls.testResult.removeAttribute('aria-invalid');
+    controls.testedInVersion.removeAttribute('aria-invalid');
+    if (form.testResult && !form.testedInVersion) {
+      this.showError(`Type the version you tested (${form.testResult === 'Passed' ? 'Passed in' : 'Failed in'} which version?).`);
+      controls.testedInVersion.setAttribute('aria-invalid', 'true');
+      controls.testedInVersion.focus();
+      return false;
+    }
+    if (!form.testResult && form.testedInVersion && form.testedInVersion !== (this.item?.testedInVersion ?? null)) {
+      this.showError('Choose Passed in or Failed in for the version you tested.');
+      controls.testResult.setAttribute('aria-invalid', 'true');
+      controls.testResult.focus();
+      return false;
+    }
+    return true;
   }
 
   private showError(message: string | null): void {
@@ -780,6 +839,7 @@ export class WorkItemDialog {
       return;
     }
     controls.title.removeAttribute('aria-invalid');
+    if (!this.checkTestResult(form)) return;
     this.showError(null);
 
     // An image still uploading would otherwise be missing from the text.
@@ -799,7 +859,6 @@ export class WorkItemDialog {
           priority: final.priority,
           severity: final.severity,
           description: final.description || null,
-          iterationPath: final.iterationPath.trim() || undefined,
           programVersion: final.programVersion || undefined,
           fixedInVersion: final.fixedInVersion || undefined,
           program: final.program || undefined,
@@ -898,6 +957,7 @@ export class WorkItemDialog {
       return;
     }
     controls.title.removeAttribute('aria-invalid');
+    if (!this.checkTestResult(form)) return;
     const patch: UpdateWorkItemRequest = { ...diffForUpdate(item, form), state: moveTo };
     if (text) patch.comment = text;
 
@@ -908,7 +968,7 @@ export class WorkItemDialog {
       this.handlers.readState?.markRead(updated);
       this.dialog.close();
       this.handlers.onChanged(updated, 'updated');
-      this.announcer.announce(`${text ? 'Comment added. ' : ''}Moved to ${updated.state}.`);
+      this.announcer.announce(`${text ? 'Comment added. ' : ''}Moved to ${stateLabel(updated.state)}.`);
     } catch (err) {
       this.showError(err instanceof ApiError ? err.message : 'Saving failed. Please try again.');
     } finally {

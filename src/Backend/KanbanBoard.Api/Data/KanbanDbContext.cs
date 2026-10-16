@@ -68,6 +68,8 @@ public class KanbanDbContext : DbContext
                 .HasDefaultValue(WorkItemDefaults.IterationPath);
             e.Property(x => x.ProgramVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
             e.Property(x => x.FixedInVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
+            e.Property(x => x.TestResult).HasMaxLength(16);
+            e.Property(x => x.TestedInVersion).HasMaxLength(WorkItemDefaults.ProgramVersionMaxLength);
             e.Property(x => x.LastHumanCommentAt).HasConversion(NullableUtcConverter);
             e.Property(x => x.LastHumanCommentBy).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.LastAgentCommentAt).HasConversion(NullableUtcConverter);
@@ -160,7 +162,8 @@ public class KanbanDbContext : DbContext
             // permanently exceeded. The warning logic is kept and applies again
             // as soon as a column is given a limit.
             e.HasData(
-                new BoardColumn { Id = 1, Name = "New", State = WorkItemState.New, WipLimit = null, SortOrder = 0 },
+                // Shown as "To Do" since 1.19.0: new reports and cards sent back after a failed retest.
+                new BoardColumn { Id = 1, Name = "To Do", State = WorkItemState.New, WipLimit = null, SortOrder = 0 },
                 new BoardColumn { Id = 2, Name = "Active", State = WorkItemState.Active, WipLimit = null, SortOrder = 1 },
                 new BoardColumn { Id = 3, Name = "Resolved", State = WorkItemState.Resolved, WipLimit = null, SortOrder = 2 },
                 new BoardColumn { Id = 4, Name = "Closed", State = WorkItemState.Closed, WipLimit = null, SortOrder = 3 });

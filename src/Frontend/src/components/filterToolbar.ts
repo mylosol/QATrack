@@ -3,7 +3,7 @@
  * Program, Tag (1.4.0) and AI-modified status, plus the "New work item" action and the optional
  * display name used to attribute browser edits in the audit trail.
  */
-import { BOARD_STATES, TYPE_LABELS, WORK_ITEM_TYPES, type BoardFilter, type DiscussionStatus, type WorkItemState, type WorkItemType } from '../services/types';
+import { BOARD_STATES, type BoardFilter, type DiscussionStatus, stateLabel, TYPE_LABELS, WORK_ITEM_TYPES, type WorkItemState, type WorkItemType } from '../services/types';
 import { clear, h } from './dom';
 
 export const DISPLAY_NAME_STORAGE_KEY = 'kanban_display_name';
@@ -56,7 +56,7 @@ export class FilterToolbar {
       'select',
       { class: 'field', name: 'state', 'data-testid': 'filter-state' },
       h('option', { value: '' }, 'All states'),
-      ...BOARD_STATES.map((s) => h('option', { value: s }, s)),
+      ...BOARD_STATES.map((s) => h('option', { value: s }, stateLabel(s))),
     );
     this.programSelect = h(
       'select',

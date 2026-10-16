@@ -112,6 +112,12 @@ export function createCard(item: WorkItem): HTMLLIElement {
       item.type === 'Bug' && item.programVersion
         ? h('span', { 'data-testid': 'card-program-version', title: 'Program version the bug was found in' }, `Version ${item.programVersion}`)
         : null,
+      item.testResult && item.testedInVersion
+        ? h('span', {
+            class: `card-test card-test-${item.testResult.toLowerCase()}`, 'data-testid': 'card-test-result',
+            title: `Latest retest: ${item.testResult.toLowerCase()} in ${item.testedInVersion}`,
+          }, h('span', { 'aria-hidden': 'true' }, item.testResult === 'Passed' ? '✔ ' : '✖ '), `${item.testResult} in ${item.testedInVersion}`)
+        : null,
       item.type === 'Bug' && item.fixedInVersion
         ? h('span', { class: 'card-fixed-in', 'data-testid': 'card-fixed-in', title: 'Version the bug was fixed in' },
             h('span', { 'aria-hidden': 'true' }, '✅ '), `Fixed in ${item.fixedInVersion}`)

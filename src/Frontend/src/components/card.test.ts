@@ -145,3 +145,13 @@ describe('Fixed in on the card (1.17.0)', () => {
     expect(createCard(makeItem({ id: 53, type: 'Feature', fixedInVersion: '3.0.0' })).querySelector('[data-testid="card-fixed-in"]')).toBeNull();
   });
 });
+
+describe('Test result on the card (1.19.0)', () => {
+  it('shows the latest retest', () => {
+    const failed = createCard(makeItem({ id: 61, testResult: 'Failed', testedInVersion: '2.4.3' }));
+    expect(failed.querySelector('[data-testid="card-test-result"]')!.textContent).toBe('✖ Failed in 2.4.3');
+    const passed = createCard(makeItem({ id: 62, testResult: 'Passed', testedInVersion: '2.4.4' }));
+    expect(passed.querySelector('[data-testid="card-test-result"]')!.textContent).toBe('✔ Passed in 2.4.4');
+    expect(createCard(makeItem({ id: 63 })).querySelector('[data-testid="card-test-result"]')).toBeNull();
+  });
+});

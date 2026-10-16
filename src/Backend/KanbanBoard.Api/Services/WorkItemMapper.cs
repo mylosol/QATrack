@@ -21,6 +21,8 @@ public static class WorkItemMapper
         Program = item.Program?.Name,
         ProgramVersion = item.ProgramVersion,
         FixedInVersion = item.FixedInVersion,
+        TestResult = item.TestResult,
+        TestedInVersion = item.TestedInVersion,
         Tags = item.Tags.Select(t => t.Name).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList(),
         AiModified = item.AiModified,
         AiAgentIdentity = item.AiAgentIdentity,

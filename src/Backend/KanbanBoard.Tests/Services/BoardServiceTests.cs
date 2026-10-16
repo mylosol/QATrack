@@ -43,7 +43,9 @@ public sealed class BoardServiceTests : IAsyncLifetime, IDisposable
     {
         var board = await GetBoard();
 
-        Assert.Equal(new[] { "New", "Active", "Resolved", "Closed" }, board.Columns.Select(c => c.Name));
+        // 1.19.0: the New column is called "To Do"; the state is still New.
+        Assert.Equal(new[] { "To Do", "Active", "Resolved", "Closed" }, board.Columns.Select(c => c.Name));
+        Assert.Equal(WorkItemState.New, board.Columns[0].State);
         Assert.All(board.Columns, c => Assert.False(c.IsOverWipLimit));
         Assert.Single(board.Swimlanes);
         Assert.Contains("UserStory", board.Metadata.Types);

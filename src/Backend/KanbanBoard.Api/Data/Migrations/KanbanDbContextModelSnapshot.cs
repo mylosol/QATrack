@@ -93,7 +93,7 @@ namespace KanbanBoard.Api.Data.Migrations
                         new
                         {
                             Id = 1,
-                            Name = "New",
+                            Name = "To Do",
                             SortOrder = 0,
                             State = "New"
                         },
@@ -308,6 +308,14 @@ namespace KanbanBoard.Api.Data.Migrations
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TestResult")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TestedInVersion")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")

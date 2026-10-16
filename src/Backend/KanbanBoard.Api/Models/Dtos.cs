@@ -83,6 +83,15 @@ public sealed class WorkItemDto
     /// <summary>Version the bug was fixed in (e.g. "2.4.3"), or null while it isn't fixed (1.17.0). The board shows it for Bugs.</summary>
     public string? FixedInVersion { get; init; }
 
+    /// <summary>
+    /// A person's latest retest (1.19.0): "Passed" or "Failed", or null when not tested yet. A Failed result
+    /// moves the card back to New ("To Do" on the board): read their newest comments before working it again.
+    /// </summary>
+    public string? TestResult { get; init; }
+
+    /// <summary>The version that retest was done on, e.g. "2.4.3" (1.19.0).</summary>
+    public string? TestedInVersion { get; init; }
+
     /// <summary>Tags, sorted alphabetically.</summary>
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
@@ -190,6 +199,14 @@ public sealed class CreateWorkItemRequest
     [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
     public string? FixedInVersion { get; set; }
 
+    /// <summary>Retest result, "Passed" or "Failed" (1.19.0). Normally recorded by people on the board.</summary>
+    [MaxLength(16)]
+    public string? TestResult { get; set; }
+
+    /// <summary>Version the retest was done on (1.19.0). Max 64 characters.</summary>
+    [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
+    public string? TestedInVersion { get; set; }
+
     /// <summary>Tags (max 20, each max 50 characters). New tags are created on first use.</summary>
     public List<string>? Tags { get; set; }
 
@@ -213,7 +230,10 @@ public sealed class UpdateWorkItemRequest
 
     public WorkItemType? Type { get; set; }
 
-    /// <summary>Move the card: New, Active, Resolved, Closed or Removed.</summary>
+    /// <summary>
+    /// Move the card: New, Active, Resolved, Closed or Removed. New is the board's "To Do" column: it holds new
+    /// reports and also cards a person moved back after a failed retest (read their newest comments first).
+    /// </summary>
     public WorkItemState? State { get; set; }
 
     [Range(1, 4)]
@@ -246,6 +266,17 @@ public sealed class UpdateWorkItemRequest
     /// </summary>
     [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
     public string? FixedInVersion { get; set; }
+
+    /// <summary>
+    /// Retest result, "Passed" or "Failed" (case-insensitive); "" clears it (1.19.0). People record it on the board,
+    /// which also moves the card (Passed: Closed, Failed: New); through the API it does not move the card by itself.
+    /// </summary>
+    [MaxLength(16)]
+    public string? TestResult { get; set; }
+
+    /// <summary>Version the retest was done on, e.g. "2.4.3" (1.19.0). Empty string clears it.</summary>
+    [MaxLength(WorkItemDefaults.ProgramVersionMaxLength)]
+    public string? TestedInVersion { get; set; }
 
     /// <summary>Replaces ALL tags when present; send [] to remove every tag. Omit to leave tags unchanged.</summary>
     public List<string>? Tags { get; set; }
