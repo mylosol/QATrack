@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.2] - 2026-10-16
+
+### Changed
+- **A failed retest clears "Fixed in".** Saving **Failed in <version>** now also clears the card's **Fixed in version** (the fix didn't work), in the same history entry as the move to To Do. The card then shows only "✖ Failed in …" until a new fix sets a new version. The hint under Test result says so. **Passed in** keeps Fixed in.
+
 ## [1.19.1] - 2026-10-16
 
 ### Fixed
