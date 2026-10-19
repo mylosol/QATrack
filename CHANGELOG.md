@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.3] - 2026-10-19
+
+### Fixed
+- **A click outside the card dialog no longer closes it.** Since 1.13.0 a stray click only asked first when something was typed. A card you were just reading or scrolling still closed and lost your place, and so did selecting text and letting go outside the box. Clicks outside now do nothing. Close the dialog with ✕, Cancel or Escape (which still ask first when there is unsaved work).
+
 ## [1.19.2] - 2026-10-16
 
 ### Changed

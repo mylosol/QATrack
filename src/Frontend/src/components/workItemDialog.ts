@@ -184,10 +184,9 @@ export class WorkItemDialog {
     this.dialog.classList.add('dialog');
     this.dialog.setAttribute('aria-labelledby', 'dialog-title');
     this.dialog.addEventListener('close', () => this.onClosed());
-    // Clicking the backdrop closes the dialog - unless that would lose work.
-    this.dialog.addEventListener('click', (e) => {
-      if (e.target === this.dialog) this.requestClose('backdrop');
-    });
+    // Clicking the backdrop never closes the dialog (1.19.3): a stray click, or a
+    // text selection dragged past the edge, lost people's place in the card.
+    // Close it with ✕, Cancel or Escape.
     // Escape is handled here so a dialog with unsaved work asks first. Chrome
     // skips a cancelled 'cancel' event on a second Escape, so stop the key
     // itself. Pickers that use Escape (tags, program) stop its propagation
@@ -224,7 +223,7 @@ export class WorkItemDialog {
   }
 
   /** Closes the dialog, or asks first when that would lose unsaved work. */
-  requestClose(source: 'button' | 'escape' | 'backdrop'): void {
+  requestClose(source: 'button' | 'escape'): void {
     if (!this.dialog.open) return;
     if (!this.hasUnsavedChanges) {
       this.dialog.close();
@@ -239,8 +238,8 @@ export class WorkItemDialog {
     }
     bar.hidden = false;
     this.announcer.announce('You have unsaved changes. Keep editing, or discard them to close.', 'assertive');
-    // A stray click outside shouldn't move the caret; Escape and Cancel go to the safe choice.
-    if (source !== 'backdrop') bar.querySelector<HTMLButtonElement>('[data-testid="keep-editing"]')?.focus();
+    // Escape and Cancel go to the safe choice.
+    bar.querySelector<HTMLButtonElement>('[data-testid="keep-editing"]')?.focus();
   }
 
   private hideDiscardBar(refocus: boolean): void {
