@@ -57,7 +57,7 @@ test.describe('Files on cards', () => {
     await expect(dialog.getByTestId('file-queued')).toHaveCount(2);
 
     // Queued files count as unsaved work.
-    await page.mouse.click(5, 5);
+    await dialog.getByRole('button', { name: 'Close dialog' }).click();
     await expect(dialog.getByTestId('discard-bar')).toBeVisible();
     await dialog.getByTestId('keep-editing').click();
 

@@ -16,12 +16,11 @@ test.describe('Card dialog', () => {
     await dialog.getByTestId('dialog-description').click();
     await page.keyboard.type('Steps I do not want to type twice.');
 
-    // Click on the backdrop, well outside the dialog box.
+    // Click on the backdrop, well outside the dialog box: nothing happens (1.19.3).
     await page.mouse.click(5, 5);
     await expect(dialog).toBeVisible();
     const bar = dialog.getByTestId('discard-bar');
-    await expect(bar).toBeVisible();
-    await expectNoAxeViolations(page, 'dialog asking about unsaved changes');
+    await expect(bar).toBeHidden();
 
     // Escape twice (Chrome lets a second Escape through unless it is stopped).
     await page.keyboard.press('Escape');
@@ -30,6 +29,7 @@ test.describe('Card dialog', () => {
 
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(bar).toBeVisible();
+    await expectNoAxeViolations(page, 'dialog asking about unsaved changes');
     await expect(dialog.getByTestId('keep-editing')).toBeFocused();
     await dialog.getByTestId('keep-editing').click();
     await expect(bar).toBeHidden();
@@ -42,17 +42,26 @@ test.describe('Card dialog', () => {
     await expect(dialog).toBeHidden();
   });
 
-  test('an untouched dialog still closes with a click outside or Escape', async ({ page, request }) => {
+  test('a click outside never closes the dialog, even untouched; Escape does (1.19.3)', async ({ page, request }) => {
     const item = await createViaUi(request, { title: uniqueTitle('Untouched'), type: 'Bug' });
     await openBoard(page);
     await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await page.mouse.click(5, 5);
-    await expect(dialog).toBeHidden();
-
-    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
+    await page.mouse.click(5, 400);
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId('discard-bar')).toBeHidden();
+
+    // Selecting text and letting go outside the box doesn't close it either.
+    const title = dialog.getByTestId('dialog-title-input');
+    const box = (await title.boundingBox())!;
+    await page.mouse.move(box.x + 5, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(2, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(dialog).toBeVisible();
+
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
   });
@@ -64,7 +73,7 @@ test.describe('Card dialog', () => {
     const dialog = page.getByRole('dialog');
     await dialog.getByTestId('comment-input').click();
     await page.keyboard.type('Half a thought');
-    await page.mouse.click(5, 5);
+    await dialog.getByRole('button', { name: 'Close dialog' }).click();
     await expect(dialog.getByTestId('discard-bar')).toBeVisible();
     await expect(dialog.getByTestId('comment-input')).toContainText('Half a thought');
   });
@@ -163,7 +172,7 @@ test.describe('Card dialog', () => {
     await page.keyboard.type('Fails on logout, not login.');
 
     // Unsaved edit: closing asks first.
-    await page.mouse.click(5, 5);
+    await dialog.getByRole('button', { name: 'Close dialog' }).click();
     await expect(dialog.getByTestId('discard-bar')).toBeVisible();
     await dialog.getByTestId('keep-editing').click();
 
