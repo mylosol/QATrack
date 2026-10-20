@@ -219,6 +219,18 @@
     @apply bg-primary text-primary-fg;
   }
 
+  /* "Top" button (1.21.0): bottom-left, clear of the theme switcher. */
+  .back-to-top {
+    position: fixed;
+    bottom: 1rem;
+    left: 1rem;
+    z-index: 50;
+    @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-fg shadow-lg hover:bg-column;
+  }
+  .back-to-top[hidden] {
+    display: none;
+  }
+
   /*
    * "New version available" toast: corner-anchored so it never covers the
    * board, stacked just above the bottom-right theme switcher.

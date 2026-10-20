@@ -6,6 +6,7 @@ import { ApiClient, ApiError } from '../services/apiClient';
 import { ReadState } from '../services/readState';
 import type { Board, BoardFilter, WorkItem, WorkItemState } from '../services/types';
 import { Announcer } from './announcer';
+import { BackToTop } from './backToTop';
 import { BoardView } from './board';
 import { CaseLookup } from './caseLookup';
 import { byId, h } from './dom';
@@ -42,6 +43,8 @@ export class App {
   readonly toolbar: FilterToolbar;
   readonly dialog: WorkItemDialog;
   readonly themeSwitcher: ThemeSwitcher;
+  /** Floating "Top" button (1.21.0). */
+  readonly backToTop: BackToTop;
   /** "Go to case" box in the header (1.20.0). */
   readonly caseLookup: CaseLookup;
   /** Per-browser read tracking for comments (1.10.0). */
@@ -90,6 +93,8 @@ export class App {
     this.caseLookup = new CaseLookup(byId('case-lookup', doc), {
       open: (id) => this.dialog.openExisting(id),
     });
+
+    this.backToTop = new BackToTop(byId('back-to-top-root', doc), byId('board', doc));
 
     this.themeSwitcher = new ThemeSwitcher(byId('theme-switcher-root', doc), doc.documentElement, this.announcer);
 
