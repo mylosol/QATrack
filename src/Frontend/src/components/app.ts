@@ -7,6 +7,7 @@ import { ReadState } from '../services/readState';
 import type { Board, BoardFilter, WorkItem, WorkItemState } from '../services/types';
 import { Announcer } from './announcer';
 import { BoardView } from './board';
+import { CaseLookup } from './caseLookup';
 import { byId, h } from './dom';
 import { FilterToolbar } from './filterToolbar';
 import { ThemeSwitcher } from './themeSwitcher';
@@ -41,6 +42,8 @@ export class App {
   readonly toolbar: FilterToolbar;
   readonly dialog: WorkItemDialog;
   readonly themeSwitcher: ThemeSwitcher;
+  /** "Go to case" box in the header (1.20.0). */
+  readonly caseLookup: CaseLookup;
   /** Per-browser read tracking for comments (1.10.0). */
   readonly readState = new ReadState();
 
@@ -82,6 +85,10 @@ export class App {
       onMove: (id, from, to) => void this.moveCard(id, from, to),
       onOpen: (id) => void this.dialog.openExisting(id).catch((err) => this.showError(err)),
       announce: (message, politeness) => this.announcer.announce(message, politeness),
+    });
+
+    this.caseLookup = new CaseLookup(byId('case-lookup', doc), {
+      open: (id) => this.dialog.openExisting(id),
     });
 
     this.themeSwitcher = new ThemeSwitcher(byId('theme-switcher-root', doc), doc.documentElement, this.announcer);

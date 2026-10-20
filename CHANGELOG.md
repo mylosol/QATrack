@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-10-19
+
+### Added
+- **Go to case.** A box in the top bar: type a case number (`83`, `#83`, or paste a board link) and press **Open** or Enter to open that case. It works even when the filters hide the card. An unknown number says "No case #N." Closing the case puts you back in the box, ready for the next number.
+
 ## [1.19.3] - 2026-10-19
 
 ### Fixed
