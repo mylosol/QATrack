@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-10-20
+
+### Added
+- **"Top" button.** Whenever the page isn't scrolled all the way up, a floating **↑ Top** button appears in the bottom-left corner (the theme switcher keeps the bottom-right). It scrolls back to the top, instantly if your system asks for reduced motion, and moves keyboard focus to the board. It hides again at the top.
+
 ## [1.20.0] - 2026-10-19
 
 ### Added
