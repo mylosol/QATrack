@@ -37,9 +37,14 @@ describe('keyboardAction', () => {
       expect(keyboardAction('ArrowRight', true, 3, 4)).toEqual({ kind: 'edge', direction: 'right' });
     });
 
-    it('ignores vertical arrows and other keys', () => {
-      expect(keyboardAction('ArrowUp', true, 1, 4)).toEqual({ kind: 'none' });
+    it('Up/Down change the place in the column (1.22.0)', () => {
+      expect(keyboardAction('ArrowUp', true, 1, 4)).toEqual({ kind: 'shift', offset: -1 });
+      expect(keyboardAction('ArrowDown', true, 1, 4)).toEqual({ kind: 'shift', offset: 1 });
+    });
+
+    it('ignores other keys', () => {
       expect(keyboardAction('x', true, 1, 4)).toEqual({ kind: 'none' });
+      expect(keyboardAction('Tab', true, 1, 4)).toEqual({ kind: 'none' });
     });
   });
 });

@@ -23,12 +23,15 @@ public sealed class WorkItemsController : ControllerBase
 
     /// <summary>List work items.</summary>
     /// <remarks>
-    /// Returns work items ordered by id. All filters are optional and combine with AND.
+    /// Returns work items in the board's work order (1.22.0): New ("To Do") first, then Active, Resolved and Closed,
+    /// each column in the order people set by dragging cards, which already includes priority. Each item's
+    /// <c>rank</c> is its position in its column (1 = do first), so with <c>state=New</c> the first item is the
+    /// one to do next. Pass <c>sort=id</c> for the old order, oldest first. All filters are optional and combine with AND.
     /// Use <c>updatedSince</c> (the newest <c>updatedAt</c> you have seen) to fetch only items changed since
     /// your last check, and compare each item's <c>lastHumanCommentAt</c> with the last human comment you read.
     /// Use <c>assignedTo=unassigned</c> to find items with no assignee.
     /// </remarks>
-    /// <param name="query">Optional filters: type, state, aiModified, assignedTo, program, tag, updatedSince, top.</param>
+    /// <param name="query">Optional filters: type, state, aiModified, assignedTo, program, tag, updatedSince, top; and sort (rank or id).</param>
     /// <param name="ct">Cancellation token.</param>
     [HttpGet(Name = "listWorkItems")]
     [ProducesResponseType(typeof(IReadOnlyList<WorkItemDto>), StatusCodes.Status200OK)]

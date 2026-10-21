@@ -19,6 +19,19 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.22.0",
+            Date = "2026-10-21",
+            SchemaVersion = "bbae5586c028",
+            Breaking = false,
+            Summary = new[]
+            {
+                "People now set the order work should be done in by dragging cards on the board. Every work item has 'rank': its position in its column, 1 = do first. It already includes 'priority' (a column lists all priority 1 cards first).",
+                "GET /api/v1/workitems now lists items in that work order: New first, then Active, Resolved and Closed, each by rank. To pick your next card, GET /api/v1/workitems?state=New and take the first one you can do. Pass sort=id for the old order (by id, oldest first). GET /api/v1/board columns use the same order.",
+                "Ranks are live positions and shift when people reorder (a reorder alone doesn't change 'updatedAt'), so list again rather than reusing old ranks. Dragging a card among priority 1 cards makes it priority 1, recorded in history like any priority change.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.19.0",
             Date = "2026-10-16",
             SchemaVersion = "79f8864d46e4",

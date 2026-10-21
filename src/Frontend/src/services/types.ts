@@ -87,6 +87,8 @@ export interface WorkItem {
   type: WorkItemType;
   state: WorkItemState;
   priority: number;
+  /** Position in its column's work order, 1 = do first (1.22.0). */
+  rank?: number | null;
   severity: string;
   assignedTo: string | null;
   areaPath: string;
@@ -230,6 +232,13 @@ export type UpdateWorkItemRequest = Partial<{
   tags: string[];
   comment: string;
 }>;
+
+/** Drop a card between two others (1.22.0): body of PUT workitems/{id}/position. */
+export interface PositionWorkItemRequest {
+  state: WorkItemState;
+  afterId: number | null;
+  beforeId: number | null;
+}
 
 /** A Program dropdown option. */
 export interface ProgramInfo {

@@ -237,4 +237,107 @@ describe('BoardView', () => {
     expect(document.activeElement?.getAttribute('data-card-id')).toBe('77');
     expect(view.focusCard(999)).toBe(false);
   });
+
+  describe('work order (1.22.0)', () => {
+    const order = (state: string) =>
+      [...root.querySelectorAll(`[data-testid="column-list-${state}"] article`)].map((a) => Number(a.getAttribute('data-card-id')));
+
+    /** Lays the cards of a column out 50px apart (jsdom has no layout). */
+    function layOut(state: string): void {
+      root.querySelectorAll<HTMLElement>(`[data-testid="column-list-${state}"] article`).forEach((card, i) => {
+        card.getBoundingClientRect = () => ({ top: i * 50, bottom: i * 50 + 40, height: 40, left: 0, right: 100, width: 100, x: 0, y: i * 50, toJSON: () => ({}) });
+      });
+    }
+
+    function dragAt(type: string, target: Element, clientY: number): Event {
+      const event = dragEvent(type);
+      Object.defineProperty(event, 'clientY', { value: clientY });
+      target.dispatchEvent(event);
+      return event;
+    }
+
+    it('Up and Down move a picked-up card within its column; Enter saves the spot', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 }), makeItem({ id: 2 }), makeItem({ id: 3 })] }));
+      press(3, ' ');
+      press(3, 'ArrowUp');
+      expect(order('New')).toEqual([1, 3, 2]);
+      expect(handlers.announce).toHaveBeenLastCalledWith(expect.stringContaining('Place 2 of 3 in New.'));
+      press(3, 'ArrowUp');
+      expect(order('New')).toEqual([3, 1, 2]);
+      press(3, 'ArrowUp');
+      expect(handlers.announce).toHaveBeenLastCalledWith('"Item 3" is already at the top of New.');
+      expect(view.isGrabbing).toBe(true);
+
+      press(3, 'Enter');
+      expect(handlers.onMove).toHaveBeenCalledWith(3, 'New', 'New', { afterId: null, beforeId: 1 });
+    });
+
+    it('putting it back where it was is no change', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 }), makeItem({ id: 2 })] }));
+      press(2, ' ');
+      press(2, 'ArrowUp');
+      press(2, 'ArrowDown');
+      press(2, ' ');
+      expect(handlers.onMove).not.toHaveBeenCalled();
+      expect(handlers.announce).toHaveBeenLastCalledWith('Dropped in New. No change.');
+    });
+
+    it('changing column lands after the cards of the same or higher priority, and drops there', () => {
+      view.render(makeBoard({
+        New: [makeItem({ id: 9, priority: 2 })],
+        Active: [makeItem({ id: 20, state: 'Active', priority: 1 }), makeItem({ id: 21, state: 'Active', priority: 2 }), makeItem({ id: 22, state: 'Active', priority: 3 })],
+      }));
+      press(9, ' ');
+      press(9, 'ArrowRight');
+      expect(order('Active')).toEqual([20, 21, 9, 22]);
+      press(9, 'Enter');
+      expect(handlers.onMove).toHaveBeenCalledWith(9, 'New', 'Active', { afterId: 21, beforeId: 22 });
+    });
+
+    it('a mouse drop between two cards sends that spot and shows a line while dragging', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 }), makeItem({ id: 2 }), makeItem({ id: 3 })] }));
+      layOut('New');
+      const list = root.querySelector('[data-testid="column-list-New"]')!;
+      root.querySelector('article[data-card-id="3"]')!.dispatchEvent(dragEvent('dragstart'));
+
+      // Above the middle of card 2 (at 70): between cards 1 and 2.
+      dragAt('dragover', list, 60);
+      expect(root.querySelector('article[data-card-id="2"]')!.closest('li')!.classList).toContain('drop-before');
+
+      dragAt('drop', list, 60);
+      expect(handlers.onMove).toHaveBeenCalledWith(3, 'New', 'New', { afterId: 1, beforeId: 2 });
+      expect(root.querySelector('.drop-before, .drop-after')).toBeNull();
+    });
+
+    it('dropping a card back on its own spot does nothing', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 }), makeItem({ id: 2 })] }));
+      layOut('New');
+      const list = root.querySelector('[data-testid="column-list-New"]')!;
+      root.querySelector('article[data-card-id="2"]')!.dispatchEvent(dragEvent('dragstart'));
+      dragAt('drop', list, 45);
+      expect(handlers.onMove).not.toHaveBeenCalled();
+    });
+
+    it('a drop below the cards of another column only changes the column', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 })], Active: [makeItem({ id: 5, state: 'Active' })] }));
+      layOut('Active');
+      root.querySelector('article[data-card-id="1"]')!.dispatchEvent(dragEvent('dragstart'));
+      const list = root.querySelector('[data-testid="column-list-Active"]')!;
+      dragAt('dragover', list, 300);
+      expect(root.querySelector('.drop-before, .drop-after')).toBeNull();
+      dragAt('drop', list, 300);
+      expect(handlers.onMove).toHaveBeenCalledWith(1, 'New', 'Active');
+    });
+
+    it('a drop onto the cards of another column lands at that spot', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 })], Active: [makeItem({ id: 5, state: 'Active' }), makeItem({ id: 6, state: 'Active' })] }));
+      layOut('Active');
+      root.querySelector('article[data-card-id="1"]')!.dispatchEvent(dragEvent('dragstart'));
+      const list = root.querySelector('[data-testid="column-list-Active"]')!;
+      dragAt('dragover', list, 85);
+      expect(root.querySelector('article[data-card-id="6"]')!.closest('li')!.classList).toContain('drop-after');
+      dragAt('drop', list, 85);
+      expect(handlers.onMove).toHaveBeenCalledWith(1, 'New', 'Active', { afterId: 6, beforeId: null });
+    });
+  });
 });

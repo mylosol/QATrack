@@ -3,6 +3,16 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2026-10-21
+
+### Added
+- **Put cases in the order you want them done.** Drag a card up or down in its column; a blue line shows where it will land. From the keyboard, pick a card up with Space, move it with the Up and Down arrows, and drop it with Space or Enter. The top card is done first.
+- **Priority follows the order.** A column still lists all P1 cards first, then P2, and so on. Drop a card among P1 cards and it becomes P1 (the board says so, and it's in the card's history). Dropping a card on a column's header or empty space, rather than between cards, just changes its column as before.
+- **The AI sees the order.** Every work item has `rank`, its place in its column (1 = do first), and `GET /api/v1/workitems` now lists items in the board's order (To Do first, top to bottom). The API instructions tell agents to take the first To Do card they can do. `sort=id` gives the old order. Recorded in the API change log for agents.
+
+### Changed
+- Existing cards keep today's order (by priority, then oldest first). A reorder by itself isn't recorded in history and doesn't change "last updated".
+
 ## [1.21.0] - 2026-10-20
 
 ### Added

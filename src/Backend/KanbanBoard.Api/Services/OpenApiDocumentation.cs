@@ -39,6 +39,18 @@ public static class OpenApiDocumentation
         "and pictures before working it again, and say in your reply what you changed.";
 
     /// <summary>
+    /// What to work on first (1.22.0). Part of the document description and of
+    /// GET /api/v1/meta.
+    /// </summary>
+    public const string AgentWorkOrderRule =
+        "People put each column in the order they want it worked by dragging cards on the board. Every work item " +
+        "has 'rank', its position in its column (1 = do first), and GET /api/v1/workitems lists items in that order " +
+        "(New first, then Active, Resolved, Closed). To pick your next card, GET /api/v1/workitems?state=New and take " +
+        "the first one you can do, unless a person asked you for something else. 'priority' (1 Critical to 4 Low) is " +
+        "part of that order: a column lists all its priority 1 cards first. Ranks shift when people reorder, so list " +
+        "again rather than reusing old ranks.";
+
+    /// <summary>
     /// How agents read the pictures and files people attach (1.16.1). Part of
     /// the document description and of GET /api/v1/meta.
     /// </summary>
@@ -89,6 +101,7 @@ public static class OpenApiDocumentation
                     "header naming the agent (e.g. `Claude-Code-Agent-v1`). All mutations are recorded in the " +
                     "work item's audit history as AI actions and flag the card as AI-modified.\n\n" +
                     "**Staying current:** " + AgentContractRule + "\n\n" +
+                    "**What to work on first:** " + AgentWorkOrderRule + "\n\n" +
                     "**Answering humans:** " + AgentDiscussionRule + "\n\n" +
                     "**Screenshots and files:** " + AgentAttachmentRule,
             });

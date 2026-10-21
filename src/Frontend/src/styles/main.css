@@ -121,6 +121,27 @@
   .column-list.is-drop-target.would-exceed-wip {
     outline-color: rgb(var(--color-alert));
   }
+  /* Where a dragged card will land in the work order (1.22.0). */
+  .column-list > li {
+    position: relative;
+  }
+  .column-list > li.drop-before::before,
+  .column-list > li.drop-after::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: rgb(var(--color-primary));
+    pointer-events: none;
+  }
+  .column-list > li.drop-before::before {
+    top: -6px;
+  }
+  .column-list > li.drop-after::after {
+    bottom: -6px;
+  }
   .drop-hint {
     @apply mx-2 mb-2 rounded px-2 py-1 text-xs font-bold bg-alert text-alert-fg;
   }

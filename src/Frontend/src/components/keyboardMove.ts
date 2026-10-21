@@ -1,6 +1,7 @@
 /**
  * Pure keyboard-move rules (spec 5.2): Space/Enter picks a card up or drops
- * it, Left/Right arrows move it between columns, Escape cancels.
+ * it, Left/Right arrows move it between columns, Up/Down change its place in
+ * the column (1.22.0), Escape cancels.
  * Kept free of DOM access so it can be unit tested exhaustively.
  */
 
@@ -11,6 +12,7 @@ export type KeyboardMoveAction =
   | { kind: 'move'; to: number }
   | { kind: 'edge'; direction: 'left' | 'right' }
   | { kind: 'focus'; offset: -1 | 1 }
+  | { kind: 'shift'; offset: -1 | 1 }
   | { kind: 'none' };
 
 /**
@@ -32,6 +34,8 @@ export function keyboardAction(key: string, grabbed: boolean, columnIndex: numbe
 
   if (isSelectKey) return { kind: 'drop' };
   if (key === 'Escape' || key === 'Esc') return { kind: 'cancel' };
+  if (key === 'ArrowUp') return { kind: 'shift', offset: -1 };
+  if (key === 'ArrowDown') return { kind: 'shift', offset: 1 };
   if (key === 'ArrowLeft') {
     return columnIndex <= 0 ? { kind: 'edge', direction: 'left' } : { kind: 'move', to: columnIndex - 1 };
   }

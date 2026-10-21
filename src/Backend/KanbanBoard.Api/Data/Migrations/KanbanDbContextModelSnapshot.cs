@@ -294,6 +294,11 @@ namespace KanbanBoard.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("Rank")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("REAL")
+                        .HasDefaultValue(0.0);
+
                     b.Property<string>("ReportKey")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");

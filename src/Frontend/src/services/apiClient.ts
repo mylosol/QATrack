@@ -15,6 +15,7 @@ import type {
   BoardFilter,
   CreateWorkItemRequest,
   ProblemDetails,
+  PositionWorkItemRequest,
   ProgramInfo,
   UpdateWorkItemRequest,
   WorkItem,
@@ -122,6 +123,11 @@ export class ApiClient {
 
   updateWorkItem(id: number, body: UpdateWorkItemRequest): Promise<WorkItem> {
     return this.request<WorkItem>('PATCH', `workitems/${encodeURIComponent(String(id))}`, body);
+  }
+
+  /** Puts a card at a spot in a column; its priority follows its neighbours (1.22.0). */
+  positionWorkItem(id: number, body: PositionWorkItemRequest): Promise<WorkItem> {
+    return this.request<WorkItem>('PUT', `workitems/${encodeURIComponent(String(id))}/position`, body);
   }
 
   addComment(id: number, text: string): Promise<WorkItemHistoryEntry> {

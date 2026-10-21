@@ -114,7 +114,7 @@ curl -X POST http://server:8080/api/v1/workitems \
 
 | Operation | Endpoint | operationId |
 |---|---|---|
-| List (filters: `type`, `state`, `aiModified`, `assignedTo`, `program`, `tag`, `updatedSince`, `top`) | `GET /api/v1/workitems` | `listWorkItems` |
+| List in work order (filters: `type`, `state`, `aiModified`, `assignedTo`, `program`, `tag`, `updatedSince`, `top`; `sort=id` for oldest first) | `GET /api/v1/workitems` | `listWorkItems` |
 | Details + full audit history | `GET /api/v1/workitems/{id}` | `getWorkItem` |
 | Create | `POST /api/v1/workitems` | `createWorkItem` |
 | Update / move (partial; `""` clears the description) | `PATCH /api/v1/workitems/{id}` | `updateWorkItem` |
@@ -132,6 +132,10 @@ Pictures in descriptions and comments are Markdown links to `api/ui/attachments/
 Work items carry `program` (one of the programs, or null), `tags` (a list) and, for Bugs, an optional `programVersion` (the version the bug was found in) and `fixedInVersion` (the version that contains the fix; agents set it when they resolve a bug). `""` clears either. On PATCH, `program: ""` removes the program and `tags` replaces the whole list (`[]` removes all); omit either to leave it unchanged. Descriptions and comments are Markdown; to show an image, upload it and put the returned `markdown` (e.g. `![shot.png](api/ui/attachments/<id>)`) into the text.
 
 Point tool-calling agents at `/api/openapi.json`. It declares both headers as security schemes.
+
+### Work order (1.22.0)
+
+People drag cards up and down to put each column in the order they want it worked. Each work item's `rank` is its place in its column (1 = do first), and `GET /api/v1/workitems` lists items in that order: To Do (`state=New`) first, top to bottom, then Active, Resolved and Closed. Agents pick their next card with `GET /api/v1/workitems?state=New` and take the first one they can do; the API description tells them so. Priority is part of the order (a column lists all priority 1 cards first), and dropping a card among cards of another priority gives it theirs.
 
 ### Answering human comments (discussion status)
 
@@ -154,6 +158,12 @@ Comments live in each item's history, which only `GET /api/v1/workitems/{id}` re
 2. Compare each item's `lastHumanCommentAt` with the last human comment they read. If it's newer, fetch the item and read the history entries with `isAiAction: false` and a `comment`.
 
 Fill in **Your name (for history)** on the board so your comments show a name instead of "Web UI User".
+
+### Ordering the work (1.22.0)
+
+- **Drag a card up or down** in its column to set what gets done first (top = first). A blue line shows where it will land. With the keyboard: Space picks the card up, Up/Down move it, Space or Enter drops it, Escape cancels.
+- **Priority follows the spot:** dropped among P1 cards, a card becomes P1. Drop on a column's header or empty space to just change its column.
+- The AI reads the same order (see [Work order](#work-order-1220)).
 
 ### Working in the card dialog (1.13.0)
 

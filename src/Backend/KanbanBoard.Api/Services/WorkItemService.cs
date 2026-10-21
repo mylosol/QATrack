@@ -32,18 +32,65 @@ public sealed class WorkItemService
         _clock = clock;
     }
 
-    /// <summary>Lists work items matching the (all optional) filters, ordered by id.</summary>
+    /// <summary>
+    /// Lists work items matching the (all optional) filters, in the board's work
+    /// order (column, then priority, then rank) or, with <c>sort=id</c>, oldest first.
+    /// </summary>
     public async Task<IReadOnlyList<WorkItemDto>> ListAsync(WorkItemQuery query, CancellationToken ct = default)
     {
-        var items = await ApplyFilters(_db.WorkItems.AsNoTracking(), query)
+        var filtered = ApplyFilters(_db.WorkItems.AsNoTracking(), query)
             .Include(w => w.Program)
             .Include(w => w.Tags)
-            .AsSplitQuery()
-            .OrderBy(w => w.Id)
-            .Take(Math.Clamp(query.Top ?? DefaultTop, 1, 1000))
-            .ToListAsync(ct);
-        return items.Select(i => WorkItemMapper.ToDto(i)).ToList();
+            .AsSplitQuery();
+        var ordered = query.Sort == WorkItemSort.Id
+            ? filtered.OrderBy(w => w.Id)
+            : InWorkOrder(filtered.OrderBy(w =>
+                w.State == WorkItemState.New ? 0
+                : w.State == WorkItemState.Active ? 1
+                : w.State == WorkItemState.Resolved ? 2
+                : w.State == WorkItemState.Closed ? 3
+                : 4));
+        var items = await ordered.Take(Math.Clamp(query.Top ?? DefaultTop, 1, 1000)).ToListAsync(ct);
+        var positions = await ColumnPositionsAsync(_db, ct);
+        return items.Select(i => WorkItemMapper.ToDto(i, rank: Position(positions, i))).ToList();
     }
+
+    /// <summary>A column's order (1.22.0): priority first, then the order people dragged, then oldest first.</summary>
+    internal static IOrderedQueryable<WorkItem> InWorkOrder(IOrderedQueryable<WorkItem> source) =>
+        source.ThenBy(w => w.Priority).ThenBy(w => w.Rank).ThenBy(w => w.Id);
+
+    /// <inheritdoc cref="InWorkOrder(IOrderedQueryable{WorkItem})"/>
+    internal static IOrderedQueryable<WorkItem> InWorkOrder(IQueryable<WorkItem> source) =>
+        source.OrderBy(w => w.Priority).ThenBy(w => w.Rank).ThenBy(w => w.Id);
+
+    /// <summary>
+    /// Every card's 1-based position in its column's work order (1.22.0), keyed by id.
+    /// Removed items have none.
+    /// </summary>
+    internal static async Task<Dictionary<int, int>> ColumnPositionsAsync(KanbanDbContext db, CancellationToken ct)
+    {
+        var rows = await db.WorkItems.AsNoTracking()
+            .Where(w => w.State != WorkItemState.Removed)
+            .Select(w => new { w.Id, w.State, w.Priority, w.Rank })
+            .ToListAsync(ct);
+        var positions = new Dictionary<int, int>(rows.Count);
+        foreach (var column in rows.GroupBy(r => r.State))
+        {
+            var position = 0;
+            foreach (var row in column.OrderBy(r => r.Priority).ThenBy(r => r.Rank).ThenBy(r => r.Id))
+            {
+                positions[row.Id] = ++position;
+            }
+        }
+
+        return positions;
+    }
+
+    internal static int? Position(IReadOnlyDictionary<int, int> positions, WorkItem item) =>
+        positions.TryGetValue(item.Id, out var position) ? position : null;
+
+    private async Task<WorkItemDto> ToDtoAsync(WorkItem item, bool includeHistory, CancellationToken ct) =>
+        WorkItemMapper.ToDto(item, includeHistory, Position(await ColumnPositionsAsync(_db, ct), item));
 
     /// <summary>Returns one work item with its full audit history.</summary>
     /// <exception cref="WorkItemNotFoundException">When the id does not exist.</exception>
@@ -57,7 +104,7 @@ public sealed class WorkItemService
                        .AsSplitQuery()
                        .FirstOrDefaultAsync(w => w.Id == id, ct)
                    ?? throw new WorkItemNotFoundException(id);
-        return WorkItemMapper.ToDto(item, includeHistory: true);
+        return await ToDtoAsync(item, includeHistory: true, ct);
     }
 
     /// <summary>Creates a work item and its "created" history entry.</summary>
@@ -96,6 +143,8 @@ public sealed class WorkItemService
             ReportKey = reportKey,
             CreatedBy = _actor.DisplayName,
             CreatedAt = now,
+            // Bottom of its priority in its column (1.22.0).
+            Rank = (await _db.WorkItems.MaxAsync(w => (double?)w.Rank, ct) ?? 0) + 1,
         };
 
         item.Program = await ResolveProgramAsync(request.Program, ct);
@@ -109,7 +158,7 @@ public sealed class WorkItemService
 
         _db.WorkItems.Add(item);
         await _db.SaveChangesAsync(ct);
-        return WorkItemMapper.ToDto(item, includeHistory: true);
+        return await ToDtoAsync(item, includeHistory: true, ct);
     }
 
     /// <summary>
@@ -225,12 +274,130 @@ public sealed class WorkItemService
         var comment = TextSanitizer.MultiLine(request.Comment, WorkItemDefaults.CommentMaxLength);
         if (changes.Count == 0 && comment is null)
         {
-            return WorkItemMapper.ToDto(item, includeHistory: true);
+            return await ToDtoAsync(item, includeHistory: true, ct);
         }
 
         StampAndRecord(item, changes, comment, _clock.GetUtcNow().UtcDateTime);
         await _db.SaveChangesAsync(ct);
-        return WorkItemMapper.ToDto(item, includeHistory: true);
+        return await ToDtoAsync(item, includeHistory: true, ct);
+    }
+
+    /// <summary>
+    /// A person drops a card between two others on the board (1.22.0). The card
+    /// takes the column and the spot; its priority follows its neighbours (clamped
+    /// between the priority above and the one below, so dropped among priority 1
+    /// cards it becomes 1). A column or priority change is recorded in history like
+    /// any edit; a reorder alone only changes the order (no history row, UpdatedAt kept).
+    /// </summary>
+    /// <exception cref="WorkItemNotFoundException">When the id does not exist.</exception>
+    /// <exception cref="WorkItemValidationException">A neighbour that is missing, the card itself, or in another column.</exception>
+    public async Task<WorkItemDto> PositionAsync(int id, PositionWorkItemRequest request, CancellationToken ct = default)
+    {
+        var item = await _db.WorkItems
+                       .Include(w => w.Program)
+                       .Include(w => w.Tags)
+                       .AsSplitQuery()
+                       .FirstOrDefaultAsync(w => w.Id == id, ct)
+                   ?? throw new WorkItemNotFoundException(id);
+        var state = request.State ?? item.State;
+        if (state == WorkItemState.Removed)
+        {
+            throw new WorkItemValidationException(nameof(request.State), "A card can't be placed in Removed.");
+        }
+
+        var after = await NeighbourAsync(request.AfterId, nameof(request.AfterId));
+        var below = await NeighbourAsync(request.BeforeId, nameof(request.BeforeId));
+
+        // Priority follows the neighbours: never above the card above it, never below the card below it.
+        var highest = after?.Priority ?? 1;
+        var lowest = below?.Priority ?? 4;
+        if (highest > lowest)
+        {
+            // The person's view was out of date; stay within both.
+            (highest, lowest) = (lowest, highest);
+        }
+
+        var priority = Math.Clamp(item.Priority, highest, lowest);
+        var snapshot = WorkItemSnapshot.From(item);
+        item.Rank = await RankAtAsync(item, state, priority, after, below, ct);
+        item.State = state;
+        item.Priority = priority;
+
+        var changes = WorkItemChangeTracker.Diff(snapshot, WorkItemSnapshot.From(item));
+        if (changes.Count > 0)
+        {
+            StampAndRecord(item, changes, comment: null, _clock.GetUtcNow().UtcDateTime);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return await ToDtoAsync(item, includeHistory: false, ct);
+
+        async Task<WorkItem?> NeighbourAsync(int? neighbourId, string field)
+        {
+            if (neighbourId is null)
+            {
+                return null;
+            }
+
+            var neighbour = await _db.WorkItems.AsNoTracking().FirstOrDefaultAsync(w => w.Id == neighbourId, ct);
+            if (neighbour is null || neighbour.Id == id || neighbour.State != state)
+            {
+                throw new WorkItemValidationException(field, $"Work item {neighbourId} is not another card in {state}. Refresh the board and try again.");
+            }
+
+            return neighbour;
+        }
+    }
+
+    /// <summary>Ranks closer than this are spread out again before inserting between them.</summary>
+    internal const double MinRankGap = 1e-6;
+
+    /// <summary>
+    /// The Rank that puts <paramref name="item"/> just after <paramref name="after"/> (or just
+    /// before <paramref name="below"/>) among the cards of its column and priority. When neither
+    /// neighbour shares that priority, the card keeps its Rank. Ranks too close to split (or equal)
+    /// are renumbered 1, 2, 3... in their current order, with the card in its new spot.
+    /// </summary>
+    private async Task<double> RankAtAsync(WorkItem item, WorkItemState state, int priority, WorkItem? after, WorkItem? below, CancellationToken ct)
+    {
+        var group = await _db.WorkItems
+            .Where(w => w.State == state && w.Priority == priority && w.Id != item.Id)
+            .OrderBy(w => w.Rank).ThenBy(w => w.Id)
+            .ToListAsync(ct);
+        var afterIndex = after is not null && after.Priority == priority ? group.FindIndex(w => w.Id == after.Id) : -1;
+        var belowIndex = below is not null && below.Priority == priority ? group.FindIndex(w => w.Id == below.Id) : -1;
+        if (afterIndex < 0 && belowIndex < 0)
+        {
+            return item.Rank;
+        }
+
+        var insertAt = afterIndex >= 0 ? afterIndex + 1 : belowIndex;
+        double? previous = insertAt > 0 ? group[insertAt - 1].Rank : null;
+        double? next = insertAt < group.Count ? group[insertAt].Rank : null;
+        if (previous is null)
+        {
+            return next!.Value - 1;
+        }
+
+        if (next is null)
+        {
+            return previous.Value + 1;
+        }
+
+        if (next.Value - previous.Value > MinRankGap)
+        {
+            return (previous.Value + next.Value) / 2;
+        }
+
+        // Only the order within a column and priority matters, so renumbering
+        // the group moves nothing else.
+        group.Insert(insertAt, item);
+        for (var i = 0; i < group.Count; i++)
+        {
+            group[i].Rank = i + 1;
+        }
+
+        return insertAt + 1;
     }
 
     /// <summary>Adds a discussion comment (or automated test output) to the audit stream.</summary>

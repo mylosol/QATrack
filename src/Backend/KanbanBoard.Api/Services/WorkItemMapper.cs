@@ -5,8 +5,11 @@ namespace KanbanBoard.Api.Services;
 /// <summary>Entity to DTO projection helpers.</summary>
 public static class WorkItemMapper
 {
-    /// <summary>Maps a work item, optionally including its full audit history.</summary>
-    public static WorkItemDto ToDto(WorkItem item, bool includeHistory = false) => new()
+    /// <summary>
+    /// Maps a work item, optionally including its full audit history.
+    /// <paramref name="rank"/> is its position in its column (see <see cref="WorkItemService.ColumnPositionsAsync"/>).
+    /// </summary>
+    public static WorkItemDto ToDto(WorkItem item, bool includeHistory = false, int? rank = null) => new()
     {
         Id = item.Id,
         Title = item.Title,
@@ -14,6 +17,7 @@ public static class WorkItemMapper
         Type = item.Type,
         State = item.State,
         Priority = item.Priority,
+        Rank = rank,
         Severity = item.Severity,
         AssignedTo = item.AssignedTo,
         AreaPath = item.AreaPath,
