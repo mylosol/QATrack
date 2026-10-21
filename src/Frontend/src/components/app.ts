@@ -4,10 +4,10 @@
  */
 import { ApiClient, ApiError } from '../services/apiClient';
 import { ReadState } from '../services/readState';
-import type { Board, BoardFilter, WorkItem, WorkItemState } from '../services/types';
+import { type Board, type BoardFilter, PRIORITY_LABELS, type WorkItem, type WorkItemState } from '../services/types';
 import { Announcer } from './announcer';
 import { BackToTop } from './backToTop';
-import { BoardView } from './board';
+import { BoardView, type Placement } from './board';
 import { CaseLookup } from './caseLookup';
 import { byId, h } from './dom';
 import { FilterToolbar } from './filterToolbar';
@@ -85,7 +85,7 @@ export class App {
     });
 
     this.boardView = new BoardView(this.boardRoot, {
-      onMove: (id, from, to) => void this.moveCard(id, from, to),
+      onMove: (id, from, to, place) => void this.moveCard(id, from, to, place),
       onOpen: (id) => void this.dialog.openExisting(id).catch((err) => this.showError(err)),
       announce: (message, politeness) => this.announcer.announce(message, politeness),
     });
@@ -198,13 +198,16 @@ export class App {
   }
 
   /**
-   * Persists a column move, then announces it and any WIP overage (spec 5.2).
+   * Persists a column move or a new spot in the work order (1.22.0), then
+   * announces it, a priority that changed to match, and any WIP overage (spec 5.2).
    * Moves that exceed a WIP limit are allowed but flagged, like Azure DevOps.
    */
-  async moveCard(id: number, from: WorkItemState, to: WorkItemState): Promise<boolean> {
-    const title = this.findItem(id)?.title ?? `Work item ${id}`;
+  async moveCard(id: number, from: WorkItemState, to: WorkItemState, place?: Placement): Promise<boolean> {
+    const before = this.findItem(id);
+    const title = before?.title ?? `Work item ${id}`;
     try {
-      await this.api.updateWorkItem(id, { state: to });
+      if (place) await this.api.positionWorkItem(id, { state: to, afterId: place.afterId, beforeId: place.beforeId });
+      else await this.api.updateWorkItem(id, { state: to });
     } catch (err) {
       this.showError(err);
       this.announcer.announce(`Could not move "${title}". ${err instanceof Error ? err.message : ''}`, 'assertive');
@@ -216,7 +219,14 @@ export class App {
     const column = board?.columns.find((c) => c.state === to);
     const toName = column?.name ?? to;
     const fromName = board?.columns.find((c) => c.state === from)?.name ?? from;
-    this.announcer.announce(`Moved "${title}" from ${fromName} to ${toName}.`);
+    const after = this.findItem(id);
+    const where = place && after?.rank ? `, place ${after.rank} of ${column?.itemCount ?? after.rank}` : '';
+    this.announcer.announce(
+      (from === to ? `Moved "${title}" in ${toName}${where}.` : `Moved "${title}" from ${fromName} to ${toName}${where}.`) +
+        (before && after && after.priority !== before.priority
+          ? ` Priority is now ${after.priority} - ${PRIORITY_LABELS[after.priority] ?? after.priority}, to match the cards around it.`
+          : ''),
+    );
     if (column?.isOverWipLimit) {
       this.announcer.announce(
         `Warning: ${toName} column is over its WIP limit, ${column.itemCount} items with a limit of ${column.wipLimit}.`,

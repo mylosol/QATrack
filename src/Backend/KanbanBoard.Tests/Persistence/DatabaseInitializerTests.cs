@@ -180,6 +180,28 @@ public class DatabaseInitializerTests
     }
 
     [Fact]
+    public async Task Upgrade_To1220_GivesEveryCardARank_KeepingTodaysOrder()
+    {
+        using var temp = new TempSqliteDatabase();
+        await using (var old = temp.CreateContext())
+        {
+            await old.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>()
+                .MigrateAsync("20261016192222_AddTestResult");
+            await old.Database.ExecuteSqlRawAsync(
+                "INSERT INTO WorkItem (Id, Title, Type, State, Priority, Severity, AreaPath, IterationPath, AiModified, LastModifiedBy, CreatedAt, UpdatedAt) VALUES " +
+                "(12, 'Newer', 'Bug', 'New', 2, '2 - High', 'x', 'Current', 0, 'Robert', '2026-10-16 10:00:00', '2026-10-16 10:00:00'), " +
+                "(5, 'Older', 'Bug', 'New', 2, '2 - High', 'x', 'Current', 0, 'Robert', '2026-10-15 10:00:00', '2026-10-15 10:00:00')");
+        }
+
+        await temp.InitializeAsync();
+
+        await using var db = temp.CreateContext();
+        var ranks = await db.WorkItems.OrderBy(w => w.Id).Select(w => new { w.Id, w.Rank }).ToListAsync();
+        // Rank = Id: within a priority, oldest first, exactly as before.
+        Assert.Equal(new[] { (5, 5d), (12, 12d) }, ranks.Select(r => (r.Id, r.Rank)));
+    }
+
+    [Fact]
     public async Task Upgrade_To1160_FillsCreatedBy_ForInAppReports()
     {
         using var temp = new TempSqliteDatabase();

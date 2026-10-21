@@ -85,6 +85,7 @@ export function createCard(item: WorkItem): HTMLLIElement {
       draggable: 'true',
       'data-card-id': item.id,
       'data-state': item.state,
+      'data-priority': item.priority,
       'data-discussion': item.discussionStatus ?? null,
       'data-unread': item.unread ? 'true' : null,
       'aria-labelledby': titleId,

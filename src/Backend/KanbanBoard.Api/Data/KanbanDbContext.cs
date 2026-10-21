@@ -60,6 +60,7 @@ public class KanbanDbContext : DbContext
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.Property(x => x.State).HasConversion<string>().HasMaxLength(32).IsRequired();
             e.Property(x => x.Priority).IsRequired().HasDefaultValue(WorkItemDefaults.Priority);
+            e.Property(x => x.Rank).IsRequired().HasDefaultValue(0d);
             e.Property(x => x.Severity).IsRequired().HasMaxLength(32).HasDefaultValue(WorkItemDefaults.Severity);
             e.Property(x => x.AssignedTo).HasMaxLength(WorkItemDefaults.ShortTextMaxLength);
             e.Property(x => x.AreaPath).IsRequired().HasMaxLength(WorkItemDefaults.ShortTextMaxLength)

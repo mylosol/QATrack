@@ -24,6 +24,14 @@ public class WorkItem
     /// <summary>1-Critical, 2-High, 3-Medium, 4-Low.</summary>
     public int Priority { get; set; } = WorkItemDefaults.Priority;
 
+    /// <summary>
+    /// Work order within a priority (1.22.0): a column lists its cards by
+    /// Priority, then Rank, then Id. People set it by dragging cards; new cards
+    /// get the next Rank (bottom of their priority). Only relative order
+    /// matters - the API shows each card's 1-based position instead.
+    /// </summary>
+    public double Rank { get; set; }
+
     /// <summary>One of <see cref="WorkItemDefaults.Severities"/>.</summary>
     public string Severity { get; set; } = WorkItemDefaults.Severity;
 

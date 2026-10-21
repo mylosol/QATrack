@@ -28,6 +28,16 @@ public enum WorkItemState
     Removed,
 }
 
+/// <summary>Order of the work item list (1.22.0).</summary>
+public enum WorkItemSort
+{
+    /// <summary>The board's work order: column, then priority, then the order people dragged.</summary>
+    Rank,
+
+    /// <summary>Oldest first (the order before 1.22.0).</summary>
+    Id,
+}
+
 /// <summary>
 /// Who the discussion on a work item is waiting for (1.9.0). Derived from the
 /// latest human comment, the latest agent comment and when a human last read it.

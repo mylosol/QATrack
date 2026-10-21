@@ -61,8 +61,16 @@ public sealed class WorkItemDto
 
     public WorkItemState State { get; init; }
 
-    /// <summary>1-Critical, 2-High, 3-Medium, 4-Low.</summary>
+    /// <summary>1-Critical, 2-High, 3-Medium, 4-Low. A column lists all its priority 1 cards first, then 2, and so on.</summary>
     public int Priority { get; init; }
+
+    /// <summary>
+    /// Where the card sits in its column's work order, 1 = do first (1.22.0). People set this order by
+    /// dragging cards on the board; it already includes priority. Work New ("To Do") cards in rank order.
+    /// It is the live position, so it shifts when other cards move: list again for the current order.
+    /// Null for removed items.
+    /// </summary>
+    public int? Rank { get; init; }
 
     /// <summary>"1 - Critical" | "2 - High" | "3 - Medium" | "4 - Low".</summary>
     public string Severity { get; init; } = string.Empty;
@@ -334,6 +342,23 @@ public sealed class EditCommentRequest
     public string Text { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Board only (1.22.0): put a card at a spot in a column, between the cards a
+/// person dropped it between. Its priority follows its neighbours (dropped among
+/// priority 1 cards, it becomes priority 1).
+/// </summary>
+public sealed class PositionWorkItemRequest
+{
+    /// <summary>Column to put the card in; omit to keep its state.</summary>
+    public WorkItemState? State { get; set; }
+
+    /// <summary>The card shown just above the drop spot, or null at the top.</summary>
+    public int? AfterId { get; set; }
+
+    /// <summary>The card shown just below the drop spot, or null at the bottom.</summary>
+    public int? BeforeId { get; set; }
+}
+
 /// <summary>Query-string filters for listing work items and the board.</summary>
 public sealed class WorkItemQuery
 {
@@ -369,6 +394,13 @@ public sealed class WorkItemQuery
     /// <c>updatedAt</c> you have seen, e.g. 2026-09-30T14:05:12.3456789Z (always include the Z or an offset).
     /// </summary>
     public DateTimeOffset? UpdatedSince { get; set; }
+
+    /// <summary>
+    /// Order of GET /api/v1/workitems (1.22.0). "rank" (the default) is the board's work order: New ("To Do"),
+    /// Active, Resolved, Closed, Removed, each by 'rank' - so with state=New the first item is what people
+    /// want done first. "id" is the order before 1.22.0, oldest first. The board endpoint ignores it.
+    /// </summary>
+    public WorkItemSort? Sort { get; set; }
 
     /// <summary>Maximum number of items to return (1-1000, default 500).</summary>
     [Range(1, 1000)]

@@ -21,6 +21,7 @@ public sealed class BoardController : ControllerBase
     /// <remarks>
     /// <c>itemCount</c> and <c>isOverWipLimit</c> always reflect the whole board; the optional
     /// filters only narrow the <c>items</c> listed per column. Removed items are excluded.
+    /// Each column lists its items in work order, as on the board: top (<c>rank</c> 1) = do first.
     /// </remarks>
     /// <param name="filter">Optional filters: type, state, aiModified, assignedTo, program, tag, updatedSince.</param>
     /// <param name="ct">Cancellation token.</param>

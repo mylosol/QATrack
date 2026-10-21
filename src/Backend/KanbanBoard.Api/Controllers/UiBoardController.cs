@@ -79,6 +79,11 @@ public sealed class UiBoardController : ControllerBase
     public async Task<ActionResult<WorkItemDto>> Update(int id, [FromBody] UpdateWorkItemRequest request, CancellationToken ct)
         => Ok(await _items.UpdateAsync(id, request, ct));
 
+    /// <summary>Drop a card between two others (1.22.0): sets its column, its place and, to match its neighbours, its priority.</summary>
+    [HttpPut("workitems/{id:int}/position")]
+    public async Task<ActionResult<WorkItemDto>> Position(int id, [FromBody] PositionWorkItemRequest request, CancellationToken ct)
+        => Ok(await _items.PositionAsync(id, request, ct));
+
     /// <summary>The card dialog was opened: clears an unread agent reply (1.9.0).</summary>
     [HttpPost("workitems/{id:int}/read")]
     public async Task<IActionResult> MarkRead(int id, CancellationToken ct)

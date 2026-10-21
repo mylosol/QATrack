@@ -31,14 +31,13 @@ public sealed class BoardService
             .Select(g => new { State = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.State, x => x.Count, ct);
 
-        var visible = await WorkItemService.ApplyFilters(_db.WorkItems.AsNoTracking(), filter)
+        var filtered = WorkItemService.ApplyFilters(_db.WorkItems.AsNoTracking(), filter)
             .Where(w => w.State != WorkItemState.Removed)
             .Include(w => w.Program)
             .Include(w => w.Tags)
-            .AsSplitQuery()
-            .OrderBy(w => w.Priority)
-            .ThenBy(w => w.Id)
-            .ToListAsync(ct);
+            .AsSplitQuery();
+        var visible = await WorkItemService.InWorkOrder(filtered).ToListAsync(ct);
+        var positions = await WorkItemService.ColumnPositionsAsync(_db, ct);
 
         var assignees = await _db.WorkItems.AsNoTracking()
             .Where(w => w.AssignedTo != null && w.State != WorkItemState.Removed)
@@ -75,7 +74,7 @@ public sealed class BoardService
                     WipLimit = c.WipLimit,
                     ItemCount = count,
                     IsOverWipLimit = IsOverWip(count, c.WipLimit),
-                    Items = byState[c.State].Select(w => WorkItemMapper.ToDto(w)).ToList(),
+                    Items = byState[c.State].Select(w => WorkItemMapper.ToDto(w, rank: WorkItemService.Position(positions, w))).ToList(),
                 };
             }).ToList(),
             Swimlanes = lanes.Select(l => new SwimlaneDto(l.Id, l.Name, l.SortOrder, l.IsDefault)).ToList(),

@@ -1,7 +1,9 @@
 /**
  * Kanban board view: renders columns/cards and handles pointer drag-and-drop
- * with live WIP-limit feedback. State changes are delegated to the app via
- * {@link BoardHandlers}; the view itself never calls the API.
+ * with live WIP-limit feedback. Cards dropped onto the cards of a column (or
+ * moved with Up/Down) land at that spot, which sets the work order (1.22.0).
+ * State changes are delegated to the app via {@link BoardHandlers}; the view
+ * itself never calls the API.
  */
 import type { Board, BoardColumn, WorkItemState } from '../services/types';
 import type { Politeness } from './announcer';
@@ -10,9 +12,18 @@ import { clear, h } from './dom';
 import { keyboardAction } from './keyboardMove';
 import { wipDescription, wipLabel, wouldExceedWip } from './wip';
 
+/** The cards a moved card was dropped between (1.22.0); null at the top or bottom. */
+export interface Placement {
+  afterId: number | null;
+  beforeId: number | null;
+}
+
 export interface BoardHandlers {
-  /** A card was dropped on a different column. */
-  onMove(id: number, from: WorkItemState, to: WorkItemState): void;
+  /**
+   * A card was dropped on a different column, or at a new spot (1.22.0). Without
+   * a placement it was dropped on the column, not between cards.
+   */
+  onMove(id: number, from: WorkItemState, to: WorkItemState, place?: Placement): void;
   /** The user asked to open a card's detail dialog. */
   onOpen(id: number): void;
   /** Screen reader announcement (aria-live). */
@@ -30,7 +41,12 @@ interface GrabState {
   title: string;
   origin: WorkItemState;
   current: WorkItemState;
+  /** Where it was picked up, to tell a real move from putting it back. */
+  originPlace: Placement;
 }
+
+/** Pointer this far above the first card or below the last still counts as "between cards". */
+const DROP_SLOP_PX = 12;
 
 export class BoardView {
   private board: Board | null = null;
@@ -180,6 +196,7 @@ export class BoardView {
       e.preventDefault(); // allow drop
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       this.highlight(list);
+      this.showDropLine(list, this.dropSpot(list, (e as DragEvent).clientY));
     });
 
     this.root.addEventListener('dragleave', (e) => {
@@ -195,8 +212,13 @@ export class BoardView {
       e.preventDefault();
       const to = list.dataset.state as WorkItemState;
       const { id, from } = this.drag;
+      const spot = this.dropSpot(list, (e as DragEvent).clientY);
       this.endDrag();
-      if (to !== from) this.handlers.onMove(id, from, to);
+      if (spot && (to !== from || !samePlace(spot, this.placeOf(id)))) {
+        this.handlers.onMove(id, from, to, { afterId: spot.afterId, beforeId: spot.beforeId });
+      } else if (to !== from) {
+        this.handlers.onMove(id, from, to);
+      }
     });
 
     this.root.addEventListener('dragend', () => this.endDrag());
@@ -232,12 +254,12 @@ export class BoardView {
         if (this.grab) this.cancelGrab(false);
         const target = this.cardElement(id) ?? card;
         const title = target.querySelector('.card-title')?.textContent ?? `Work item ${id}`;
-        this.grab = { id, title, origin: state, current: state };
+        this.grab = { id, title, origin: state, current: state, originPlace: this.placeOf(id) };
         target.classList.add('is-grabbed');
         target.dataset.grabbed = 'true';
         target.focus();
         this.handlers.announce(
-          `Picked up "${title}" in ${this.columnName(state)}. Use Left and Right arrow keys to move, Space or Enter to drop, Escape to cancel.`,
+          `Picked up "${title}" in ${this.columnName(state)}. Use Left and Right arrow keys to change column, Up and Down to change its place, Space or Enter to drop, Escape to cancel.`,
         );
         break;
       }
@@ -247,15 +269,22 @@ export class BoardView {
       case 'edge':
         this.handlers.announce(`"${this.grab!.title}" is already in the ${action.direction === 'left' ? 'first' : 'last'} column.`);
         break;
+      case 'shift':
+        this.shiftGrabbed(card, action.offset);
+        break;
       case 'drop': {
-        const { id: grabbedId, origin, current } = this.grab!;
+        const { id: grabbedId, origin, current, originPlace } = this.grab!;
         this.grab = null;
         card.classList.remove('is-grabbed');
         delete card.dataset.grabbed;
-        if (current === origin) {
+        const place = this.placeOf(grabbedId);
+        if (current === origin && samePlace(place, originPlace)) {
           this.handlers.announce(`Dropped in ${this.columnName(origin)}. No change.`);
-        } else {
+        } else if (place.afterId === null && place.beforeId === null) {
+          // Alone in the column: no spot to keep.
           this.handlers.onMove(grabbedId, origin, current);
+        } else {
+          this.handlers.onMove(grabbedId, origin, current, place);
         }
         break;
       }
@@ -278,10 +307,13 @@ export class BoardView {
     if (!list || !item) return;
 
     const oldList = item.parentElement;
+    // Land after the cards of the same or higher priority, so dropping here keeps its priority.
+    const priority = Number(card.dataset.priority);
+    const next = this.cardsIn(list).find((c) => Number(c.dataset.priority) > priority)?.closest('li') ?? null;
     this.relocating = true;
     try {
       list.querySelector('[data-empty]')?.remove();
-      list.appendChild(item);
+      list.insertBefore(item, next);
       card.focus();
     } finally {
       this.relocating = false;
@@ -302,6 +334,79 @@ export class BoardView {
         ' Press Space or Enter to drop, Escape to cancel.',
       exceeds ? 'assertive' : 'polite',
     );
+  }
+
+  /** Moves the grabbed card up or down within its column (not yet persisted) (1.22.0). */
+  private shiftGrabbed(card: HTMLElement, offset: -1 | 1): void {
+    const grab = this.grab!;
+    const item = card.closest('li');
+    const list = item?.parentElement;
+    if (!item || !list) return;
+    const sibling = offset < 0 ? item.previousElementSibling : item.nextElementSibling;
+    if (!sibling?.querySelector('article[data-card-id]')) {
+      this.handlers.announce(`"${grab.title}" is already at the ${offset < 0 ? 'top' : 'bottom'} of ${this.columnName(grab.current)}.`);
+      return;
+    }
+
+    this.relocating = true;
+    try {
+      list.insertBefore(item, offset < 0 ? sibling : sibling.nextElementSibling);
+      card.focus();
+    } finally {
+      this.relocating = false;
+    }
+    card.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    const cards = this.cardsIn(list as HTMLUListElement);
+    this.handlers.announce(
+      `Place ${cards.indexOf(card) + 1} of ${cards.length} in ${this.columnName(grab.current)}. Press Space or Enter to drop, Escape to cancel.`,
+    );
+  }
+
+  /** The cards rendered in a column list, top to bottom. */
+  private cardsIn(list: HTMLUListElement): HTMLElement[] {
+    return [...list.querySelectorAll<HTMLElement>(':scope > li > article[data-card-id]')];
+  }
+
+  /** The cards just above and below a card, as rendered now. */
+  private placeOf(id: number): Placement {
+    const card = this.cardElement(id);
+    const list = card?.closest<HTMLUListElement>('ul.column-list');
+    if (!card || !list) return { afterId: null, beforeId: null };
+    const cards = this.cardsIn(list);
+    const index = cards.indexOf(card);
+    return { afterId: cardId(cards[index - 1]), beforeId: cardId(cards[index + 1]) };
+  }
+
+  /**
+   * Where a drop at this height lands among the column's cards (ignoring the
+   * dragged one), or null when the pointer isn't over the cards: then the card
+   * just changes column and keeps its place in the work order.
+   */
+  private dropSpot(list: HTMLUListElement, y: number | undefined): (Placement & { index: number }) | null {
+    if (y === undefined || !this.drag) return null;
+    const dragged = this.drag.id;
+    const cards = this.cardsIn(list).filter((c) => Number(c.dataset.cardId) !== dragged);
+    if (cards.length === 0) return null;
+    const rects = cards.map((c) => c.getBoundingClientRect());
+    if (y < rects[0]!.top - DROP_SLOP_PX || y > rects[rects.length - 1]!.bottom + DROP_SLOP_PX) return null;
+    const index = rects.filter((r) => r.top + r.height / 2 < y).length;
+    return { index, afterId: cardId(cards[index - 1]), beforeId: cardId(cards[index]) };
+  }
+
+  /** The line showing where a dragged card will land; none when it just changes column. */
+  private showDropLine(list: HTMLUListElement, spot: { index: number } | null): void {
+    this.clearDropLine();
+    if (!spot || !this.drag) return;
+    const dragged = this.drag.id;
+    const cards = this.cardsIn(list).filter((c) => Number(c.dataset.cardId) !== dragged);
+    const before = cards[spot.index]?.closest('li');
+    const after = cards[spot.index - 1]?.closest('li');
+    if (before) before.classList.add('drop-before');
+    else after?.classList.add('drop-after');
+  }
+
+  private clearDropLine(): void {
+    this.root.querySelectorAll('.drop-before, .drop-after').forEach((el) => el.classList.remove('drop-before', 'drop-after'));
   }
 
   /** Puts a grabbed card back where it came from. */
@@ -352,13 +457,23 @@ export class BoardView {
 
   private unhighlight(list: HTMLUListElement): void {
     list.classList.remove('is-drop-target', 'would-exceed-wip');
+    list.querySelectorAll('.drop-before, .drop-after').forEach((el) => el.classList.remove('drop-before', 'drop-after'));
     const hint = this.root.querySelector<HTMLElement>(`[data-drop-hint="${list.dataset.state}"]`);
     if (hint) hint.hidden = true;
   }
 
   private endDrag(): void {
     this.drag = null;
+    this.clearDropLine();
     this.root.querySelectorAll('.is-dragging').forEach((el) => el.classList.remove('is-dragging'));
     this.root.querySelectorAll<HTMLUListElement>('ul.column-list').forEach((l) => this.unhighlight(l));
   }
+}
+
+function cardId(card: HTMLElement | undefined): number | null {
+  return card ? Number(card.dataset.cardId) : null;
+}
+
+function samePlace(a: Placement, b: Placement): boolean {
+  return a.afterId === b.afterId && a.beforeId === b.beforeId;
 }
