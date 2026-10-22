@@ -3,6 +3,13 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-10-22
+
+### Changed
+- **The board keeps itself up to date.** Cards moved, added or commented on by other people and AI agents now appear within about 10 seconds (was 30), and right away when you come back to the tab. You no longer need to reload the page.
+- **It also updates while a card is open.** Only the board behind the card changes; the open card, and anything you're typing in it, is left alone. When you close it, focus goes back to that card even if it moved.
+- Nothing is redrawn when nothing changed, and when something did, keyboard focus stays on the card you were on and the board keeps its scroll position. Open filter dropdowns stay open. Refreshing pauses while you drag a card or move one with the keyboard, and while the tab is hidden.
+
 ## [1.22.0] - 2026-10-21
 
 ### Added

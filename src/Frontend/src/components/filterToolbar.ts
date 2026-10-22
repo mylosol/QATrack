@@ -180,11 +180,15 @@ export class FilterToolbar {
       });
       return button;
     };
+    // Rebuilt on every refresh; keep keyboard focus on the same shortcut.
+    const active = document.activeElement;
+    const focused = active instanceof HTMLElement && this.discussionShortcuts.contains(active) ? active.dataset.testid : undefined;
     this.discussionShortcuts.replaceChildren(
       ...(unread > 0 ? [shortcut('Unread', `💬 ${unread} unread`, 'discussion-unread')] : []),
       ...(unread > 0 ? [this.markAllReadButton()] : []),
       ...(awaitingAgent > 0 ? [shortcut('AwaitingAgent', `${awaitingAgent} waiting for AI`, 'discussion-waiting')] : []),
     );
+    if (focused) this.discussionShortcuts.querySelector<HTMLElement>(`[data-testid="${focused}"]`)?.focus();
   }
 
   private markAllReadButton(): HTMLButtonElement {
@@ -203,9 +207,12 @@ export class FilterToolbar {
     FilterToolbar.fillOptions(this.tagSelect, tags);
   }
 
-  /** Replaces every option after the first ("All ...") one. */
+  /** Replaces every option after the first ("All ...") one; a list that didn't change is left alone (an open dropdown stays open). */
   private static fillOptions(select: HTMLSelectElement, values: string[]): void {
     const selected = select.value;
+    const wanted = selected && !values.includes(selected) ? [...values, selected] : values;
+    const current = [...select.options].slice(1).map((o) => o.value);
+    if (current.length === wanted.length && current.every((v, i) => v === wanted[i])) return;
     while (select.options.length > 1) select.remove(1);
     for (const value of values) select.appendChild(h('option', { value }, value));
     if (selected && !values.includes(selected)) select.appendChild(h('option', { value: selected }, selected));

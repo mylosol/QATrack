@@ -14,8 +14,11 @@ import { FilterToolbar } from './filterToolbar';
 import { ThemeSwitcher } from './themeSwitcher';
 import { WorkItemDialog } from './workItemDialog';
 
-/** Background refresh interval so agent changes appear without a reload. */
-export const AUTO_REFRESH_MS = 30_000;
+/**
+ * How often the board checks for changes made by other people and agents, so
+ * they appear without a reload (10 s since 1.23.0, was 30 s).
+ */
+export const AUTO_REFRESH_MS = 10_000;
 
 /** Query parameter that opens a card: /?item=31 (the in-app report receipt links here, 1.13.0). */
 export const ITEM_PARAM = 'item';
@@ -51,6 +54,10 @@ export class App {
   readonly readState = new ReadState();
 
   private board: Board | null = null;
+  /** The last loaded board as received, to skip re-rendering when nothing changed. */
+  private boardJson = '';
+  /** Moves being saved: a background refresh then could briefly show the card back where it was. */
+  private savingMoves = 0;
   private filter: BoardFilter = {};
   private requestSeq = 0;
   private readonly notice: HTMLElement;
@@ -119,10 +126,20 @@ export class App {
     // Read/unread changes (here or in another tab) only need a re-render.
     this.readState.onChange(() => this.renderBoard());
     void this.refresh().then(() => this.openLinkedItem());
-    window.setInterval(() => {
-      if (document.hidden || this.dialog.isOpen || this.isInteracting()) return;
-      void this.refresh({ quiet: true });
-    }, AUTO_REFRESH_MS);
+    // Keep the board current (1.23.0). This also runs while a card is open: only
+    // the board behind it is updated, never the open card or what is typed in it.
+    window.setInterval(() => void this.refreshInBackground(), AUTO_REFRESH_MS);
+    // Coming back to the tab catches up at once instead of waiting for the next tick.
+    document.addEventListener('visibilitychange', () => void this.refreshInBackground());
+  }
+
+  /**
+   * Picks up changes made elsewhere. Skipped while the tab is hidden, while a
+   * card is being dragged or moved with the keyboard, and while a move is saving.
+   */
+  refreshInBackground(): Promise<Board | null> {
+    if (document.hidden || this.isInteracting() || this.savingMoves > 0) return Promise.resolve(null);
+    return this.refresh({ quiet: true, background: true });
   }
 
   /** Opens the card named in the address bar (/?item=31), e.g. from a report receipt link. */
@@ -147,15 +164,24 @@ export class App {
 
   /**
    * Reloads the board. Out-of-order responses are discarded so a slow
-   * request can never overwrite a newer one.
+   * request can never overwrite a newer one. A background refresh leaves the
+   * board untouched when nothing changed.
    */
-  async refresh(options: { quiet?: boolean; announceSummary?: boolean; focusId?: number } = {}): Promise<Board | null> {
+  async refresh(options: { quiet?: boolean; announceSummary?: boolean; focusId?: number; background?: boolean } = {}): Promise<Board | null> {
     const seq = ++this.requestSeq;
     if (!options.quiet) this.boardRoot.setAttribute('aria-busy', 'true');
     try {
       const board = await this.api.getBoard(this.filter);
       if (seq !== this.requestSeq) return null;
+      // A move started while this was loading: its own refresh will show the result.
+      if (options.background && (this.savingMoves > 0 || this.isInteracting())) return null;
+      const json = JSON.stringify(board);
+      if (options.background && json === this.boardJson) {
+        this.clearError();
+        return board;
+      }
       this.board = board;
+      this.boardJson = json;
       const summary = this.renderBoard();
       if (options.announceSummary) this.announcer.announce(summary);
       if (options.focusId !== undefined) this.boardView.focusCard(options.focusId);
@@ -205,6 +231,7 @@ export class App {
   async moveCard(id: number, from: WorkItemState, to: WorkItemState, place?: Placement): Promise<boolean> {
     const before = this.findItem(id);
     const title = before?.title ?? `Work item ${id}`;
+    this.savingMoves++;
     try {
       if (place) await this.api.positionWorkItem(id, { state: to, afterId: place.afterId, beforeId: place.beforeId });
       else await this.api.updateWorkItem(id, { state: to });
@@ -213,6 +240,8 @@ export class App {
       this.announcer.announce(`Could not move "${title}". ${err instanceof Error ? err.message : ''}`, 'assertive');
       await this.refresh({ quiet: true, focusId: id });
       return false;
+    } finally {
+      this.savingMoves--;
     }
 
     const board = await this.refresh({ quiet: true, focusId: id });

@@ -159,6 +159,10 @@ Comments live in each item's history, which only `GET /api/v1/workitems/{id}` re
 
 Fill in **Your name (for history)** on the board so your comments show a name instead of "Web UI User".
 
+### Live board (1.23.0)
+
+The board checks for changes every 10 seconds, and right away when you come back to its tab, so moves and comments by other people and agents appear without reloading. It keeps updating while a card is open, but only the board behind it: the open card and what you're typing stay as they are. It pauses while you drag or keyboard-move a card.
+
 ### Ordering the work (1.22.0)
 
 - **Drag a card up or down** in its column to set what gets done first (top = first). A blue line shows where it will land. With the keyboard: Space picks the card up, Up/Down move it, Space or Enter drops it, Escape cancels.

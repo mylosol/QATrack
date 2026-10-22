@@ -87,8 +87,20 @@ export class BoardView {
     return this.board?.columns.map((c) => c.state) ?? [];
   }
 
-  /** Re-renders the whole board (cancelling any keyboard grab in progress). */
+  /**
+   * Re-renders the whole board (cancelling any keyboard grab in progress).
+   * Keyboard focus on a card (or its title) and the sideways scroll position
+   * survive, so a background refresh doesn't move people (1.23.0).
+   */
   render(board: Board): void {
+    const active = document.activeElement;
+    const focusedCard = active instanceof HTMLElement && this.root.contains(active)
+      ? active.closest<HTMLElement>('article[data-card-id]')
+      : null;
+    const focusedId = focusedCard ? Number(focusedCard.dataset.cardId) : null;
+    const focusedInner = focusedCard && active !== focusedCard && active instanceof HTMLElement ? active.id : '';
+    const scrollLeft = this.root.querySelector<HTMLElement>('.board')?.scrollLeft ?? 0;
+
     this.board = board;
     this.grab = null;
     const grid = h('div', { class: 'board', 'data-testid': 'board' });
@@ -98,6 +110,12 @@ export class BoardView {
     clear(this.root);
     this.root.appendChild(grid);
     this.root.removeAttribute('aria-busy');
+    grid.scrollLeft = scrollLeft;
+
+    if (focusedId !== null) {
+      const target = (focusedInner && document.getElementById(focusedInner)) || this.cardElement(focusedId);
+      target?.focus({ preventScroll: true });
+    }
   }
 
   /** Moves keyboard focus to a card if it is on the board. */
