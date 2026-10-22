@@ -1,6 +1,6 @@
 /**
  * Card context modal (spec 5.1): rich text description with image insertion,
- * Program and Tags (1.4.0), state transitions, discussion comments and the
+ * Tags (1.4.0), state transitions, discussion comments and the
  * revision history stream. Built on the native <dialog> element for focus
  * containment and Escape.
  *
@@ -30,19 +30,14 @@ import { createAiBadge, inAppReporter } from './card';
 import { clear, formatDate, h } from './dom';
 import { FileList } from './fileList';
 import { setMarkdown } from './markdown';
-import { ProgramPicker } from './programPicker';
 import { RichTextEditor } from './richTextEditor';
 import { sameTags, TagInput } from './tagInput';
 
 export interface WorkItemDialogHandlers {
   /** Called after a successful create/update/comment so the board can refresh. */
   onChanged(item: WorkItem, action: 'created' | 'updated' | 'commented'): void;
-  /** Program dropdown options, in display order. */
-  programs(): string[];
   /** Known tags, for suggestions. */
   tags(): string[];
-  /** A program was added from the dialog's "+" button. */
-  onProgramAdded?(name: string): void;
   /** The card's unread AI reply was marked read by opening it (1.9.0). */
   onRead?(id: number): void;
   /** This browser's per-card read tracking (1.10.0). */
@@ -86,7 +81,6 @@ interface FormControls {
   state: HTMLSelectElement;
   priority: HTMLSelectElement;
   severity: HTMLSelectElement;
-  program: ProgramPicker;
   /** Retest result (1.19.0); replaces the Iteration path box, which is no longer shown. */
   testResult: HTMLSelectElement;
   testedInVersion: HTMLInputElement;
@@ -99,13 +93,13 @@ interface FormControls {
 }
 
 /**
- * Editable fields as read from the form. Assigned to (1.6.0) and Area path
- * (1.4.0) are no longer edited on the board; the API still accepts them and
- * the dialog never changes them.
+ * Editable fields as read from the form. Assigned to (1.6.0), Area path
+ * (1.4.0) and Program (1.25.0) are no longer edited on the board; the API
+ * still accepts them and the dialog never changes them.
  */
 export type WorkItemForm = Pick<
   WorkItem,
-  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'program' | 'programVersion' | 'fixedInVersion' | 'testResult' | 'testedInVersion' | 'tags'
+  'title' | 'description' | 'type' | 'state' | 'priority' | 'severity' | 'programVersion' | 'fixedInVersion' | 'testResult' | 'testedInVersion' | 'tags'
 >;
 
 /**
@@ -135,7 +129,6 @@ export function diffForUpdate(item: WorkItem, form: WorkItemForm): UpdateWorkIte
       else delete patch.fixedInVersion;
     }
   }
-  if ((form.program ?? '') !== (item.program ?? '')) patch.program = form.program ?? '';
   if (!sameTags(form.tags, item.tags ?? [])) patch.tags = [...form.tags];
   return patch;
 }
@@ -203,7 +196,7 @@ export class WorkItemDialog {
     // Close it with ✕, Cancel or Escape.
     // Escape is handled here so a dialog with unsaved work asks first. Chrome
     // skips a cancelled 'cancel' event on a second Escape, so stop the key
-    // itself. Pickers that use Escape (tags, program) stop its propagation
+    // itself. Pickers that use Escape (the tag suggestions) stop its propagation
     // before here; the rich text editor marks it handled without using it,
     // so defaultPrevented is deliberately not checked.
     this.dialog.addEventListener('keydown', (e) => {
@@ -356,14 +349,6 @@ export class WorkItemDialog {
       ),
       priority: this.select('priority', [1, 2, 3, 4].map((p) => [String(p), `${p} - ${PRIORITY_LABELS[p]}`]), String(item?.priority ?? 2)),
       severity: this.select('severity', SEVERITIES.map((s) => [s, s]), item?.severity ?? '3 - Medium'),
-      program: new ProgramPicker({
-        programs: this.handlers.programs(),
-        selected: item?.program ?? null,
-        create: (name) => this.api.createProgram(name),
-        announce: (message) => this.announcer.announce(message),
-        onError: (message) => this.showError(message),
-        onAdded: (name) => this.handlers.onProgramAdded?.(name),
-      }),
       testResult: this.select('testResult', [['', 'Not tested'], ['Passed', 'Passed in'], ['Failed', 'Failed in']], item?.testResult ?? ''),
       testedInVersion: h('input', {
         class: 'field', name: 'testedInVersion', maxlength: 64, value: item?.testedInVersion ?? '',
@@ -411,9 +396,9 @@ export class WorkItemDialog {
       onChanged: () => void this.refreshAfterFileChange(),
     });
 
-    // Program version and Fixed in apply to Bugs only: shown and hidden as the Type changes.
+    // Found in and Fixed in apply to Bugs only: shown and hidden as the Type changes.
     const versionField = h('label', { class: 'field-label', 'data-testid': 'dialog-program-version-field' },
-      'Program version (optional)', controls.programVersion,
+      'Found in version (optional)', controls.programVersion,
       h('span', { id: 'program-version-help', class: 'text-xs font-normal text-muted' }, 'The version the bug was found in.'));
     const fixedInField = h('label', { class: 'field-label', 'data-testid': 'dialog-fixed-in-field' },
       'Fixed in version (optional)', controls.fixedInVersion,
@@ -479,7 +464,6 @@ export class WorkItemDialog {
           h('label', { class: 'field-label' }, 'State', controls.state),
           h('label', { class: 'field-label' }, 'Priority', controls.priority),
           h('label', { class: 'field-label' }, 'Severity', controls.severity),
-          h('div', { class: 'sm:col-span-2' }, controls.program.element),
           versionField,
           fixedInField,
           testField,
@@ -819,7 +803,6 @@ export class WorkItemDialog {
       // Hidden for other types: never changed from a non-Bug form.
       programVersion: c.type.value === 'Bug' ? c.programVersion.value.trim() || null : (this.item?.programVersion ?? null),
       fixedInVersion: c.type.value === 'Bug' ? c.fixedInVersion.value.trim() || null : (this.item?.fixedInVersion ?? null),
-      program: c.program.value || null,
       tags: c.tags.value,
     };
   }
@@ -884,7 +867,6 @@ export class WorkItemDialog {
           description: final.description || null,
           programVersion: final.programVersion || undefined,
           fixedInVersion: final.fixedInVersion || undefined,
-          program: final.program || undefined,
           tags: final.tags.length > 0 ? final.tags : undefined,
         });
         const problems = (await this.fileList?.uploadPending(created.id)) ?? [];

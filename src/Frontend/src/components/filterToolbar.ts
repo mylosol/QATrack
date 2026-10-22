@@ -1,7 +1,8 @@
 /**
- * Quick-filter toolbar (spec 5.1): Work Item Type, State,
- * Program, Tag (1.4.0) and AI-modified status, plus the "New work item" action and the optional
- * display name used to attribute browser edits in the audit trail.
+ * Quick-filter toolbar (spec 5.1): Work Item Type, State, Tag (1.4.0) and
+ * AI-modified status, plus the "New work item" action and the optional
+ * display name used to attribute browser edits in the audit trail. The
+ * Program filter was removed in 1.25.0 (one code base now).
  */
 import { BOARD_STATES, type BoardFilter, type DiscussionStatus, stateLabel, TYPE_LABELS, WORK_ITEM_TYPES, type WorkItemState, type WorkItemType } from '../services/types';
 import { clear, h } from './dom';
@@ -36,7 +37,6 @@ function saveDisplayName(value: string): void {
 export class FilterToolbar {
   private readonly typeSelect: HTMLSelectElement;
   private readonly stateSelect: HTMLSelectElement;
-  private readonly programSelect: HTMLSelectElement;
   private readonly tagSelect: HTMLSelectElement;
   private readonly discussionSelect: HTMLSelectElement;
   private readonly aiCheckbox: HTMLInputElement;
@@ -57,11 +57,6 @@ export class FilterToolbar {
       { class: 'field', name: 'state', 'data-testid': 'filter-state' },
       h('option', { value: '' }, 'All states'),
       ...BOARD_STATES.map((s) => h('option', { value: s }, stateLabel(s))),
-    );
-    this.programSelect = h(
-      'select',
-      { class: 'field', name: 'program', 'data-testid': 'filter-program' },
-      h('option', { value: '' }, 'All programs'),
     );
     this.tagSelect = h(
       'select',
@@ -99,7 +94,6 @@ export class FilterToolbar {
       },
       h('label', { class: 'field-label' }, 'Work item type', this.typeSelect),
       h('label', { class: 'field-label' }, 'State', this.stateSelect),
-      h('label', { class: 'field-label' }, 'Program', this.programSelect),
       h('label', { class: 'field-label' }, 'Tag', this.tagSelect),
       h('label', { class: 'field-label' }, 'Discussion', this.discussionSelect),
       h('label', { class: 'flex items-center gap-2 pb-1.5 text-sm font-medium' }, this.aiCheckbox, 'AI-modified only'),
@@ -112,7 +106,7 @@ export class FilterToolbar {
     );
 
     form.addEventListener('submit', (e) => e.preventDefault());
-    for (const control of [this.typeSelect, this.stateSelect, this.programSelect, this.tagSelect, this.discussionSelect, this.aiCheckbox]) {
+    for (const control of [this.typeSelect, this.stateSelect, this.tagSelect, this.discussionSelect, this.aiCheckbox]) {
       control.addEventListener('change', () => this.handlers.onFilterChange(this.value));
     }
     clearButton.addEventListener('click', () => {
@@ -132,7 +126,6 @@ export class FilterToolbar {
       type: (this.typeSelect.value || '') as WorkItemType | '',
       state: (this.stateSelect.value || '') as WorkItemState | '',
       aiModified: this.aiCheckbox.checked || undefined,
-      program: this.programSelect.value || undefined,
       tag: this.tagSelect.value || undefined,
       discussion: this.discussionSelect.value === 'AwaitingAgent' ? 'AwaitingAgent' : undefined,
       unreadOnly: this.discussionSelect.value === 'Unread' || undefined,
@@ -147,14 +140,13 @@ export class FilterToolbar {
   /** True when any filter is active. */
   get isFiltered(): boolean {
     const v = this.value;
-    return Boolean(v.type || v.state || v.aiModified || v.program || v.tag || v.discussion || v.unreadOnly);
+    return Boolean(v.type || v.state || v.aiModified || v.tag || v.discussion || v.unreadOnly);
   }
 
   reset(): void {
     this.typeSelect.value = '';
     this.stateSelect.value = '';
     this.aiCheckbox.checked = false;
-    this.programSelect.value = '';
     this.tagSelect.value = '';
     this.discussionSelect.value = '';
   }
@@ -195,11 +187,6 @@ export class FilterToolbar {
     const button = h('button', { type: 'button', class: 'btn py-0.5 text-xs', 'data-testid': 'mark-all-read' }, 'Mark all read');
     button.addEventListener('click', () => this.handlers.onMarkAllRead?.());
     return button;
-  }
-
-  /** Refreshes the Program filter options, keeping the selection. */
-  setPrograms(programs: string[]): void {
-    FilterToolbar.fillOptions(this.programSelect, programs);
   }
 
   /** Refreshes the Tag filter options, keeping the selection. */

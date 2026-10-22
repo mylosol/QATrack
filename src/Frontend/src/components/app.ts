@@ -107,9 +107,7 @@ export class App {
 
     this.dialog = new WorkItemDialog(byId<HTMLDialogElement>('work-item-dialog', doc), this.api, this.announcer, {
       onChanged: (item, action) => void this.onItemChanged(item, action),
-      programs: () => this.board?.metadata.programs ?? [],
       tags: () => this.board?.metadata.tags ?? [],
-      onProgramAdded: () => void this.refresh({ quiet: true }),
       onRead: () => void this.refresh({ quiet: true }),
       readState: this.readState,
       displayName: () => this.toolbar.displayName,
@@ -215,7 +213,6 @@ export class App {
       return { ...column, items: unreadOnly ? items.filter((i) => i.unread) : items };
     });
     this.boardView.render({ ...board, columns });
-    this.toolbar.setPrograms(board.metadata.programs ?? []);
     this.toolbar.setTags(board.metadata.tags ?? []);
     this.toolbar.setDiscussionCounts(unreadCount, board.metadata.awaitingAgentCount ?? 0);
     const visible = columns.reduce((n, c) => n + c.items.length, 0);

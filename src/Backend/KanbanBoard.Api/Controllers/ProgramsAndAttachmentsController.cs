@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace KanbanBoard.Api.Controllers;
 
-/// <summary>Program dropdown options for AI agents (1.4.0).</summary>
+/// <summary>Programs a work item can belong to (1.4.0). The board no longer shows programs (1.25.0); kept for older items.</summary>
 [ApiController]
 [Route("api/v1/programs")]
 [Tags("Programs")]

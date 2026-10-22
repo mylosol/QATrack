@@ -16,7 +16,6 @@ import type {
   CreateWorkItemRequest,
   ProblemDetails,
   PositionWorkItemRequest,
-  ProgramInfo,
   UpdateWorkItemRequest,
   WorkItem,
   WorkItemFile,
@@ -145,10 +144,6 @@ export class ApiClient {
     await this.request<void>('POST', `workitems/${encodeURIComponent(String(id))}/read`);
   }
 
-  /** Adds a Program dropdown option (returns the existing one for a duplicate name). */
-  createProgram(name: string): Promise<ProgramInfo> {
-    return this.request<ProgramInfo>('POST', 'programs', { name });
-  }
 
   /** Uploads an image for a description or comment. */
   uploadAttachment(file: File): Promise<AttachmentInfo> {

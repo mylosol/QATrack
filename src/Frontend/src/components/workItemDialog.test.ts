@@ -25,11 +25,9 @@ describe('diffForUpdate', () => {
     expect(diffForUpdate(versioned, { ...form, programVersion: null })).toEqual({ programVersion: '' });
   });
 
-  it('sets, changes and clears the program', () => {
-    expect(diffForUpdate(item, { ...form, program: 'ProveOut' })).toEqual({ program: 'ProveOut' });
+  it('never touches the program, which the board no longer shows (1.25.0)', () => {
     const tagged = { ...item, program: 'ProveOut' };
-    expect(diffForUpdate(tagged, { ...form, program: 'ProveOut' })).toEqual({});
-    expect(diffForUpdate(tagged, { ...form, program: null })).toEqual({ program: '' });
+    expect(diffForUpdate(tagged, { ...form, title: 'Changed' })).toEqual({ title: 'Changed' });
   });
 
   it('sends the full tag list only when the set changed (ignoring order and case)', () => {

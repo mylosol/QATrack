@@ -240,13 +240,6 @@ export interface PositionWorkItemRequest {
   beforeId: number | null;
 }
 
-/** A Program dropdown option. */
-export interface ProgramInfo {
-  id: number;
-  name: string;
-  sortOrder: number;
-}
-
 /** An uploaded image (POST api/ui/attachments). */
 export interface AttachmentInfo {
   id?: string;
