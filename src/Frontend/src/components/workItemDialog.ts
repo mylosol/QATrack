@@ -166,6 +166,8 @@ export class WorkItemDialog {
   private item: WorkItem | null = null;
   private controls: FormControls | null = null;
   private commentEditor: RichTextEditor | null = null;
+  /** The "Then: Move to ..." select next to the comment box. */
+  private commentMove: HTMLSelectElement | null = null;
   private historyHost: HTMLElement | null = null;
   private returnFocus: HTMLElement | null = null;
   /** What this browser had read when the dialog opened: decides which comments are highlighted. */
@@ -311,6 +313,7 @@ export class WorkItemDialog {
     this.controls?.description.destroy();
     this.commentEditor?.destroy();
     this.commentEditor = null;
+    this.commentMove = null;
     this.commentEdit?.editor.destroy();
     this.commentEdit = null;
   }
@@ -569,6 +572,7 @@ export class WorkItemDialog {
       ...this.editorCallbacks(),
     });
     const editor = this.commentEditor;
+    this.commentMove = moveSelect;
     this.fillMoveOptions(moveSelect, item.state);
     moveSelect.addEventListener('change', syncButton);
     addButton.addEventListener('click', () => void this.addComment(editor, addButton, moveSelect));
@@ -880,18 +884,48 @@ export class WorkItemDialog {
         this.dialog.close();
         this.handlers.onChanged(created, 'created');
       } else {
+        // A comment typed but not sent, and a "Then" move, go with the save (1.25.1):
+        // Save changes does what the comment button would have, in one history entry.
+        const pending = await this.pendingComment();
+        if (!pending) return;
         const patch = diffForUpdate(this.item, final);
+        if (pending.moveTo) patch.state = pending.moveTo;
+        if (pending.text) patch.comment = pending.text;
         if (Object.keys(patch).length === 0) {
           this.dialog.close();
           return;
         }
         const updated = await this.api.updateWorkItem(this.item.id, patch);
+        // Your own comment is read by definition.
+        if (pending.text) this.handlers.readState?.markRead(updated);
         this.dialog.close();
         this.handlers.onChanged(updated, 'updated');
+        if (pending.text || pending.moveTo) {
+          this.announcer.announce(`Saved work item ${updated.id}${pending.text ? ' with your comment' : ''}` +
+            `${pending.moveTo ? `, moved to ${stateLabel(updated.state)}` : ''}.`);
+        }
       }
     } catch (err) {
       this.showError(err instanceof ApiError ? err.message : 'Saving failed. Please try again.');
     }
+  }
+
+  /**
+   * What the comment box would still send (1.25.1): its text and the "Then"
+   * move. Null, after saying why, while an edit of an earlier comment is unsaved.
+   */
+  private async pendingComment(): Promise<{ text: string; moveTo: WorkItemState | '' } | null> {
+    if (this.commentEdit && this.commentEdit.editor.markdown.trim() !== this.commentEdit.original.trim()) {
+      this.showError('Save or cancel the comment you are editing first.');
+      this.commentEdit.editor.focus();
+      return null;
+    }
+    const editor = this.commentEditor;
+    if (editor) await editor.whenIdle();
+    return {
+      text: editor && !editor.isEmpty ? editor.markdown.trim() : '',
+      moveTo: (this.commentMove?.value ?? '') as WorkItemState | '',
+    };
   }
 
   /**

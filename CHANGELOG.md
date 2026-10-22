@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.1] - 2026-10-22
+
+### Fixed
+- **Save changes no longer throws away a comment you typed but didn't send.** If you write a comment and then click **Save changes** instead of **Add comment**, the comment is now saved along with your other changes, in one history entry. If you also picked **Then: Move to …**, the card moves too, just as the comment button would have done. If you're in the middle of editing an earlier comment, Save changes asks you to save or cancel that edit first instead of losing it.
+
 ## [1.25.0] - 2026-10-22
 
 ### Removed
