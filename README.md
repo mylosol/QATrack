@@ -175,6 +175,7 @@ The board checks for changes every 10 seconds, and right away when you come back
 - **A click outside never closes the dialog** (1.19.3), so a stray click doesn't lose your place. Close it with ✕, Cancel or Escape.
 - **Unsaved work is safe:** Escape, Cancel or ✕ never throws away typed fields or an unsent comment. The dialog asks first ("Keep editing" / "Discard changes"), and reloading the page asks too.
 - **Recording a retest:** in **Test result**, choose **Passed in** or **Failed in** and type the version you tested. **Save changes** moves the card: Passed → Closed, Failed → To Do (the column for new reports and cards sent back). The card shows the latest result.
+- **Forgot to click Add comment?** **Save changes** saves a typed comment too (1.25.1), and applies a **Then: Move to …** choice.
 - **Comment and move in one step:** under the comment box, **Then** picks a state, e.g. "Move to Closed". The button becomes "Comment & move to Closed": like **Save changes**, it saves any fields you edited, posts the comment, moves the card and closes the dialog (one history entry).
 - **Editing your comments:** comments posted under your current board name have an **Edit** button (AI comments never do). The entry shows "(edited ...)", the earlier text is kept in the database for the audit trail, and the card goes back to "Waiting for AI" so the agent re-reads it. Agents see `editedAt` on the history entry.
 - **Links to cards:** the address bar shows `?item=31` while a card is open; opening such a link opens the card.
