@@ -182,15 +182,60 @@ describe('TagInput', () => {
       expect(key(input, 'Escape').defaultPrevented).toBe(false);
     });
 
-    it('closes on blur and Tab', () => {
+    it('closes on blur', () => {
       const { tags, input } = make([], ['login']);
       typeText(input, 'l');
       input.dispatchEvent(new FocusEvent('blur'));
       expect(tags.isListOpen).toBe(false);
+    });
 
-      typeText(input, 'l');
+    it('Tab adds the first suggestion for what was typed and stays in the box (1.24.0)', () => {
+      const { tags, input, announce } = make([], ['Blog', 'login', 'logging']);
+      input.focus();
+      typeText(input, 'lo');
+      // The best match (prefix first) carries the Tab hint; nothing is "selected" yet.
+      const hinted = tags.element.querySelector('[data-testid="tag-tab-target"]')!;
+      expect(hinted.getAttribute('data-value')).toBe('login');
+      expect(hinted.getAttribute('aria-selected')).toBe('false');
+
+      const tab = key(input, 'Tab');
+      expect(tab.defaultPrevented).toBe(true);
+      expect(tags.value).toEqual(['login']);
+      expect(input.value).toBe('');
+      expect(document.activeElement).toBe(input);
+      expect(announce).toHaveBeenCalledWith('Tag login added.');
+
+      // Nothing left to complete: the next Tab moves on as usual.
+      expect(key(input, 'Tab').defaultPrevented).toBe(false);
+    });
+
+    it('Tab adds the highlighted suggestion when one is highlighted', () => {
+      const { tags, input } = make([], ['login', 'logging']);
+      typeText(input, 'lo');
+      key(input, 'ArrowDown');
+      key(input, 'ArrowDown');
+      expect(tags.element.querySelector('[data-testid="tag-tab-target"]')!.getAttribute('data-value')).toBe('logging');
       key(input, 'Tab');
+      expect(tags.value).toEqual(['logging']);
+    });
+
+    it('Tab moves on normally with no match, an empty box, or Shift held', () => {
+      const { tags, input } = make([], ['login']);
+      typeText(input, 'zzz');
+      expect(key(input, 'Tab').defaultPrevented).toBe(false);
+
+      // An empty box lists every tag, but there's nothing typed to complete.
+      typeText(input, '');
+      expect(tags.isListOpen).toBe(true);
+      expect(tags.element.querySelector('[data-testid="tag-tab-target"]')).toBeNull();
+      expect(key(input, 'Tab').defaultPrevented).toBe(false);
       expect(tags.isListOpen).toBe(false);
+
+      typeText(input, 'lo');
+      const shift = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+      input.dispatchEvent(shift);
+      expect(shift.defaultPrevented).toBe(false);
+      expect(tags.value).toEqual(['lo']); // only the typed text, still in the box
     });
 
     it('renders suggestion text safely', () => {

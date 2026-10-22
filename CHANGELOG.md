@@ -3,6 +3,11 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-10-22
+
+### Added
+- **Tab completes a tag.** While you type a tag, the best matching tag you've used before shows a small "Tab" hint; press Tab to add it and keep typing the next one. If you've highlighted a different suggestion with the arrow keys, Tab adds that one. With nothing to complete (or with Shift held), Tab moves to the next field as usual. Enter still adds exactly what you typed.
+
 ## [1.23.0] - 2026-10-22
 
 ### Changed

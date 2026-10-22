@@ -442,6 +442,23 @@ button.discussion-pill[aria-pressed='true'] {
 .tag-suggestion:hover {
   background: rgb(var(--color-column));
 }
+/* The suggestion Tab adds (1.24.0); the hint is decoration only (empty alt text for screen readers). */
+.tag-suggestion.is-tab-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.tag-suggestion.is-tab-target::after {
+  content: 'Tab' / '';
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+  font-size: 0.6875rem;
+  line-height: 1.1rem;
+  opacity: 0.75;
+}
 /* The keyboard-highlighted option: same pairing as primary buttons (>= 4.5:1). */
 .tag-suggestion[aria-selected='true'] {
   background: rgb(var(--color-primary));

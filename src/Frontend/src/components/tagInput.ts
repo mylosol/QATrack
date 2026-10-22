@@ -6,6 +6,10 @@
  * - Suggestions (tags already in use) appear in a listbox as you type, or on
  *   ArrowDown. Clicking one - or highlighting it with the arrow keys and
  *   pressing Enter - adds it as a chip immediately.
+ * - Tab completes (1.24.0): with text typed, it adds the highlighted
+ *   suggestion, or else the first (best) one, which shows a "Tab" hint, and
+ *   stays in the box for the next tag. With nothing to complete, Tab moves on
+ *   as usual, so a second Tab always leaves the field.
  * - Follows the WAI-ARIA combobox pattern (list autocomplete, manual
  *   selection): nothing is highlighted until the user moves to it, so Enter on
  *   typed text always adds exactly what was typed.
@@ -99,7 +103,7 @@ export class TagInput {
       h('span', { id: `${id}-label` }, 'Tags'),
       h('div', { class: 'relative' }, box, this.listbox),
       h('span', { id: `${id}-help`, class: 'text-xs font-normal text-muted' },
-        'Press Enter or comma to add a tag. Pick a suggestion with the arrow keys or the mouse.'),
+        'Press Enter or comma to add what you typed. Tab adds the first suggestion; pick another with the arrow keys or the mouse.'),
     );
 
     this.input.addEventListener('keydown', (e) => this.onKeyDown(e));
@@ -157,15 +161,23 @@ export class TagInput {
     this.renderList();
   }
 
+  /** The suggestion Tab would add: the highlighted one, else the first one once something is typed; -1 for none. */
+  private get tabTarget(): number {
+    if (this.active >= 0) return this.active;
+    return this.input.value.trim() && this.options.length > 0 ? 0 : -1;
+  }
+
   private renderList(): void {
+    const tabTarget = this.tabTarget;
     this.listbox.replaceChildren(
       ...this.options.map((value, i) =>
         h('li', {
           id: `${this.config.id}-option-${i}`,
           role: 'option',
-          class: 'tag-suggestion',
+          class: i === tabTarget ? 'tag-suggestion is-tab-target' : 'tag-suggestion',
           'aria-selected': String(i === this.active),
           'data-value': value,
+          'data-testid': i === tabTarget ? 'tag-tab-target' : null,
         }, value),
       ),
     );
@@ -275,9 +287,17 @@ export class TagInput {
           this.closeList();
         }
         return;
-      case 'Tab':
+      case 'Tab': {
+        // Complete the suggestion (1.24.0); otherwise let Tab move focus on.
+        const target = this.tabTarget;
+        if (this.isListOpen && target >= 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.pick(this.options[target]!);
+          return;
+        }
         this.closeList();
         return;
+      }
       case 'Backspace':
         if (this.input.value === '' && this.tags.length > 0) {
           e.preventDefault();

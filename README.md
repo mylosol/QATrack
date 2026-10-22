@@ -171,6 +171,7 @@ The board checks for changes every 10 seconds, and right away when you come back
 
 ### Working in the card dialog (1.13.0)
 
+- **Tags:** start typing and press **Tab** to add the suggested tag (the one marked "Tab"); Enter or a comma adds exactly what you typed.
 - **A click outside never closes the dialog** (1.19.3), so a stray click doesn't lose your place. Close it with ✕, Cancel or Escape.
 - **Unsaved work is safe:** Escape, Cancel or ✕ never throws away typed fields or an unsent comment. The dialog asks first ("Keep editing" / "Discard changes"), and reloading the page asks too.
 - **Recording a retest:** in **Test result**, choose **Passed in** or **Failed in** and type the version you tested. **Save changes** moves the card: Passed → Closed, Failed → To Do (the column for new reports and cards sent back). The card shows the latest result.
