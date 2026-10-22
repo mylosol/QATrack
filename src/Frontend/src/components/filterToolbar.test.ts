@@ -27,17 +27,16 @@ describe('FilterToolbar', () => {
     expect(root.querySelector('form')!.getAttribute('role')).toBe('search');
   });
 
-  it('filters by program and tag, keeping the selection across refreshes (1.4.0)', () => {
+  it('filters by tag, keeping the selection across refreshes (1.4.0); no Program filter (1.25.0)', () => {
     const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
-    toolbar.setPrograms(['ProveOut', 'CallOut']);
+    expect(root.querySelector('[data-testid="filter-program"]')).toBeNull();
     toolbar.setTags(['api', 'ui']);
 
-    select('filter-program').value = 'CallOut';
-    select('filter-program').dispatchEvent(new Event('change'));
     select('filter-tag').value = 'ui';
     select('filter-tag').dispatchEvent(new Event('change'));
 
-    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ program: 'CallOut', tag: 'ui' }));
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ tag: 'ui' }));
+    expect(onFilterChange.mock.lastCall![0]).not.toHaveProperty('program');
     expect(toolbar.isFiltered).toBe(true);
 
     toolbar.setTags(['api']); // "ui" is no longer in use but stays selected

@@ -82,7 +82,7 @@ public sealed class WorkItemDto
 
     public string IterationPath { get; init; } = string.Empty;
 
-    /// <summary>Program the item belongs to (e.g. "ProveOut"), or null.</summary>
+    /// <summary>Program the item belongs to (e.g. "ProveOut"), or null. No longer shown on the board (since 1.25.0, there is one code base); kept for older items.</summary>
     public string? Program { get; init; }
 
     /// <summary>Version of the program the bug was found in (e.g. "2.4.1"). Optional; the board shows and edits it for Bugs only.</summary>
@@ -187,7 +187,7 @@ public sealed class CreateWorkItemRequest
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AssignedTo { get; set; }
 
-    /// <summary>Area path. Defaults to "Tools\QA". Not shown on the board since 1.4.0; use program instead.</summary>
+    /// <summary>Area path. Defaults to "Tools\QA". Not shown on the board since 1.4.0; use tags instead.</summary>
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? AreaPath { get; set; }
 
@@ -195,7 +195,7 @@ public sealed class CreateWorkItemRequest
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? IterationPath { get; set; }
 
-    /// <summary>Program name (case-insensitive), one of GET /api/v1/programs. Omit for none.</summary>
+    /// <summary>Program name (case-insensitive), one of GET /api/v1/programs. Optional and not shown on the board (since 1.25.0): you don't need to set it.</summary>
     [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
     public string? Program { get; set; }
 
@@ -260,7 +260,7 @@ public sealed class UpdateWorkItemRequest
     [MaxLength(WorkItemDefaults.ShortTextMaxLength)]
     public string? IterationPath { get; set; }
 
-    /// <summary>Program name (case-insensitive). Empty string removes the program.</summary>
+    /// <summary>Program name (case-insensitive). Empty string removes the program. Not shown on the board (since 1.25.0): you don't need to set it.</summary>
     [MaxLength(WorkItemDefaults.ProgramNameMaxLength)]
     public string? Program { get; set; }
 

@@ -150,13 +150,13 @@ test.describe('Theme switcher', () => {
 
 test.describe('Automated WCAG 2.1 AA scan (axe-core)', () => {
   test.beforeEach(async ({ request }) => {
-    // Make sure every visual state is on the board: AI badge, every type, program,
+    // Make sure every visual state is on the board: AI badge, every type,
     // tags, a bug version, "Unread" and "Waiting for AI".
     const ai = await createViaAgent(request, { title: uniqueTitle('Axe AI card'), type: 'Feature' }, 'Axe-Scanner');
     await request.post(`api/v1/workitems/${ai.id}/comments`, { headers: agentHeaders('Axe-Scanner'), data: { text: 'Agent note' } });
     for (const type of ['Bug', 'UserStory', 'Epic', 'Task']) {
       await createViaUi(request, {
-        title: uniqueTitle(`Axe ${type}`), type, program: 'ProveOut', tags: ['axe', 'contrast'],
+        title: uniqueTitle(`Axe ${type}`), type, tags: ['axe', 'contrast'],
         programVersion: type === 'Bug' ? '2.4.1' : undefined,
       });
     }

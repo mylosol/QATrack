@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.25.0",
+            Date = "2026-10-22",
+            SchemaVersion = "049123c6dc93",
+            Breaking = false,
+            Summary = new[]
+            {
+                "The board no longer shows or asks for 'program': the programs now share one code base. You don't need to set 'program' when you create or update work items. It is still accepted, stored and returned (older items keep theirs), and GET /api/v1/programs still works.",
+                "'programVersion' is unchanged: the version a bug was found in (the board now calls it \"Found in version\"). Keep setting 'fixedInVersion' when you fix a bug.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.22.0",
             Date = "2026-10-21",
             SchemaVersion = "bbae5586c028",

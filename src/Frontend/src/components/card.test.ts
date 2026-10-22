@@ -19,10 +19,11 @@ describe('createCard', () => {
     expect(li.textContent).not.toContain('Unassigned');
   });
 
-  it('shows the program and tags as text inside the described meta (1.4.0)', () => {
+  it('shows tags as text inside the described meta (1.4.0), and no longer the program (1.25.0)', () => {
     const li = createCard(makeItem({ id: 9, program: 'ProveOut', tags: ['login', '<b>x</b>'] }));
     const meta = li.querySelector('#card-meta-9')!;
-    expect(meta.querySelector('[data-testid="card-program"]')!.textContent).toBe('Program ProveOut');
+    expect(li.querySelector('[data-testid="card-program"]')).toBeNull();
+    expect(li.textContent).not.toContain('ProveOut');
     const chips = [...meta.querySelectorAll('.tag-chip')].map((c) => c.textContent);
     expect(chips).toEqual(['login, ', '<b>x</b>']);
     expect(meta.querySelector('b')).toBeNull();
@@ -71,9 +72,8 @@ describe('createCard', () => {
     expect(quiet.querySelector('article')!.hasAttribute('data-discussion')).toBe(false);
   });
 
-  it('omits program and tag markup when there are none', () => {
+  it('omits tag markup when there are none', () => {
     const li = createCard(makeItem({ program: null, tags: [] }));
-    expect(li.querySelector('[data-testid="card-program"]')).toBeNull();
     expect(li.querySelector('[data-testid="card-tags"]')).toBeNull();
   });
 

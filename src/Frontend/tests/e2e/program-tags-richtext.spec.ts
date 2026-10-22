@@ -1,6 +1,7 @@
 /**
- * 1.4.0: Program dropdown with "+", Tags, and the rich text editor with
- * image insertion - through the real browser UI against the real backend.
+ * 1.4.0: Tags and the rich text editor with image insertion - through the
+ * real browser UI against the real backend. The Program dropdown is gone from
+ * the board since 1.25.0 (the API still accepts and keeps a program).
  */
 import { expect, test, type Page } from '@playwright/test';
 import { agentHeaders, cardLocator, createViaAgent, createViaUi, expectNoAxeViolations, getItem, makePng, openBoard, uniqueTitle } from './helpers';
@@ -17,61 +18,40 @@ function watchCsp(page: Page): string[] {
   return violations;
 }
 
-test.describe('Program dropdown', () => {
-  test('offers ProveOut and CallOut, adds a program with "+", and shows it on the card and filter', async ({ page }) => {
-    const program = `Field-${Date.now().toString(36)}`;
-    const title = uniqueTitle('Program pick');
+test.describe('Program (hidden since 1.25.0)', () => {
+  test('the board no longer asks for or shows a program, and keeps one an agent set', async ({ page, request }) => {
+    const item = await createViaAgent(request, { title: uniqueTitle('Agent program'), type: 'Bug', program: 'ProveOut' });
     await openBoard(page);
+    await expect(page.getByTestId('filter-program')).toHaveCount(0);
+    const card = cardLocator(page, item.id);
+    await expect(card.getByTestId('card-program')).toHaveCount(0);
+    await expect(card).not.toContainText('ProveOut');
+
+    await card.getByRole('button', { name: item.title }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByLabel('Program', { exact: true })).toHaveCount(0);
+    await expect(dialog.getByText('Area path')).toHaveCount(0);
+    await dialog.getByTestId('dialog-priority').selectOption('1');
+    await dialog.getByTestId('dialog-save').click();
+    await expect(dialog).toBeHidden();
+
+    // Saving on the board leaves the stored program alone.
+    const saved = await getItem(request, item.id);
+    expect(saved.program).toBe('ProveOut');
+    expect(saved.history!.at(-1)!.changedFields).not.toHaveProperty('Program');
 
     await page.getByTestId('new-item').click();
-    const dialog = page.getByRole('dialog', { name: 'New work item' });
-    const select = dialog.getByLabel('Program', { exact: true });
-    await expect(select).toHaveValue('');
-    const options = await select.locator('option').allTextContents();
-    expect(options.slice(0, 3)).toEqual(['— None —', 'ProveOut', 'CallOut']);
-    await expect(dialog.getByText('Area path')).toHaveCount(0);
-
-    await dialog.getByRole('button', { name: 'Add a program' }).click();
-    await dialog.getByLabel('New program name').fill(program);
-    await dialog.getByLabel('New program name').press('Enter');
-    await expect(select).toHaveValue(program);
-    await expect(select).toBeFocused();
-    await expect(dialog).toBeVisible(); // Enter did not submit the dialog
-
-    await dialog.getByLabel('Title (required)').fill(title);
-    await dialog.getByTestId('dialog-save').click();
-    await expect(dialog).toBeHidden();
-
-    const card = page.locator('article', { hasText: title });
-    await expect(card.getByTestId('card-program')).toHaveText(`Program ${program}`);
-
-    await page.getByTestId('filter-program').selectOption(program);
-    await expect(page.locator('article[data-card-id]')).toHaveCount(1);
-    await expect(card).toBeVisible();
-  });
-
-  test('changing the program is recorded in history', async ({ page, request }) => {
-    const item = await createViaUi(request, { title: uniqueTitle('Re-program'), type: 'Bug', program: 'ProveOut' });
-    await openBoard(page);
-    await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.getByLabel('Program', { exact: true }).selectOption('CallOut');
-    await dialog.getByTestId('dialog-save').click();
-    await expect(dialog).toBeHidden();
-
-    const saved = await getItem(request, item.id);
-    expect(saved.program).toBe('CallOut');
-    expect(saved.history!.at(-1)!.changedFields.Program).toEqual({ old: 'ProveOut', new: 'CallOut' });
+    await expect(page.getByRole('dialog', { name: 'New work item' }).getByLabel('Program', { exact: true })).toHaveCount(0);
   });
 });
 
-test.describe('Program version (1.7.0)', () => {
+test.describe('Found in version (1.7.0; called Program version before 1.25.0)', () => {
   test('appears only for Bugs, is saved, and shows on the bug card', async ({ page, request }) => {
     const title = uniqueTitle('Versioned bug');
     await openBoard(page);
     await page.getByTestId('new-item').click();
     const dialog = page.getByRole('dialog', { name: 'New work item' });
-    const version = dialog.getByLabel('Program version (optional)');
+    const version = dialog.getByLabel('Found in version (optional)');
 
     await expect(dialog.getByTestId('dialog-type')).toHaveValue('Bug');
     await expect(version).toBeVisible();
@@ -100,7 +80,7 @@ test.describe('Program version (1.7.0)', () => {
 
     await cardLocator(page, item.id).getByRole('button', { name: item.title }).click();
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByLabel('Program version (optional)')).toBeHidden();
+    await expect(dialog.getByLabel('Found in version (optional)')).toBeHidden();
     await dialog.getByTestId('dialog-priority').selectOption('1');
     await dialog.getByTestId('dialog-save').click();
     await expect(dialog).toBeHidden();
@@ -180,18 +160,19 @@ test.describe('Tags', () => {
     expect((await getItem(request, item.id)).tags).toEqual([first, second]);
   });
 
-  test('agents set tags and a program through /api/v1', async ({ page, request }) => {
+  test('agents set tags through /api/v1; a program is still accepted but not shown', async ({ page, request }) => {
     const item = await createViaAgent(request, {
       title: uniqueTitle('Agent tagged'), type: 'Bug', program: 'CallOut', tags: ['nightly', 'api'],
     });
     expect(item.tags).toEqual(['api', 'nightly']);
+    expect(item.program).toBe('CallOut');
 
     const programs = await (await request.get('api/v1/programs', { headers: agentHeaders() })).json();
     expect(programs.map((p: { name: string }) => p.name)).toEqual(expect.arrayContaining(['ProveOut', 'CallOut']));
 
     await openBoard(page);
     const card = cardLocator(page, item.id);
-    await expect(card.getByTestId('card-program')).toHaveText('Program CallOut');
+    await expect(card.getByTestId('card-program')).toHaveCount(0);
     await expect(card.getByTestId('card-tags')).toContainText('api');
     await expect(card.getByTestId('card-tags')).toContainText('nightly');
   });

@@ -3,6 +3,14 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-10-22
+
+### Removed
+- **Program is gone from the board.** The programs now share one code base, so the card dialog no longer has a Program dropdown, cards no longer show the program, and the filter bar no longer has a Program filter. Nothing is deleted: existing cards keep their program in the database, the API still accepts it, and saving a card on the board leaves it alone. The AI agents are told they don't need to set it (API change log).
+
+### Changed
+- The bug version field is now labelled **Found in version** (it sits next to **Fixed in version**). Same field, same data.
+
 ## [1.24.0] - 2026-10-22
 
 ### Added

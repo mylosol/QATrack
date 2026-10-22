@@ -77,16 +77,6 @@ describe('ApiClient', () => {
     expect((init as RequestInit).body).toBeUndefined();
   });
 
-  it('creates programs with a JSON body', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ id: 3, name: 'FieldTest', sortOrder: 2 }, 201));
-    const api = new ApiClient({ fetchImpl });
-
-    expect((await api.createProgram('FieldTest')).name).toBe('FieldTest');
-    const [url, init] = fetchImpl.mock.calls[0]!;
-    expect(url).toBe('api/ui/programs');
-    expect((init as RequestInit).body).toBe(JSON.stringify({ name: 'FieldTest' }));
-  });
-
   it('sends the anti-forgery header on every request and uses relative URLs', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ columns: [] }));
     const api = new ApiClient({ fetchImpl });

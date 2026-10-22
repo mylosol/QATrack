@@ -136,7 +136,6 @@ export function createCard(item: WorkItem): HTMLLIElement {
             h('span', { 'aria-hidden': 'true' }, `📎 ${item.fileCount}`),
             h('span', { class: 'sr-only' }, `${item.fileCount} file${item.fileCount === 1 ? '' : 's'} attached`))
         : null,
-      item.program ? h('span', { class: 'card-program', 'data-testid': 'card-program' }, h('span', { class: 'sr-only' }, 'Program '), item.program) : null,
       item.tags?.length
         ? h(
             'span',
