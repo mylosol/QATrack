@@ -48,6 +48,25 @@ describe('FilterToolbar', () => {
     expect(toolbar.value.tag).toBeUndefined();
   });
 
+  it('leaves an unchanged option list alone, so a refresh does not close an open dropdown (1.23.0)', () => {
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+    toolbar.setTags(['api', 'ui']);
+    const before = [...select('filter-tag').options];
+    toolbar.setTags(['api', 'ui']);
+    expect([...select('filter-tag').options]).toEqual(before);
+    expect([...select('filter-tag').options].every((o, i) => o === before[i])).toBe(true);
+    toolbar.setTags(['api', 'db', 'ui']);
+    expect([...select('filter-tag').options].map((o) => o.value)).toEqual(['', 'api', 'db', 'ui']);
+  });
+
+  it('keeps keyboard focus on a discussion shortcut when the counts refresh (1.23.0)', () => {
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+    toolbar.setDiscussionCounts(2, 1);
+    root.querySelector<HTMLElement>('[data-testid="shortcut-AwaitingAgent"]')!.focus();
+    toolbar.setDiscussionCounts(3, 1);
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('shortcut-AwaitingAgent');
+  });
+
   it('filters by "Unread by me" and "Waiting for AI", with counts and one-click shortcuts', () => {
     const onMarkAllRead = vi.fn();
     const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem, onMarkAllRead });

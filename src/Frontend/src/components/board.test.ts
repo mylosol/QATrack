@@ -340,4 +340,36 @@ describe('BoardView', () => {
       expect(handlers.onMove).toHaveBeenCalledWith(1, 'New', 'Active', { afterId: 6, beforeId: null });
     });
   });
+
+  describe('re-rendering with new data (auto refresh, 1.23.0)', () => {
+    it('keeps keyboard focus on the same card, wherever it moved', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 1 }), makeItem({ id: 2 })] }));
+      root.querySelector<HTMLElement>('article[data-card-id="2"]')!.focus();
+      view.render(makeBoard({ New: [makeItem({ id: 1 })], Active: [makeItem({ id: 2, state: 'Active' })] }));
+      expect(document.activeElement?.getAttribute('data-card-id')).toBe('2');
+      expect(document.activeElement?.closest('ul')?.getAttribute('data-state')).toBe('Active');
+    });
+
+    it('keeps focus on a card title button', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 3 })] }));
+      root.querySelector<HTMLElement>('#card-title-3')!.focus();
+      view.render(makeBoard({ New: [makeItem({ id: 3, title: 'Renamed' })] }));
+      expect(document.activeElement?.id).toBe('card-title-3');
+    });
+
+    it('leaves focus alone when it is outside the board', () => {
+      document.body.insertAdjacentHTML('beforeend', '<input id="outside">');
+      view.render(makeBoard({ New: [makeItem({ id: 4 })] }));
+      document.getElementById('outside')!.focus();
+      view.render(makeBoard({ New: [makeItem({ id: 4 })] }));
+      expect(document.activeElement?.id).toBe('outside');
+    });
+
+    it('keeps the sideways scroll position', () => {
+      view.render(makeBoard({ New: [makeItem({ id: 5 })] }));
+      root.querySelector<HTMLElement>('.board')!.scrollLeft = 120;
+      view.render(makeBoard({ New: [makeItem({ id: 5 })] }));
+      expect(root.querySelector<HTMLElement>('.board')!.scrollLeft).toBe(120);
+    });
+  });
 });

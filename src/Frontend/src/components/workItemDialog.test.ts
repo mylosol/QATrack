@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeItem } from '../test/fixtures';
-import { canEditComment, commentButtonLabel, DEFAULT_HUMAN_NAME, describeChanges, diffForUpdate } from './workItemDialog';
+import { canEditComment, commentButtonLabel, DEFAULT_HUMAN_NAME, describeChanges, diffForUpdate, returnFocusTo } from './workItemDialog';
 
 describe('diffForUpdate', () => {
   const item = makeItem({ id: 1, title: 'T', description: 'd', assignedTo: 'Ana', priority: 2 });
@@ -167,5 +167,33 @@ describe('Test result (1.19.0)', () => {
     const failedBefore = { ...resolved, state: 'Resolved' as const, testResult: 'Failed' as const, testedInVersion: '2.4.3' };
     expect(diffForUpdate(failedBefore, { ...form, testResult: 'Failed', testedInVersion: '2.4.4' }))
       .toEqual({ testedInVersion: '2.4.4', state: 'New', fixedInVersion: '' });
+  });
+});
+
+describe('returnFocusTo (1.23.0)', () => {
+  const card = (id: number) =>
+    `<article data-card-id="${id}" tabindex="0"><button id="card-title-${id}">Card ${id}</button></article>`;
+
+  it('returns the opener while it is still on the page', () => {
+    document.body.innerHTML = card(7);
+    const opener = document.getElementById('card-title-7')!;
+    expect(returnFocusTo(opener)).toBe(opener);
+  });
+
+  it('finds the same card again after the board was re-rendered', () => {
+    document.body.innerHTML = card(7);
+    const title = document.getElementById('card-title-7')!;
+    const article = document.querySelector<HTMLElement>('article')!;
+    document.body.innerHTML = card(7); // auto refresh replaced every card
+    expect(returnFocusTo(title)).toBe(document.getElementById('card-title-7'));
+    expect(returnFocusTo(article)).toBe(document.querySelector('article[data-card-id="7"]'));
+  });
+
+  it('gives up when the card is gone or nothing opened the dialog', () => {
+    document.body.innerHTML = card(7);
+    const title = document.getElementById('card-title-7')!;
+    document.body.innerHTML = '';
+    expect(returnFocusTo(title)).toBeNull();
+    expect(returnFocusTo(null)).toBeNull();
   });
 });

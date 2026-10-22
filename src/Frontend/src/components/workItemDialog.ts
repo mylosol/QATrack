@@ -155,6 +155,20 @@ export function describeChanges(entry: WorkItemHistoryEntry): string[] {
   });
 }
 
+/**
+ * Where focus goes back to when the dialog closes: the element that opened it,
+ * or, when the board was re-rendered meanwhile (auto refresh, 1.23.0), the
+ * same card's new title button or card.
+ */
+export function returnFocusTo(opener: HTMLElement | null): HTMLElement | null {
+  if (!opener) return null;
+  if (document.contains(opener)) return opener;
+  const byId = opener.id ? document.getElementById(opener.id) : null;
+  if (byId) return byId;
+  const cardId = opener.closest<HTMLElement>('article[data-card-id]')?.dataset.cardId ?? opener.dataset.cardId;
+  return cardId ? document.querySelector<HTMLElement>(`article[data-card-id="${cardId}"]`) : null;
+}
+
 export class WorkItemDialog {
   private item: WorkItem | null = null;
   private controls: FormControls | null = null;
@@ -297,7 +311,7 @@ export class WorkItemDialog {
     this.handlers.onOpenChange?.(null);
     const target = this.returnFocus;
     this.returnFocus = null;
-    if (target && document.contains(target)) target.focus();
+    returnFocusTo(target)?.focus();
   }
 
   private destroyEditors(): void {
