@@ -106,9 +106,13 @@ export class ApiClient {
     this.authBaseUrl = options.authBaseUrl ?? AUTH_API_BASE;
   }
 
-  /** GET the board (columns, WIP status, filtered cards). */
-  getBoard(filter: BoardFilter = {}): Promise<Board> {
-    return this.request<Board>('GET', `board${buildQuery(filter)}`);
+  /**
+   * GET the board (columns, WIP status, filtered cards). With `timeoutMs`, a
+   * request still unanswered (or still downloading) after that long is
+   * abandoned with an ApiError, so a stalled connection can't hang the board.
+   */
+  getBoard(filter: BoardFilter = {}, options: { timeoutMs?: number } = {}): Promise<Board> {
+    return this.send<Board>('GET', this.baseUrl + `board${buildQuery(filter)}`, undefined, true, options.timeoutMs);
   }
 
   /** GET one work item with full history. */
@@ -188,7 +192,22 @@ export class ApiClient {
     return this.send<T>(method, this.baseUrl + path, body, true);
   }
 
-  private async send<T>(method: string, url: string, body?: unknown, isBoardData = false): Promise<T> {
+  private async send<T>(method: string, url: string, body?: unknown, isBoardData = false, timeoutMs?: number): Promise<T> {
+    const abort = timeoutMs ? new AbortController() : null;
+    const timer = abort ? setTimeout(() => abort.abort(), timeoutMs) : undefined;
+    try {
+      return await this.sendOnce<T>(method, url, body, isBoardData, abort?.signal);
+    } catch (err) {
+      if (abort?.signal.aborted) {
+        throw new ApiError(0, { title: 'Timed out', detail: 'The QATrack server is taking too long to answer. The board will try again by itself.' });
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async sendOnce<T>(method: string, url: string, body: unknown, isBoardData: boolean, signal?: AbortSignal): Promise<T> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       [REQUESTED_WITH_HEADER]: REQUESTED_WITH_VALUE,
@@ -211,6 +230,7 @@ export class ApiClient {
         body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
         credentials: 'same-origin',
         cache: 'no-store',
+        signal,
       });
     } catch {
       throw new ApiError(0, { title: 'Network error', detail: 'Could not reach the QATrack server. Check your connection and try again.' });

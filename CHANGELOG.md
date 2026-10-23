@@ -3,6 +3,12 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.2] - 2026-10-23
+
+### Fixed
+- **The board could stay on "Loading board…" for a long time.** Since 1.23.0 the board checks for changes every 10 seconds, and each check replaced the one before it. When answers took longer than that (a slow connection, a Cloudflare hiccup), every answer was thrown away and nothing was shown until the connection sped up. Now a check waits for the one still on its way, and a request that takes over 20 seconds is given up with a message ("taking too long… will try again by itself") and tried again.
+- **An error drawing the board was hidden.** If the board failed to draw, the error showed briefly and the next check cleared it as "nothing changed", leaving "Loading board…" with no message. Now the error stays visible and the board is drawn again on the next check.
+
 ## [1.25.1] - 2026-10-22
 
 ### Fixed
