@@ -20,6 +20,13 @@ import { WorkItemDialog } from './workItemDialog';
  */
 export const AUTO_REFRESH_MS = 10_000;
 
+/**
+ * A board request still unanswered after this long is abandoned with a message
+ * and tried again on the next tick (1.25.2), so a stalled connection can't leave
+ * the board on "Loading board…".
+ */
+export const BOARD_TIMEOUT_MS = 20_000;
+
 /** Query parameter that opens a card: /?item=31 (the in-app report receipt links here, 1.13.0). */
 export const ITEM_PARAM = 'item';
 
@@ -58,6 +65,8 @@ export class App {
   private boardJson = '';
   /** Moves being saved: a background refresh then could briefly show the card back where it was. */
   private savingMoves = 0;
+  /** Board requests on their way (1.25.2): a background refresh waits for them instead of replacing them. */
+  private loading = 0;
   private filter: BoardFilter = {};
   private requestSeq = 0;
   private readonly notice: HTMLElement;
@@ -133,10 +142,12 @@ export class App {
 
   /**
    * Picks up changes made elsewhere. Skipped while the tab is hidden, while a
-   * card is being dragged or moved with the keyboard, and while a move is saving.
+   * card is being dragged or moved with the keyboard, while a move is saving,
+   * and while a board request is still on its way: replacing it would throw its
+   * answer away, and on a slow connection no answer would ever be shown (1.25.2).
    */
   refreshInBackground(): Promise<Board | null> {
-    if (document.hidden || this.isInteracting() || this.savingMoves > 0) return Promise.resolve(null);
+    if (document.hidden || this.isInteracting() || this.savingMoves > 0 || this.loading > 0) return Promise.resolve(null);
     return this.refresh({ quiet: true, background: true });
   }
 
@@ -168,8 +179,9 @@ export class App {
   async refresh(options: { quiet?: boolean; announceSummary?: boolean; focusId?: number; background?: boolean } = {}): Promise<Board | null> {
     const seq = ++this.requestSeq;
     if (!options.quiet) this.boardRoot.setAttribute('aria-busy', 'true');
+    this.loading++;
     try {
-      const board = await this.api.getBoard(this.filter);
+      const board = await this.api.getBoard(this.filter, { timeoutMs: BOARD_TIMEOUT_MS });
       if (seq !== this.requestSeq) return null;
       // A move started while this was loading: its own refresh will show the result.
       if (options.background && (this.savingMoves > 0 || this.isInteracting())) return null;
@@ -179,8 +191,9 @@ export class App {
         return board;
       }
       this.board = board;
-      this.boardJson = json;
       const summary = this.renderBoard();
+      // Only once it is on screen: a board that failed to draw is drawn again next time (1.25.2).
+      this.boardJson = json;
       if (options.announceSummary) this.announcer.announce(summary);
       if (options.focusId !== undefined) this.boardView.focusCard(options.focusId);
       this.clearError();
@@ -188,9 +201,15 @@ export class App {
     } catch (err) {
       if (seq === this.requestSeq) {
         this.boardRoot.removeAttribute('aria-busy');
-        this.showError(err, () => void this.refresh());
+        if (!(err instanceof ApiError)) console.error('QATrack: the board could not be drawn.', err);
+        this.showError(
+          err instanceof ApiError ? err : new Error(`The board could not be drawn (${err instanceof Error ? err.message : String(err)}). It will try again by itself.`),
+          () => void this.refresh(),
+        );
       }
       return null;
+    } finally {
+      this.loading--;
     }
   }
 
