@@ -159,6 +159,10 @@ Comments live in each item's history, which only `GET /api/v1/workitems/{id}` re
 
 Fill in **Your name (for history)** on the board so your comments show a name instead of "Web UI User".
 
+### Search (1.26.0)
+
+Type in the **Search cases** box in the top bar (or press **/**). As you type, it lists the cases whose title, description or comments contain every word, best matches first; "double quotes" keep words together, and closed cases are included. Words are highlighted where they were found: **yellow** for titles, **blue** for descriptions, **green** for comments, in the results, on the board (found cases are outlined) and in the opened case. Comments show who wrote them, so it finds the case where you said something, or where an agent left you instructions. Clicking a comment opens the case at that comment.
+
 ### Live board (1.23.0)
 
 The board checks for changes every 10 seconds, and right away when you come back to its tab, so moves and comments by other people and agents appear without reloading. It keeps updating while a card is open, but only the board behind it: the open card and what you're typing stay as they are. It pauses while you drag or keyboard-move a card.

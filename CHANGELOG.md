@@ -3,6 +3,14 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-10-29
+
+### Added
+- **Search.** A search box in the top bar finds cases by their **title**, **description** and **comments** as you type. Every word you type must appear somewhere in the case; put words in "double quotes" to find them together. Words match from the start of a word ("time" finds "timeout", "out" doesn't find "checkout"). Closed cases are included, so you can check whether something was already written up.
+- **Highlighted where it was found.** Each word is marked in a colour per place: **yellow** in a title, **blue** in a description, **green** in a comment. The results list shows the matching part of the description and each matching comment, with who wrote it ("You", or 🤖 and the agent's name) and when. On the board, the cases found are outlined and the word is highlighted in their titles. In an opened case, the word is highlighted in the description and the comments.
+- **Open at the comment.** Clicking a comment in the results opens the case scrolled to that comment.
+- Keyboard: **/** jumps to the search box; Down arrow moves into the results, Enter opens; Escape closes the list, and a second Escape clears the search.
+
 ## [1.25.2] - 2026-10-23
 
 ### Fixed
