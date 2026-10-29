@@ -314,6 +314,8 @@ export class App {
   private async onItemChanged(item: WorkItem, action: 'created' | 'updated' | 'commented'): Promise<void> {
     if (action === 'created') this.announcer.announce(`Created work item ${item.id}: ${item.title}.`);
     if (action === 'updated') this.announcer.announce(`Saved work item ${item.id}.`);
+    // Search results follow the change too (e.g. a deleted comment no longer matches).
+    if (this.searchBox.terms.length > 0) void this.searchBox.searchNow();
     await this.refresh({ quiet: true, focusId: action === 'commented' ? undefined : item.id });
   }
 

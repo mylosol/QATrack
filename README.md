@@ -182,6 +182,7 @@ The board checks for changes every 10 seconds, and right away when you come back
 - **Forgot to click Add comment?** **Save changes** saves a typed comment too (1.25.1), and applies a **Then: Move to …** choice.
 - **Comment and move in one step:** under the comment box, **Then** picks a state, e.g. "Move to Closed". The button becomes "Comment & move to Closed": like **Save changes**, it saves any fields you edited, posts the comment, moves the card and closes the dialog (one history entry).
 - **Editing your comments:** comments posted under your current board name have an **Edit** button (AI comments never do). The entry shows "(edited ...)", the earlier text is kept in the database for the audit trail, and the card goes back to "Waiting for AI" so the agent re-reads it. Agents see `editedAt` on the history entry.
+- **Deleting your comments (1.27.0):** next to **Edit**, **Delete** asks "Delete this comment for good?" and then removes the comment completely: its text, earlier versions and any picture only it used. Nothing is kept. A comment posted with a move keeps the move. The comment count and "Waiting for AI" are recalculated.
 - **Links to cards:** the address bar shows `?item=31` while a card is open; opening such a link opens the card.
 - **Top button (1.21.0):** scrolled down? **↑ Top** in the bottom-left corner takes you back up.
 - **Go to case (1.20.0):** type a case number in the top bar (`83`, `#83` or a pasted link) and press Enter or **Open**. Filters don't get in the way.

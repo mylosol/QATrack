@@ -182,6 +182,8 @@ export class WorkItemDialog {
   private initialNewForm: string | null = null;
   /** The comment being edited in place, if any. */
   private commentEdit: CommentEdit | null = null;
+  /** History id of the comment waiting for "Delete this comment?" (1.27.0). */
+  private commentDelete: number | null = null;
   /** "You have unsaved changes" confirmation, shown instead of closing. */
   private discardBar: HTMLElement | null = null;
   /** Attached files (1.14.0). */
@@ -336,6 +338,7 @@ export class WorkItemDialog {
     this.commentMove = null;
     this.commentEdit?.editor.destroy();
     this.commentEdit = null;
+    this.commentDelete = null;
   }
 
   private editorCallbacks(): Pick<ConstructorParameters<typeof RichTextEditor>[0], 'upload' | 'onError' | 'announce'> {
@@ -656,13 +659,25 @@ export class WorkItemDialog {
       if (entry.comment) setMarkdown(comment, entry.comment);
       const unread = this.isUnreadEntry(item, entry);
       const editing = this.commentEdit?.entryId === entry.id ? this.commentEdit : null;
+      const deleting = this.commentDelete === entry.id;
       let editButton: HTMLButtonElement | null = null;
-      if (!editing && canEditComment(entry, this.handlers.displayName?.())) {
+      let deleteButton: HTMLButtonElement | null = null;
+      if (!editing && !deleting && canEditComment(entry, this.handlers.displayName?.())) {
         editButton = h('button', {
           type: 'button', class: 'mark-unread-btn', 'data-testid': 'comment-edit',
           title: 'Edit your comment',
         }, h('span', { 'aria-hidden': 'true' }, '✎ '), 'Edit');
         editButton.addEventListener('click', () => this.startCommentEdit(item, entry));
+        deleteButton = h('button', {
+          type: 'button', class: 'mark-unread-btn', 'data-testid': 'comment-delete',
+          title: 'Delete your comment',
+        }, h('span', { 'aria-hidden': 'true' }, '🗑 '), 'Delete');
+        deleteButton.addEventListener('click', () => {
+          this.commentDelete = entry.id;
+          this.historyHost?.replaceChildren(this.renderHistory(item));
+          // Keep it is focused, so a stray Enter doesn't delete.
+          this.dialog.querySelector<HTMLElement>(`[data-history-id="${entry.id}"] [data-testid="comment-delete-cancel"]`)?.focus();
+        });
       }
       let markUnread: HTMLButtonElement | null = null;
       if (entry.comment && this.handlers.readState && !unread) {
@@ -695,10 +710,12 @@ export class WorkItemDialog {
             unread ? h('span', { class: 'discussion-pill discussion-unread', 'data-testid': 'comment-unread' }, 'New', h('span', { class: 'sr-only' }, ' unread comment')) : null,
             markUnread || editButton ? h('span', { class: 'flex-1' }) : null,
             editButton,
+            deleteButton,
             markUnread,
           ),
           changes.length > 0 ? h('ul', { class: 'mt-1 list-disc pl-5 text-xs text-muted' }, ...changes.map((c) => h('li', {}, c))) : null,
           editing ? editing.element : entry.comment ? comment : null,
+          deleting ? this.renderDeleteConfirm(item, entry) : null,
         ),
       );
     }
@@ -718,6 +735,63 @@ export class WorkItemDialog {
       this.handlers.onChanged(refreshed, 'commented');
     } catch {
       // The file itself was saved; the history catches up next time the card opens.
+    }
+  }
+
+  /** "Delete this comment?" under the comment (1.27.0). */
+  private renderDeleteConfirm(item: WorkItem, entry: WorkItemHistoryEntry): HTMLElement {
+    const questionId = `comment-delete-q-${entry.id}`;
+    const yes = h('button', { type: 'button', class: 'btn btn-danger', 'data-testid': 'comment-delete-confirm' }, 'Delete comment');
+    const no = h('button', { type: 'button', class: 'btn', 'data-testid': 'comment-delete-cancel' }, 'Keep it');
+    const element = h(
+      'div',
+      { class: 'mt-2 flex flex-wrap items-center gap-2', role: 'group', 'aria-labelledby': questionId, 'data-testid': 'comment-delete-form' },
+      h('span', { id: questionId, class: 'flex-1 text-sm font-medium' },
+        'Delete this comment for good? Pictures in it are deleted too. This can’t be undone.'),
+      no,
+      yes,
+    );
+    // Escape here keeps the comment rather than closing the whole dialog.
+    element.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.cancelCommentDelete(item, entry.id);
+    });
+    no.addEventListener('click', () => this.cancelCommentDelete(item, entry.id));
+    yes.addEventListener('click', () => void this.deleteComment(item, entry, yes));
+    return element;
+  }
+
+  private cancelCommentDelete(item: WorkItem, entryId: number): void {
+    this.commentDelete = null;
+    this.historyHost?.replaceChildren(this.renderHistory(this.item ?? item));
+    this.dialog.querySelector<HTMLElement>(`[data-history-id="${entryId}"] [data-testid="comment-delete"]`)?.focus();
+  }
+
+  private async deleteComment(item: WorkItem, entry: WorkItemHistoryEntry, button: HTMLButtonElement): Promise<void> {
+    // Focus goes to what takes the comment's place (or the comment box when nothing does).
+    const row = button.closest('li');
+    const neighbourId = (row?.nextElementSibling ?? row?.previousElementSibling)?.getAttribute('data-history-id');
+    button.disabled = true;
+    try {
+      await this.api.deleteComment(item.id, entry.id);
+      const refreshed = await this.api.getWorkItem(item.id);
+      this.commentDelete = null;
+      this.item = { ...(this.item ?? item), history: refreshed.history, updatedAt: refreshed.updatedAt };
+      this.historyHost?.replaceChildren(this.renderHistory(this.item));
+      this.showError(null);
+      this.announcer.announce('Comment deleted.');
+      this.handlers.onChanged(refreshed, 'commented');
+      // An entry that also moved the card stays, without its comment.
+      const stays = refreshed.history?.some((e) => e.id === entry.id);
+      const next = (stays ? this.dialog.querySelector<HTMLElement>(`[data-history-id="${entry.id}"] button`) : null) ??
+        this.dialog.querySelector<HTMLElement>(`[data-history-id="${neighbourId}"] button`);
+      if (next) next.focus();
+      else this.commentEditor?.focus();
+    } catch (err) {
+      button.disabled = false;
+      this.showError(err instanceof ApiError ? err.message : 'Could not delete the comment.');
     }
   }
 

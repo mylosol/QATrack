@@ -3,6 +3,14 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-10-29
+
+### Added
+- **Delete your comments.** Comments posted under your board name have a **Delete** button next to **Edit** (AI comments never do). It asks first ("Delete this comment for good?", with **Keep it** selected), then removes the comment completely: its text, its earlier edited versions, and any picture in it that nothing else on the board uses. No trace is left in the history. A comment posted together with a move keeps the move; only the comment goes.
+- The card's comment count and "Waiting for AI" status are worked out again from the comments left, so deleting a question you asked takes the card off the agent's list.
+- Open search results refresh when a case changes, so a deleted comment drops out of them.
+- API: agents are told (in GET /api/v1/meta) that people can delete their own comments, and not to act on a comment that has gone.
+
 ## [1.26.0] - 2026-10-29
 
 ### Added
