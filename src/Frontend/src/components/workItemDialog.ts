@@ -31,6 +31,7 @@ import { clear, formatDate, h } from './dom';
 import { FileList } from './fileList';
 import { setMarkdown } from './markdown';
 import { RichTextEditor } from './richTextEditor';
+import { setHighlights } from './searchHighlight';
 import { sameTags, TagInput } from './tagInput';
 
 export interface WorkItemDialogHandlers {
@@ -42,6 +43,8 @@ export interface WorkItemDialogHandlers {
   onRead?(id: number): void;
   /** This browser's per-card read tracking (1.10.0). */
   readState?: ReadState;
+  /** Words of the board search, highlighted in the open card (1.26.0). */
+  searchTerms?(): string[];
   /** The name set on the toolbar: comments posted under it can be edited here (1.13.0). */
   displayName?(): string | null;
   /** A card was opened (its id) or the dialog closed (null), e.g. to keep a link in the address bar. */
@@ -273,8 +276,11 @@ export class WorkItemDialog {
     this.show();
   }
 
-  /** Loads a work item (with history) and opens it for editing. */
-  async openExisting(id: number): Promise<void> {
+  /**
+   * Loads a work item (with history) and opens it for editing. With
+   * `historyId` (a search hit in a comment, 1.26.0) the history scrolls to it.
+   */
+  async openExisting(id: number, options: { historyId?: number } = {}): Promise<void> {
     try {
       const item = await this.api.getWorkItem(id);
       this.item = item;
@@ -282,6 +288,10 @@ export class WorkItemDialog {
       this.readSnapshot = this.handlers.readState?.readAt(id) ?? null;
       this.render(item);
       this.show();
+      this.highlightSearch();
+      if (options.historyId !== undefined) {
+        this.dialog.querySelector(`[data-history-id="${options.historyId}"]`)?.scrollIntoView?.({ block: 'center' });
+      }
       // Opening the card reads it - for this browser only.
       this.handlers.readState?.markRead(item);
       if (item.discussionStatus === 'UnreadReply') {
@@ -301,7 +311,17 @@ export class WorkItemDialog {
     this.handlers.onOpenChange?.(this.item?.id ?? null);
   }
 
+  /** Marks the board search's words in the description and the comments (1.26.0). */
+  highlightSearch(): void {
+    const terms = this.dialog.open ? (this.handlers.searchTerms?.() ?? []) : [];
+    setHighlights('dialog', terms, {
+      description: [...this.dialog.querySelectorAll('[data-testid="dialog-description"]')],
+      comment: [...this.dialog.querySelectorAll('[data-history-id] .markdown')],
+    });
+  }
+
   private onClosed(): void {
+    setHighlights('dialog', []);
     if (this.discardBar) this.discardBar.hidden = true;
     this.handlers.onOpenChange?.(null);
     const target = this.returnFocus;
@@ -624,6 +644,8 @@ export class WorkItemDialog {
   }
 
   private renderHistory(item: WorkItem): HTMLElement {
+    // Callers put the list on the page right away; highlight it once it is there.
+    queueMicrotask(() => this.highlightSearch());
     const history = [...(item.history ?? [])].reverse();
     if (history.length === 0) return h('p', { class: 'text-sm text-muted' }, 'No history yet.');
 

@@ -23,15 +23,22 @@ public sealed class UiBoardController : ControllerBase
     private readonly ProgramService _programs;
     private readonly AttachmentService _attachments;
     private readonly FileService _files;
+    private readonly SearchService _search;
 
-    public UiBoardController(WorkItemService items, BoardService board, ProgramService programs, AttachmentService attachments, FileService files)
+    public UiBoardController(WorkItemService items, BoardService board, ProgramService programs, AttachmentService attachments, FileService files, SearchService search)
     {
         _items = items;
         _board = board;
         _programs = programs;
         _attachments = attachments;
         _files = files;
+        _search = search;
     }
+
+    /// <summary>Search titles, descriptions and comments (1.26.0): every word must appear in the case.</summary>
+    [HttpGet("search")]
+    public async Task<ActionResult<SearchResultsDto>> Search([FromQuery] string? q, [FromQuery] int? top, CancellationToken ct)
+        => Ok(await _search.SearchAsync(q, top, ct));
 
     /// <summary>Program dropdown options.</summary>
     [HttpGet("programs")]

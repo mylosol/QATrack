@@ -66,6 +66,7 @@ builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<ProgramService>();
 builder.Services.AddScoped<AttachmentService>();
 builder.Services.AddScoped<FileService>();
+builder.Services.AddScoped<SearchService>();
 builder.Services.AddSingleton<ApiContract>();
 builder.Services.AddScoped<IssueReportService>();
 

@@ -556,3 +556,135 @@ button.discussion-pill[aria-pressed='true'] {
   border-radius: 0.25rem;
   margin: 0.25rem 0;
 }
+
+/* ---------- Search (1.26.0) ---------- */
+.search {
+  position: relative;
+}
+.search-input {
+  width: 100%;
+}
+.search-panel {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  z-index: 60;
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: min(70vh, 36rem);
+  overflow-y: auto;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 0.5rem;
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-fg));
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.3);
+}
+.search-panel-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgb(var(--color-line) / 0.4);
+  background: rgb(var(--color-surface));
+  font-size: 0.875rem;
+}
+.search-summary {
+  font-weight: 600;
+}
+.search-legend {
+  font-size: 0.75rem;
+  color: rgb(var(--color-muted));
+}
+.search-results > li + li {
+  border-top: 1px solid rgb(var(--color-line) / 0.4);
+}
+.search-open,
+.search-comment {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: rgb(var(--color-fg));
+}
+.search-open:hover,
+.search-comment:hover,
+.search-open:focus-visible,
+.search-comment:focus-visible {
+  background: rgb(var(--color-column));
+}
+.search-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+}
+.search-id {
+  font-weight: 600;
+  color: rgb(var(--color-muted));
+}
+.search-title {
+  font-weight: 600;
+}
+.search-meta {
+  font-size: 0.75rem;
+  color: rgb(var(--color-muted));
+}
+.search-snippet {
+  display: block;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.search-comments .search-comment {
+  padding-top: 0.25rem;
+  padding-left: 1.5rem;
+  overflow-wrap: anywhere;
+}
+.search-where {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--color-muted));
+}
+.search-more {
+  padding: 0 0.75rem 0.5rem 1.5rem;
+  font-size: 0.75rem;
+  color: rgb(var(--color-muted));
+}
+
+/* One colour per place a word was found: in the results (<mark>) ... */
+mark.hl {
+  border-radius: 0.125rem;
+  padding: 0 0.0625rem;
+}
+mark.hl-title {
+  background: rgb(var(--hl-title));
+  color: rgb(var(--hl-title-fg));
+}
+mark.hl-description {
+  background: rgb(var(--hl-description));
+  color: rgb(var(--hl-description-fg));
+}
+mark.hl-comment {
+  background: rgb(var(--hl-comment));
+  color: rgb(var(--hl-comment-fg));
+}
+/* ... and on the board and in an opened card (CSS Custom Highlight API; separate rules, so a browser without it keeps the ones above). */
+::highlight(qa-hit-title) {
+  background-color: rgb(var(--hl-title));
+  color: rgb(var(--hl-title-fg));
+}
+::highlight(qa-hit-description) {
+  background-color: rgb(var(--hl-description));
+  color: rgb(var(--hl-description-fg));
+}
+::highlight(qa-hit-comment) {
+  background-color: rgb(var(--hl-comment));
+  color: rgb(var(--hl-comment-fg));
+}
+/* Cards the search found. */
+.card.search-hit {
+  box-shadow: 0 0 0 3px rgb(var(--hl-title));
+}

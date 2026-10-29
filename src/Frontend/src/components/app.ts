@@ -9,6 +9,8 @@ import { Announcer } from './announcer';
 import { BackToTop } from './backToTop';
 import { BoardView, type Placement } from './board';
 import { CaseLookup } from './caseLookup';
+import { SearchBox } from './searchBox';
+import { setHighlights } from './searchHighlight';
 import { byId, h } from './dom';
 import { FilterToolbar } from './filterToolbar';
 import { ThemeSwitcher } from './themeSwitcher';
@@ -55,6 +57,8 @@ export class App {
   readonly themeSwitcher: ThemeSwitcher;
   /** Floating "Top" button (1.21.0). */
   readonly backToTop: BackToTop;
+  /** Search box in the header (1.26.0). */
+  readonly searchBox: SearchBox;
   /** "Go to case" box in the header (1.20.0). */
   readonly caseLookup: CaseLookup;
   /** Per-browser read tracking for comments (1.10.0). */
@@ -67,6 +71,9 @@ export class App {
   private savingMoves = 0;
   /** Board requests on their way (1.25.2): a background refresh waits for them instead of replacing them. */
   private loading = 0;
+  /** The board search (1.26.0): its words, and the cases that matched. */
+  private searchTerms: string[] = [];
+  private searchHits: ReadonlySet<number> = new Set();
   private filter: BoardFilter = {};
   private requestSeq = 0;
   private readonly notice: HTMLElement;
@@ -110,6 +117,18 @@ export class App {
       open: (id) => this.dialog.openExisting(id),
     });
 
+    this.searchBox = new SearchBox(byId('search', doc), {
+      search: (query) => this.api.search(query),
+      open: (id, historyId) => this.dialog.openExisting(id, { historyId }),
+      onChange: (terms, hits) => {
+        this.searchTerms = terms;
+        this.searchHits = hits;
+        this.markSearchOnBoard();
+        this.dialog.highlightSearch();
+      },
+      displayName: () => this.toolbar.displayName,
+    });
+
     this.backToTop = new BackToTop(byId('back-to-top-root', doc), byId('board', doc));
 
     this.themeSwitcher = new ThemeSwitcher(byId('theme-switcher-root', doc), doc.documentElement, this.announcer);
@@ -120,6 +139,7 @@ export class App {
       onRead: () => void this.refresh({ quiet: true }),
       readState: this.readState,
       displayName: () => this.toolbar.displayName,
+      searchTerms: () => this.searchTerms,
       // Keep the open card in the address bar, so the link can be copied and shared.
       onOpenChange: (id) => {
         const next = urlWithItem(window.location.href, id);
@@ -232,11 +252,21 @@ export class App {
       return { ...column, items: unreadOnly ? items.filter((i) => i.unread) : items };
     });
     this.boardView.render({ ...board, columns });
+    this.markSearchOnBoard();
     this.toolbar.setTags(board.metadata.tags ?? []);
     this.toolbar.setDiscussionCounts(unreadCount, board.metadata.awaitingAgentCount ?? 0);
     const visible = columns.reduce((n, c) => n + c.items.length, 0);
     const total = board.columns.reduce((n, c) => n + c.itemCount, 0);
     return this.toolbar.setSummary(visible, total);
+  }
+
+  /** Outlines the cases the search found and highlights its words in card titles (1.26.0). */
+  private markSearchOnBoard(): void {
+    const searching = this.searchTerms.length > 0;
+    for (const card of this.boardRoot.querySelectorAll<HTMLElement>('article[data-card-id]')) {
+      card.classList.toggle('search-hit', searching && this.searchHits.has(Number(card.dataset.cardId)));
+    }
+    setHighlights('board', this.searchTerms, { title: [...this.boardRoot.querySelectorAll('.card-title')] });
   }
 
   /**

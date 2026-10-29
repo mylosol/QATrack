@@ -21,6 +21,7 @@ import type {
   WorkItemFile,
   WorkItemHistoryEntry,
 } from './types';
+import type { SearchResults } from './search';
 
 export const UI_API_BASE = 'api/ui/';
 export const AUTH_API_BASE = 'api/auth/';
@@ -113,6 +114,11 @@ export class ApiClient {
    */
   getBoard(filter: BoardFilter = {}, options: { timeoutMs?: number } = {}): Promise<Board> {
     return this.send<Board>('GET', this.baseUrl + `board${buildQuery(filter)}`, undefined, true, options.timeoutMs);
+  }
+
+  /** Searches titles, descriptions and comments (1.26.0). */
+  search(query: string): Promise<SearchResults> {
+    return this.request<SearchResults>('GET', `search?q=${encodeURIComponent(query)}`);
   }
 
   /** GET one work item with full history. */
