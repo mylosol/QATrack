@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using KanbanBoard.Api.Data;
 using KanbanBoard.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,11 @@ public sealed class AttachmentService
 {
     /// <summary>Relative URL prefix the board uses in markdown image links.</summary>
     public const string UiUrlPrefix = "api/ui/attachments/";
+
+    /// <summary>A link to a stored picture, by either API's path.</summary>
+    private static readonly Regex AttachmentLink = new(
+        "attachments/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        RegexOptions.CultureInvariant);
 
     private readonly KanbanDbContext _db;
     private readonly IActorContext _actor;
@@ -76,6 +82,40 @@ public sealed class AttachmentService
         _db.Attachments.Add(attachment);
         await _db.SaveChangesAsync(ct);
         return (attachment.Id, contentType);
+    }
+
+    /// <summary>Ids of the pictures these texts link to (api/ui/attachments/{id} and the like).</summary>
+    internal static IReadOnlySet<Guid> LinkedIds(IEnumerable<string?> texts) =>
+        texts.OfType<string>()
+            .SelectMany(t => AttachmentLink.Matches(t).Select(m => Guid.Parse(m.Groups[1].Value)))
+            .ToHashSet();
+
+    /// <summary>
+    /// Deletes those of <paramref name="ids"/> nothing uses any more (1.27.0): no
+    /// attached file (removed ones included, they are kept for the audit trail)
+    /// and no description, comment, earlier comment version or recorded change
+    /// that links to it. Call it once the text that linked to them is gone.
+    /// </summary>
+    /// <returns>How many were deleted.</returns>
+    internal static async Task<int> DeleteUnusedAsync(KanbanDbContext db, IEnumerable<Guid> ids, CancellationToken ct)
+    {
+        var deleted = 0;
+        foreach (var id in ids)
+        {
+            // LIKE ignores case in SQLite, so a link typed in capitals still counts.
+            var pattern = "%" + id.ToString("D") + "%";
+            var used =
+                await db.WorkItemFiles.AnyAsync(f => f.AttachmentId == id, ct) ||
+                await db.WorkItems.AnyAsync(w => EF.Functions.Like(w.Description, pattern), ct) ||
+                await db.WorkItemHistory.AnyAsync(h => EF.Functions.Like(h.Comment, pattern) || EF.Functions.Like(h.ChangedFieldsJson, pattern), ct) ||
+                await db.CommentRevisions.AnyAsync(r => EF.Functions.Like(r.Comment, pattern), ct);
+            if (!used)
+            {
+                deleted += await db.Attachments.Where(a => a.Id == id).ExecuteDeleteAsync(ct);
+            }
+        }
+
+        return deleted;
     }
 
     /// <summary>Returns the stored image, or null when the id is unknown.</summary>

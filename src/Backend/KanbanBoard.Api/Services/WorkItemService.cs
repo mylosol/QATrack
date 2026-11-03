@@ -437,16 +437,7 @@ public sealed class WorkItemService
             throw new CommentNotFoundException(id, commentId);
         }
 
-        if (_actor.IsAi || entry.IsAiAction)
-        {
-            throw new WorkItemForbiddenException("AI agent comments cannot be edited.");
-        }
-
-        if (!string.Equals(entry.Author, _actor.DisplayName, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new WorkItemForbiddenException(
-                $"Only {entry.Author} can edit this comment. Set your name on the board to the name the comment was posted under.");
-        }
+        EnsureOwnComment(entry, "edited", "edit");
 
         if (entry.Comment == text)
         {
@@ -471,6 +462,78 @@ public sealed class WorkItemService
 
         await _db.SaveChangesAsync(ct);
         return WorkItemMapper.ToDto(entry);
+    }
+
+    /// <summary>
+    /// A human deletes a comment they wrote (1.27.0), completely: its text, its
+    /// earlier versions and any picture in it that nothing else on the board
+    /// uses. No trace is left. A comment-only entry disappears; an entry that
+    /// also changed fields (a move with a comment) keeps those changes and loses
+    /// only the comment. The card's comment count and last human comment are
+    /// worked out again from the comments left, and UpdatedAt moves so agents
+    /// polling updatedSince notice.
+    /// </summary>
+    /// <exception cref="WorkItemNotFoundException">When the work item does not exist.</exception>
+    /// <exception cref="CommentNotFoundException">When the entry does not exist on it or has no comment.</exception>
+    /// <exception cref="WorkItemForbiddenException">An AI comment, or someone else's.</exception>
+    public async Task DeleteCommentAsync(int id, int commentId, CancellationToken ct = default)
+    {
+        var item = await _db.WorkItems.FirstOrDefaultAsync(w => w.Id == id, ct)
+                   ?? throw new WorkItemNotFoundException(id);
+        var entry = await _db.WorkItemHistory.Include(h => h.Revisions)
+            .FirstOrDefaultAsync(h => h.Id == commentId && h.WorkItemId == id, ct);
+        if (entry?.Comment is null)
+        {
+            throw new CommentNotFoundException(id, commentId);
+        }
+
+        EnsureOwnComment(entry, "deleted", "delete");
+
+        var pictures = AttachmentService.LinkedIds(entry.Revisions.Select(r => r.Comment).Append(entry.Comment));
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        _db.CommentRevisions.RemoveRange(entry.Revisions);
+        if (WorkItemChangeTracker.Deserialize(entry.ChangedFieldsJson).Count == 0)
+        {
+            _db.WorkItemHistory.Remove(entry);
+        }
+        else
+        {
+            entry.Comment = null;
+            entry.EditedAt = null;
+        }
+
+        // Counted again from what is left, the same way the 1.9.0 upgrade filled them in.
+        var left = await _db.WorkItemHistory.AsNoTracking()
+            .Where(h => h.WorkItemId == id && h.Id != commentId && h.Comment != null)
+            .Select(h => new { h.IsAiAction, h.Author, h.ChangeDate, h.EditedAt })
+            .ToListAsync(ct);
+        var lastHuman = left.Where(h => !h.IsAiAction).MaxBy(h => h.EditedAt ?? h.ChangeDate);
+        item.CommentCount = left.Count;
+        item.LastHumanCommentAt = lastHuman is null ? null : lastHuman.EditedAt ?? lastHuman.ChangeDate;
+        item.LastHumanCommentBy = lastHuman?.Author;
+        item.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+        item.LastModifiedBy = _actor.DisplayName;
+
+        await _db.SaveChangesAsync(ct);
+        await AttachmentService.DeleteUnusedAsync(_db, pictures, ct);
+        await transaction.CommitAsync(ct);
+    }
+
+    /// <summary>Only the person who wrote a comment may change it, and never an agent's comment.</summary>
+    /// <exception cref="WorkItemForbiddenException">An AI comment, or someone else's.</exception>
+    private void EnsureOwnComment(WorkItemHistory entry, string done, string verb)
+    {
+        if (_actor.IsAi || entry.IsAiAction)
+        {
+            throw new WorkItemForbiddenException($"AI agent comments cannot be {done}.");
+        }
+
+        if (!string.Equals(entry.Author, _actor.DisplayName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new WorkItemForbiddenException(
+                $"Only {entry.Author} can {verb} this comment. Set your name on the board to the name the comment was posted under.");
+        }
     }
 
     /// <summary>

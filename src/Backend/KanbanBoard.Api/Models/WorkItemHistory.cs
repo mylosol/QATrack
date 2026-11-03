@@ -2,9 +2,10 @@ namespace KanbanBoard.Api.Models;
 
 /// <summary>
 /// Audit trail row (spec 3.2). One row is written per create, update or
-/// comment. Rows are never deleted by the application; the only change ever
-/// made to one is its author editing the comment text (1.13.0), and the
-/// replaced text is kept as a <see cref="CommentRevision"/>.
+/// comment. Only a comment's author ever changes one: editing the text keeps
+/// the replaced text as a <see cref="CommentRevision"/> (1.13.0), and deleting
+/// the comment removes it and its revisions completely (1.27.0) - the whole
+/// row for a comment-only entry, just the comment when it also changed fields.
 /// </summary>
 public class WorkItemHistory
 {

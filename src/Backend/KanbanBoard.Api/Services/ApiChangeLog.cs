@@ -19,6 +19,18 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.27.0",
+            Date = "2026-10-29",
+            SchemaVersion = "049123c6dc93",
+            Breaking = false,
+            Summary = new[]
+            {
+                "People can now delete comments they wrote on the board (never yours). A deleted comment is gone from the work item's history; if it was posted with a change, such as a move, the entry stays with its changes and 'comment' null. Pictures only that comment used are deleted too.",
+                "Deleting moves the item's 'updatedAt' (so it appears in updatedSince polls) and recounts 'commentCount' and 'lastHumanCommentAt'/'lastHumanCommentBy' from the comments left, so those can go down or back in time. If a comment you were acting on is gone, the person withdrew it: don't act on it, and don't quote it back to them.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.25.0",
             Date = "2026-10-22",
             SchemaVersion = "049123c6dc93",

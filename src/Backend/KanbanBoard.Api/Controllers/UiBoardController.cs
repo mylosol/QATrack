@@ -131,4 +131,12 @@ public sealed class UiBoardController : ControllerBase
     [HttpPut("workitems/{id:int}/comments/{commentId:int}")]
     public async Task<ActionResult<WorkItemHistoryDto>> EditComment(int id, int commentId, [FromBody] EditCommentRequest request, CancellationToken ct)
         => Ok(await _items.EditCommentAsync(id, commentId, request, ct));
+
+    /// <summary>Delete your own comment completely (1.27.0): its text, earlier versions and pictures no one else uses.</summary>
+    [HttpDelete("workitems/{id:int}/comments/{commentId:int}")]
+    public async Task<IActionResult> DeleteComment(int id, int commentId, CancellationToken ct)
+    {
+        await _items.DeleteCommentAsync(id, commentId, ct);
+        return NoContent();
+    }
 }

@@ -149,6 +149,12 @@ export class ApiClient {
       'PUT', `workitems/${encodeURIComponent(String(id))}/comments/${encodeURIComponent(String(commentId))}`, { text });
   }
 
+  /** Deletes a comment you wrote, completely (1.27.0). */
+  async deleteComment(id: number, commentId: number): Promise<void> {
+    await this.request<void>(
+      'DELETE', `workitems/${encodeURIComponent(String(id))}/comments/${encodeURIComponent(String(commentId))}`);
+  }
+
   /** Records that the card was opened, clearing an unread AI reply (not an edit). */
   async markRead(id: number): Promise<void> {
     await this.request<void>('POST', `workitems/${encodeURIComponent(String(id))}/read`);
