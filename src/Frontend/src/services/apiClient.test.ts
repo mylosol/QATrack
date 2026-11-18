@@ -25,6 +25,10 @@ describe('buildQuery', () => {
     expect(buildQuery({ program: 'ProveOut', tag: 'ui & api' })).toBe('?program=ProveOut&tag=ui+%26+api');
   });
 
+  it('serializes the without-tag filter (1.28.0)', () => {
+    expect(buildQuery({ tag: 'ui', withoutTag: 'later on' })).toBe('?tag=ui&withoutTag=later+on');
+  });
+
   it('encodes special characters', () => {
     expect(buildQuery({ tag: 'a&b=c' })).toBe('?tag=a%26b%3Dc');
   });

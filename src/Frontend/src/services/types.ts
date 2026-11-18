@@ -188,6 +188,8 @@ export interface BoardFilter {
   aiModified?: boolean;
   program?: string;
   tag?: string;
+  /** Only cards without this tag (1.28.0). */
+  withoutTag?: string;
   discussion?: DiscussionStatus;
   /** Client-only (1.10.0): show only cards with comments this browser hasn't read. */
   unreadOnly?: boolean;

@@ -3,6 +3,12 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-11-18
+
+### Added
+- **Without tag filter.** Next to **Tag** in the filter bar, **Without tag** shows every card that doesn't have the tag you pick, including cards with no tags. It combines with the other filters, e.g. Tag "ui" + Without tag "later" shows the ui cards that aren't parked for later. **Clear filters** resets it.
+- API: agents can use the same filter, `withoutTag`, on `GET /api/v1/workitems` and `GET /api/v1/board`.
+
 ## [1.27.0] - 2026-10-29
 
 ### Added

@@ -31,7 +31,7 @@ public sealed class WorkItemsController : ControllerBase
     /// your last check, and compare each item's <c>lastHumanCommentAt</c> with the last human comment you read.
     /// Use <c>assignedTo=unassigned</c> to find items with no assignee.
     /// </remarks>
-    /// <param name="query">Optional filters: type, state, aiModified, assignedTo, program, tag, updatedSince, top; and sort (rank or id).</param>
+    /// <param name="query">Optional filters: type, state, aiModified, assignedTo, program, tag, withoutTag, updatedSince, top; and sort (rank or id).</param>
     /// <param name="ct">Cancellation token.</param>
     [HttpGet(Name = "listWorkItems")]
     [ProducesResponseType(typeof(IReadOnlyList<WorkItemDto>), StatusCodes.Status200OK)]

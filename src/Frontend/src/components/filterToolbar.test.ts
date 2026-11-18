@@ -47,6 +47,29 @@ describe('FilterToolbar', () => {
     expect(toolbar.value.tag).toBeUndefined();
   });
 
+  it('hides the cards with a tag ("Without tag", 1.28.0), alone or with a Tag filter', () => {
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+    toolbar.setTags(['api', 'later', 'ui']);
+    expect([...select('filter-without-tag').options].map((o) => o.value)).toEqual(['', 'api', 'later', 'ui']);
+    expect(select('filter-without-tag').labels![0]!.textContent).toContain('Without tag');
+
+    select('filter-without-tag').value = 'later';
+    select('filter-without-tag').dispatchEvent(new Event('change'));
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ withoutTag: 'later', tag: undefined }));
+    expect(toolbar.isFiltered).toBe(true);
+
+    select('filter-tag').value = 'ui';
+    select('filter-tag').dispatchEvent(new Event('change'));
+    expect(onFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({ tag: 'ui', withoutTag: 'later' }));
+
+    toolbar.setTags(['api']); // no longer in use, but stays selected
+    expect(select('filter-without-tag').value).toBe('later');
+
+    toolbar.reset();
+    expect(toolbar.value.withoutTag).toBeUndefined();
+    expect(toolbar.isFiltered).toBe(false);
+  });
+
   it('leaves an unchanged option list alone, so a refresh does not close an open dropdown (1.23.0)', () => {
     const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
     toolbar.setTags(['api', 'ui']);

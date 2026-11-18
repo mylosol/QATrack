@@ -19,6 +19,17 @@ public static class ApiChangeLog
     {
         new ApiChangeDto
         {
+            Version = "1.28.0",
+            Date = "2026-11-18",
+            SchemaVersion = "d89635d83379",
+            Breaking = false,
+            Summary = new[]
+            {
+                "New 'withoutTag' filter on GET /api/v1/workitems and GET /api/v1/board: only items that do NOT carry that tag (case-insensitive); items with no tags are included. It combines with 'tag' and the other filters, e.g. ?tag=ui&withoutTag=later.",
+            },
+        },
+        new ApiChangeDto
+        {
             Version = "1.27.0",
             Date = "2026-10-29",
             SchemaVersion = "049123c6dc93",

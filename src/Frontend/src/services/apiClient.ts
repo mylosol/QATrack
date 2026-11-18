@@ -70,6 +70,7 @@ export function buildQuery(filter: BoardFilter): string {
   if (filter.aiModified) params.set('aiModified', 'true');
   if (filter.program) params.set('program', filter.program);
   if (filter.tag) params.set('tag', filter.tag);
+  if (filter.withoutTag) params.set('withoutTag', filter.withoutTag);
   if (filter.discussion) params.set('discussion', filter.discussion);
   const qs = params.toString();
   return qs ? `?${qs}` : '';

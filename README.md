@@ -114,7 +114,7 @@ curl -X POST http://server:8080/api/v1/workitems \
 
 | Operation | Endpoint | operationId |
 |---|---|---|
-| List in work order (filters: `type`, `state`, `aiModified`, `assignedTo`, `program`, `tag`, `updatedSince`, `top`; `sort=id` for oldest first) | `GET /api/v1/workitems` | `listWorkItems` |
+| List in work order (filters: `type`, `state`, `aiModified`, `assignedTo`, `program`, `tag`, `withoutTag`, `updatedSince`, `top`; `sort=id` for oldest first) | `GET /api/v1/workitems` | `listWorkItems` |
 | Details + full audit history | `GET /api/v1/workitems/{id}` | `getWorkItem` |
 | Create | `POST /api/v1/workitems` | `createWorkItem` |
 | Update / move (partial; `""` clears the description) | `PATCH /api/v1/workitems/{id}` | `updateWorkItem` |
@@ -185,6 +185,7 @@ The board checks for changes every 10 seconds, and right away when you come back
 - **Deleting your comments (1.27.0):** next to **Edit**, **Delete** asks "Delete this comment for good?" and then removes the comment completely: its text, earlier versions and any picture only it used. Nothing is kept. A comment posted with a move keeps the move. The comment count and "Waiting for AI" are recalculated.
 - **Links to cards:** the address bar shows `?item=31` while a card is open; opening such a link opens the card.
 - **Top button (1.21.0):** scrolled down? **↑ Top** in the bottom-left corner takes you back up.
+- **Without tag (1.28.0):** in the filter bar, **Without tag** hides the cards that have that tag (cards with no tags still show). Use it with **Tag** for "has this tag but not that one".
 - **Go to case (1.20.0):** type a case number in the top bar (`83`, `#83` or a pasted link) and press Enter or **Open**. Filters don't get in the way.
 
 ### Files: logs and other attachments (1.14.0)
