@@ -89,13 +89,11 @@ describe('FilterToolbar', () => {
     expect(document.activeElement?.getAttribute('data-testid')).toBe('shortcut-AwaitingAgent');
   });
 
-  it('filters by "Unread by me" and "Waiting for AI", with counts and one-click shortcuts', () => {
+  it('filters by "unread" and "waiting for AI" with one-click buttons; no Discussion dropdown (1.28.1)', () => {
     const onMarkAllRead = vi.fn();
     const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem, onMarkAllRead });
     toolbar.setDiscussionCounts(2, 1);
-
-    const options = [...select('filter-discussion').options].map((o) => o.textContent);
-    expect(options).toEqual(['All cards', 'Unread by me (2)', 'Waiting for AI (1)']);
+    expect(root.querySelector('[data-testid="filter-discussion"]')).toBeNull();
 
     const unread = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-Unread"]')!;
     expect(unread.textContent).toBe('💬 2 unread');
@@ -117,7 +115,25 @@ describe('FilterToolbar', () => {
     expect(onMarkAllRead).toHaveBeenCalledOnce();
 
     toolbar.setDiscussionCounts(0, 0);
-    expect(root.querySelector('[data-testid="discussion-shortcuts"]')!.children).toHaveLength(0);
+    // Still filtering by "waiting for AI": its button stays so it can be turned off.
+    const shortcuts = root.querySelector('[data-testid="discussion-shortcuts"]')!;
+    expect([...shortcuts.children].map((c) => c.getAttribute('data-testid'))).toEqual(['shortcut-AwaitingAgent']);
+    expect(shortcuts.children[0]!.getAttribute('aria-pressed')).toBe('true');
+
+    toolbar.reset();
+    expect(toolbar.isFiltered).toBe(false);
+    expect(shortcuts.children).toHaveLength(0);
+  });
+
+  it('a pressed button shows as pressed at once and keeps focus', () => {
+    const toolbar = new FilterToolbar(root, { onFilterChange, onNewItem });
+    toolbar.setDiscussionCounts(2, 0);
+    root.querySelector<HTMLButtonElement>('[data-testid="shortcut-Unread"]')!.focus();
+    root.querySelector<HTMLButtonElement>('[data-testid="shortcut-Unread"]')!.click();
+    const pressed = root.querySelector<HTMLButtonElement>('[data-testid="shortcut-Unread"]')!;
+    expect(pressed.getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(pressed);
+    expect(toolbar.value.unreadOnly).toBe(true);
   });
 
   it('emits the combined filter on change', () => {

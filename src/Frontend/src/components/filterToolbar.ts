@@ -2,7 +2,9 @@
  * Quick-filter toolbar (spec 5.1): Work Item Type, State, Tag (1.4.0),
  * Without tag (1.28.0) and AI-modified status, plus the "New work item" action and the optional
  * display name used to attribute browser edits in the audit trail. The
- * Program filter was removed in 1.25.0 (one code base now).
+ * Program filter was removed in 1.25.0 (one code base now), and the
+ * Discussion dropdown in 1.28.1: the "unread" / "waiting for AI" buttons
+ * set that filter on their own, which keeps the toolbar on one line.
  */
 import { BOARD_STATES, type BoardFilter, type DiscussionStatus, stateLabel, TYPE_LABELS, WORK_ITEM_TYPES, type WorkItemState, type WorkItemType } from '../services/types';
 import { clear, h } from './dom';
@@ -40,10 +42,13 @@ export class FilterToolbar {
   private readonly tagSelect: HTMLSelectElement;
   /** Hides the cards that carry this tag (1.28.0). */
   private readonly withoutTagSelect: HTMLSelectElement;
-  private readonly discussionSelect: HTMLSelectElement;
+  /** Set by the "unread" / "waiting for AI" buttons; '' = all cards. */
+  private discussion: 'Unread' | DiscussionStatus | '' = '';
+  /** Last counts, to redraw the buttons when the filter changes. */
+  private counts = { unread: 0, awaitingAgent: 0 };
   private readonly aiCheckbox: HTMLInputElement;
   private readonly summary: HTMLElement;
-  /** Clickable "2 new replies" / "1 waiting for AI" counters (1.9.0). */
+  /** Clickable "2 unread" / "1 waiting for AI" counters (1.9.0); they are the Discussion filter. */
   private readonly discussionShortcuts: HTMLElement;
   private readonly nameInput: HTMLInputElement;
 
@@ -68,14 +73,7 @@ export class FilterToolbar {
     this.withoutTagSelect = h(
       'select',
       { class: 'field', name: 'withoutTag', 'data-testid': 'filter-without-tag' },
-      h('option', { value: '' }, 'None hidden'),
-    );
-    this.discussionSelect = h(
-      'select',
-      { class: 'field', name: 'discussion', 'data-testid': 'filter-discussion' },
-      h('option', { value: '' }, 'All cards'),
-      h('option', { value: 'Unread' }, 'Unread by me'),
-      h('option', { value: 'AwaitingAgent' }, 'Waiting for AI'),
+      h('option', { value: '' }, 'None'),
     );
     this.discussionShortcuts = h('span', { class: 'flex flex-wrap items-center gap-2', 'data-testid': 'discussion-shortcuts' });
     this.aiCheckbox = h('input', { type: 'checkbox', name: 'aiModified', class: 'h-4 w-4', 'data-testid': 'filter-ai' });
@@ -103,18 +101,18 @@ export class FilterToolbar {
       h('label', { class: 'field-label' }, 'State', this.stateSelect),
       h('label', { class: 'field-label' }, 'Tag', this.tagSelect),
       h('label', { class: 'field-label' }, 'Without tag', this.withoutTagSelect),
-      h('label', { class: 'field-label' }, 'Discussion', this.discussionSelect),
       h('label', { class: 'flex items-center gap-2 pb-1.5 text-sm font-medium' }, this.aiCheckbox, 'AI-modified only'),
       clearButton,
       this.summary,
       this.discussionShortcuts,
-      h('span', { class: 'flex-1' }),
-      h('label', { class: 'field-label' }, 'Your name (for history)', this.nameInput),
-      newButton,
+      // Your name and New stay together on the right, also when the bar wraps on a narrow screen.
+      h('div', { class: 'ml-auto flex items-end gap-3' },
+        h('label', { class: 'field-label' }, 'Your name (for history)', this.nameInput),
+        newButton),
     );
 
     form.addEventListener('submit', (e) => e.preventDefault());
-    for (const control of [this.typeSelect, this.stateSelect, this.tagSelect, this.withoutTagSelect, this.discussionSelect, this.aiCheckbox]) {
+    for (const control of [this.typeSelect, this.stateSelect, this.tagSelect, this.withoutTagSelect, this.aiCheckbox]) {
       control.addEventListener('change', () => this.handlers.onFilterChange(this.value));
     }
     clearButton.addEventListener('click', () => {
@@ -136,8 +134,8 @@ export class FilterToolbar {
       aiModified: this.aiCheckbox.checked || undefined,
       tag: this.tagSelect.value || undefined,
       withoutTag: this.withoutTagSelect.value || undefined,
-      discussion: this.discussionSelect.value === 'AwaitingAgent' ? 'AwaitingAgent' : undefined,
-      unreadOnly: this.discussionSelect.value === 'Unread' || undefined,
+      discussion: this.discussion === 'AwaitingAgent' ? 'AwaitingAgent' : undefined,
+      unreadOnly: this.discussion === 'Unread' || undefined,
     };
   }
 
@@ -158,26 +156,30 @@ export class FilterToolbar {
     this.aiCheckbox.checked = false;
     this.tagSelect.value = '';
     this.withoutTagSelect.value = '';
-    this.discussionSelect.value = '';
+    this.discussion = '';
+    this.renderShortcuts();
   }
 
   /**
    * Shows how many cards have comments unread by this browser / are waiting
    * for an AI, as buttons that apply the Discussion filter, plus "Mark all
-   * read"; also labels the filter options.
+   * read".
    */
   setDiscussionCounts(unread: number, awaitingAgent: number): void {
-    const [, unreadOption, waitingOption] = [...this.discussionSelect.options];
-    unreadOption!.textContent = `Unread by me (${unread})`;
-    waitingOption!.textContent = `Waiting for AI (${awaitingAgent})`;
+    this.counts = { unread, awaitingAgent };
+    this.renderShortcuts();
+  }
 
-    const shortcut = (status: 'Unread' | DiscussionStatus, text: string, cls: string): HTMLButtonElement => {
+  private renderShortcuts(): void {
+    const { unread, awaitingAgent } = this.counts;
+    const shortcut = (status: 'Unread' | DiscussionStatus, text: string, title: string, cls: string): HTMLButtonElement => {
       const button = h('button', {
-        type: 'button', class: `discussion-pill ${cls}`, 'data-testid': `shortcut-${status}`,
-        'aria-pressed': String(this.discussionSelect.value === status),
+        type: 'button', class: `discussion-pill ${cls}`, 'data-testid': `shortcut-${status}`, title,
+        'aria-pressed': String(this.discussion === status),
       }, text);
       button.addEventListener('click', () => {
-        this.discussionSelect.value = this.discussionSelect.value === status ? '' : status;
+        this.discussion = this.discussion === status ? '' : status;
+        this.renderShortcuts();
         this.handlers.onFilterChange(this.value);
       });
       return button;
@@ -185,10 +187,13 @@ export class FilterToolbar {
     // Rebuilt on every refresh; keep keyboard focus on the same shortcut.
     const active = document.activeElement;
     const focused = active instanceof HTMLElement && this.discussionShortcuts.contains(active) ? active.dataset.testid : undefined;
+    // A button that is filtering stays, even at 0, so the filter can be turned off where it was turned on.
     this.discussionShortcuts.replaceChildren(
-      ...(unread > 0 ? [shortcut('Unread', `💬 ${unread} unread`, 'discussion-unread')] : []),
+      ...(unread > 0 || this.discussion === 'Unread'
+        ? [shortcut('Unread', `💬 ${unread} unread`, 'Show only cards with comments you haven’t read', 'discussion-unread')] : []),
       ...(unread > 0 ? [this.markAllReadButton()] : []),
-      ...(awaitingAgent > 0 ? [shortcut('AwaitingAgent', `${awaitingAgent} waiting for AI`, 'discussion-waiting')] : []),
+      ...(awaitingAgent > 0 || this.discussion === 'AwaitingAgent'
+        ? [shortcut('AwaitingAgent', `${awaitingAgent} waiting for AI`, 'Show only cards waiting for an AI agent to answer', 'discussion-waiting')] : []),
     );
     if (focused) this.discussionShortcuts.querySelector<HTMLElement>(`[data-testid="${focused}"]`)?.focus();
   }
