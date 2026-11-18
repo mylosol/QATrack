@@ -3,7 +3,7 @@
  * quick filters - all against the real backend.
  */
 import { expect, test } from '@playwright/test';
-import { cardLocator, columnList, createViaUi, getItem, openBoard, uniqueTitle } from './helpers';
+import { cardLocator, columnList, createViaUi, expectNoAxeViolations, getItem, openBoard, uniqueTitle } from './helpers';
 
 test.describe('Board', () => {
   test('renders the four spec columns with plain counts and no WIP limits (1.11.0)', async ({ page }) => {
@@ -158,5 +158,31 @@ test.describe('Board', () => {
     await page.getByTestId('filter-type').selectOption('Feature');
     await expect(cardLocator(page, other.id)).toBeVisible();
     await expect(cardLocator(page, mine.id)).toHaveCount(0);
+  });
+
+  test('"Without tag" hides the cards with that tag, alone or with a Tag filter (1.28.0)', async ({ page, request }) => {
+    const area = `area-${Date.now().toString(36)}`;
+    const later = `later-${Date.now().toString(36)}`;
+    const parked = await createViaUi(request, { title: uniqueTitle('Parked'), type: 'Bug', tags: [area, later] });
+    const todo = await createViaUi(request, { title: uniqueTitle('To do'), type: 'Bug', tags: [area] });
+    const untagged = await createViaUi(request, { title: uniqueTitle('Untagged'), type: 'Bug' });
+    await openBoard(page);
+
+    await page.getByLabel('Without tag').selectOption(later);
+    await expect(cardLocator(page, parked.id)).toHaveCount(0);
+    await expect(cardLocator(page, todo.id)).toBeVisible();
+    await expect(cardLocator(page, untagged.id)).toBeVisible();
+    await expect(page.getByTestId('filter-summary')).toHaveText(/Showing \d+ of \d+ items/);
+
+    await page.getByTestId('filter-tag').selectOption(area);
+    await expect(cardLocator(page, todo.id)).toBeVisible();
+    await expect(cardLocator(page, parked.id)).toHaveCount(0);
+    await expect(cardLocator(page, untagged.id)).toHaveCount(0);
+    await expect(page.getByTestId('filter-summary')).toHaveText(/Showing 1 of \d+ items/);
+    await expectNoAxeViolations(page, 'without-tag filter');
+
+    await page.getByTestId('filter-clear').click();
+    await expect(page.getByTestId('filter-without-tag')).toHaveValue('');
+    await expect(cardLocator(page, parked.id)).toBeVisible();
   });
 });

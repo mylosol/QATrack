@@ -614,6 +614,13 @@ public sealed class WorkItemService
             source = source.Where(w => w.Tags.Any(t => t.NormalizedName == normalized));
         }
 
+        var withoutTag = TextSanitizer.SingleLine(query.WithoutTag, WorkItemDefaults.TagMaxLength);
+        if (withoutTag is not null)
+        {
+            var normalized = withoutTag.ToUpperInvariant();
+            source = source.Where(w => !w.Tags.Any(t => t.NormalizedName == normalized));
+        }
+
         return source;
     }
 

@@ -1,6 +1,6 @@
 /**
- * Quick-filter toolbar (spec 5.1): Work Item Type, State, Tag (1.4.0) and
- * AI-modified status, plus the "New work item" action and the optional
+ * Quick-filter toolbar (spec 5.1): Work Item Type, State, Tag (1.4.0),
+ * Without tag (1.28.0) and AI-modified status, plus the "New work item" action and the optional
  * display name used to attribute browser edits in the audit trail. The
  * Program filter was removed in 1.25.0 (one code base now).
  */
@@ -38,6 +38,8 @@ export class FilterToolbar {
   private readonly typeSelect: HTMLSelectElement;
   private readonly stateSelect: HTMLSelectElement;
   private readonly tagSelect: HTMLSelectElement;
+  /** Hides the cards that carry this tag (1.28.0). */
+  private readonly withoutTagSelect: HTMLSelectElement;
   private readonly discussionSelect: HTMLSelectElement;
   private readonly aiCheckbox: HTMLInputElement;
   private readonly summary: HTMLElement;
@@ -62,6 +64,11 @@ export class FilterToolbar {
       'select',
       { class: 'field', name: 'tag', 'data-testid': 'filter-tag' },
       h('option', { value: '' }, 'Any tag'),
+    );
+    this.withoutTagSelect = h(
+      'select',
+      { class: 'field', name: 'withoutTag', 'data-testid': 'filter-without-tag' },
+      h('option', { value: '' }, 'None hidden'),
     );
     this.discussionSelect = h(
       'select',
@@ -95,6 +102,7 @@ export class FilterToolbar {
       h('label', { class: 'field-label' }, 'Work item type', this.typeSelect),
       h('label', { class: 'field-label' }, 'State', this.stateSelect),
       h('label', { class: 'field-label' }, 'Tag', this.tagSelect),
+      h('label', { class: 'field-label' }, 'Without tag', this.withoutTagSelect),
       h('label', { class: 'field-label' }, 'Discussion', this.discussionSelect),
       h('label', { class: 'flex items-center gap-2 pb-1.5 text-sm font-medium' }, this.aiCheckbox, 'AI-modified only'),
       clearButton,
@@ -106,7 +114,7 @@ export class FilterToolbar {
     );
 
     form.addEventListener('submit', (e) => e.preventDefault());
-    for (const control of [this.typeSelect, this.stateSelect, this.tagSelect, this.discussionSelect, this.aiCheckbox]) {
+    for (const control of [this.typeSelect, this.stateSelect, this.tagSelect, this.withoutTagSelect, this.discussionSelect, this.aiCheckbox]) {
       control.addEventListener('change', () => this.handlers.onFilterChange(this.value));
     }
     clearButton.addEventListener('click', () => {
@@ -127,6 +135,7 @@ export class FilterToolbar {
       state: (this.stateSelect.value || '') as WorkItemState | '',
       aiModified: this.aiCheckbox.checked || undefined,
       tag: this.tagSelect.value || undefined,
+      withoutTag: this.withoutTagSelect.value || undefined,
       discussion: this.discussionSelect.value === 'AwaitingAgent' ? 'AwaitingAgent' : undefined,
       unreadOnly: this.discussionSelect.value === 'Unread' || undefined,
     };
@@ -140,7 +149,7 @@ export class FilterToolbar {
   /** True when any filter is active. */
   get isFiltered(): boolean {
     const v = this.value;
-    return Boolean(v.type || v.state || v.aiModified || v.tag || v.discussion || v.unreadOnly);
+    return Boolean(v.type || v.state || v.aiModified || v.tag || v.withoutTag || v.discussion || v.unreadOnly);
   }
 
   reset(): void {
@@ -148,6 +157,7 @@ export class FilterToolbar {
     this.stateSelect.value = '';
     this.aiCheckbox.checked = false;
     this.tagSelect.value = '';
+    this.withoutTagSelect.value = '';
     this.discussionSelect.value = '';
   }
 
@@ -189,9 +199,10 @@ export class FilterToolbar {
     return button;
   }
 
-  /** Refreshes the Tag filter options, keeping the selection. */
+  /** Refreshes the Tag and Without tag options, keeping the selections. */
   setTags(tags: string[]): void {
     FilterToolbar.fillOptions(this.tagSelect, tags);
+    FilterToolbar.fillOptions(this.withoutTagSelect, tags);
   }
 
   /** Replaces every option after the first ("All ...") one; a list that didn't change is left alone (an open dropdown stays open). */

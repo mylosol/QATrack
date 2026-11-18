@@ -383,6 +383,10 @@ public sealed class WorkItemQuery
     [MaxLength(WorkItemDefaults.TagMaxLength)]
     public string? Tag { get; set; }
 
+    /// <summary>Only items NOT carrying this tag (case-insensitive); items with no tags count (1.28.0). Combines with 'tag'.</summary>
+    [MaxLength(WorkItemDefaults.TagMaxLength)]
+    public string? WithoutTag { get; set; }
+
     /// <summary>
     /// Only items whose discussion is in this state. AwaitingAgent lists every card with a human comment
     /// no agent has answered yet.
