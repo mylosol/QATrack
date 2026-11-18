@@ -88,7 +88,7 @@ test.describe('Discussion status', () => {
 
     await openBoard(page);
     await page.getByTestId('shortcut-Unread').click();
-    await expect(page.getByTestId('filter-discussion')).toHaveValue('Unread');
+    await expect(page.getByTestId('shortcut-Unread')).toHaveAttribute('aria-pressed', 'true');
     await expect(cardLocator(page, unread.id)).toBeVisible();
     await expect(cardLocator(page, quiet.id)).toHaveCount(0);
     await expect(page.locator('article[data-card-id]:not([data-unread="true"])')).toHaveCount(0);
@@ -96,10 +96,14 @@ test.describe('Discussion status', () => {
     await page.getByTestId('mark-all-read').click();
     await expect(page.locator('#live-polite')).toContainText(/Marked \d+ cards? as read/);
     await expect(page.locator('article[data-unread="true"]')).toHaveCount(0);
-    await expect(page.getByTestId('shortcut-Unread')).toHaveCount(0);
+    // Still filtering: the button stays, at 0, so the filter is turned off where it was turned on (1.28.1).
+    const button = page.getByTestId('shortcut-Unread');
+    await expect(button).toHaveText('💬 0 unread');
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
 
-    await page.getByTestId('filter-clear').click();
+    await button.click();
     await expect(cardLocator(page, quiet.id)).toBeVisible();
+    await expect(page.getByTestId('shortcut-Unread')).toHaveCount(0);
   });
 
   test('your own comment is not unread to you; it shows "Waiting for AI" until an agent replies', async ({ page, request }) => {
@@ -142,7 +146,7 @@ test.describe('Discussion status', () => {
 
     await openBoard(page);
     await page.getByTestId('shortcut-AwaitingAgent').click();
-    await expect(page.getByTestId('filter-discussion')).toHaveValue('AwaitingAgent');
+    await expect(page.getByTestId('shortcut-AwaitingAgent')).toHaveAttribute('aria-pressed', 'true');
     await expect(cardLocator(page, waiting.id)).toBeVisible();
     await expect(cardLocator(page, quiet.id)).toHaveCount(0);
     await expect(page.locator('article[data-card-id]:not([data-discussion="AwaitingAgent"])')).toHaveCount(0);

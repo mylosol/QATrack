@@ -3,6 +3,12 @@
 All notable changes to QATrack are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.1] - 2026-11-18
+
+### Changed
+- **The filter bar fits on one line again.** The **Discussion** dropdown is gone: the **💬 unread** and **waiting for AI** buttons already set that filter. Click one to show only those cards, and click it again (or **Clear filters**) to show everything. A button you're filtering by stays visible even when its count drops to 0, so you can turn it off where you turned it on.
+- On a narrow screen, **Your name** and **+ New work item** now wrap to the next line together, on the right, instead of the button wrapping alone.
+
 ## [1.28.0] - 2026-11-18
 
 ### Added
